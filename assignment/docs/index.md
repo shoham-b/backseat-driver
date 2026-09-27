@@ -1,18 +1,18 @@
 # VLM Scene Description
 
-Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model
+Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model.
 
 ## Quick start
 
 ```bash
-# Clone and install
 uv sync --group dev
 uv run pre-commit install
 
-# Start the dev server
-just dev
+# Download the nuScenes v1.0-mini dataset into data/sets/nuscenes (see Getting Started),
+# then run the pipeline:
+just run
 ```
 
-Open `http://127.0.0.1:8080/docs` for the interactive API explorer.
+Results are written to `output/scene_descriptions.json` by default.
 
-See [Getting Started](getting-started.md) for Docker Compose and full setup instructions, or run `just --list` to see all available dev tasks.
+See [Getting Started](getting-started.md) for dataset setup, Docker usage, and the optional HTTP API, or run `just --list` to see all available dev tasks.

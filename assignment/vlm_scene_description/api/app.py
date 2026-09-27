@@ -11,18 +11,12 @@ from vlm_scene_description.api.exception_handlers import (
     unhandled_exception_handler,
 )
 from vlm_scene_description.api.middleware import RequestIDMiddleware
+from vlm_scene_description.api.routers.describe import router as describe_router
 from vlm_scene_description.api.routers.health import router as health_router
-from vlm_scene_description.api.routers.items import router as items_router
+from vlm_scene_description.bl.captioner import BlipCaptioner
 from vlm_scene_description.bl.errors import DomainError
-from vlm_scene_description.bl.events import DomainEvent, EventBus, ItemCreated
 from vlm_scene_description.config import get_settings
-from vlm_scene_description.db.factory import get_repository
 from vlm_scene_description.logger import LogFormat, setup_logging
-
-
-async def _on_item_created(event: DomainEvent) -> None:
-    if isinstance(event, ItemCreated):
-        logger.bind(item_id=event.item_id).info("item created")
 
 
 @asynccontextmanager
@@ -31,12 +25,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_logging(LogFormat(settings.log_format), service="api")
 
     app.state.settings = settings
-    app.state.repository = get_repository(settings)
+    app.state.captioner = BlipCaptioner(model_name=settings.vlm_model_name)
 
-
-    event_bus = EventBus()
-    event_bus.subscribe(ItemCreated, _on_item_created)
-    app.state.event_bus = event_bus
     logger.bind(api_url=settings.api_url).info("startup complete")
     yield
 
@@ -49,6 +39,4 @@ app.add_exception_handler(DomainError, domain_error_handler)  # type: ignore
 app.add_exception_handler(APIError, api_error_handler)  # type: ignore
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(health_router)
-app.include_router(items_router)
-
-
+app.include_router(describe_router)

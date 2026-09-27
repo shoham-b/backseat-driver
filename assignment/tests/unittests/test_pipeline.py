@@ -1,116 +1,74 @@
-"""Tests for the Chain of Responsibility validation pipeline (bl/pipeline.py)."""
-import pytest
-
-from vlm_scene_description.bl.errors import UnprocessableError
-from vlm_scene_description.bl.pipeline import (
-    DescriptionLengthValidator,
-    IdFormatValidator,
-    NameNotEmptyValidator,
-    ValidationPipeline,
-)
-from vlm_scene_description.models import Item
+from vlm_scene_description.bl.pipeline import ScenePipeline
+from vlm_scene_description.models import SceneKeyframe
 
 
-def _item(item_id: str = "abc", name: str = "Valid Name", description: str | None = None) -> Item:
-    return Item(id=item_id, name=name, description=description)
+class _FakeLoader:
+    def __init__(self, keyframes: list[SceneKeyframe]) -> None:
+        self._keyframes = keyframes
+
+    def load_keyframes(self) -> list[SceneKeyframe]:
+        return self._keyframes
 
 
-# ── NameNotEmptyValidator ────────────────────────────────────────────────────
+class _FakeCaptioner:
+    def __init__(self) -> None:
+        self.seen_paths: list[str] = []
 
-async def test_name_not_empty_passes_normal_name() -> None:
-    await NameNotEmptyValidator().validate(_item(name="Widget"))
+    def caption(self, image_path: str) -> str:
+        self.seen_paths.append(image_path)
+        return f"a caption for {image_path}"
 
-
-async def test_name_not_empty_rejects_blank() -> None:
-    with pytest.raises(UnprocessableError, match="blank"):
-        await NameNotEmptyValidator().validate(_item(name="   "))
-
-
-async def test_name_not_empty_rejects_empty_string() -> None:
-    with pytest.raises(UnprocessableError):
-        await NameNotEmptyValidator().validate(_item(name=""))
+    def healthcheck(self) -> bool:
+        return True
 
 
-# ── IdFormatValidator ────────────────────────────────────────────────────────
-
-async def test_id_format_passes_alphanumeric() -> None:
-    await IdFormatValidator().validate(_item(item_id="abc123"))
-
-
-async def test_id_format_passes_hyphens_and_underscores() -> None:
-    await IdFormatValidator().validate(_item(item_id="my-item_v2"))
-
-
-async def test_id_format_rejects_special_chars() -> None:
-    with pytest.raises(UnprocessableError, match="only letters"):
-        await IdFormatValidator().validate(_item(item_id="bad id!"))
-
-
-async def test_id_format_rejects_spaces() -> None:
-    with pytest.raises(UnprocessableError):
-        await IdFormatValidator().validate(_item(item_id="has space"))
-
-
-# ── DescriptionLengthValidator ───────────────────────────────────────────────
-
-async def test_description_length_passes_within_limit() -> None:
-    await DescriptionLengthValidator(max_length=10).validate(_item(description="short"))
-
-
-async def test_description_length_passes_none() -> None:
-    await DescriptionLengthValidator().validate(_item(description=None))
-
-
-async def test_description_length_rejects_too_long() -> None:
-    with pytest.raises(UnprocessableError, match="maximum"):
-        await DescriptionLengthValidator(max_length=5).validate(_item(description="too long string"))
-
-
-async def test_description_length_default_500() -> None:
-    await DescriptionLengthValidator().validate(_item(description="x" * 500))
-    with pytest.raises(UnprocessableError):
-        await DescriptionLengthValidator().validate(_item(description="x" * 501))
-
-
-# ── ValidationPipeline ───────────────────────────────────────────────────────
-
-async def test_pipeline_passes_valid_item() -> None:
-    pipeline = ValidationPipeline(
-        NameNotEmptyValidator(),
-        IdFormatValidator(),
-        DescriptionLengthValidator(),
+def _keyframe(n: int) -> SceneKeyframe:
+    return SceneKeyframe(
+        scene_token=f"token-{n}",
+        scene_name=f"scene-{n}",
+        camera_channel="CAM_FRONT",
+        image_path=f"/data/scene-{n}.jpg",
     )
-    await pipeline.run(_item())
 
 
-async def test_pipeline_stops_at_first_failure() -> None:
-    call_order: list[str] = []
+def test_run_describes_every_scene() -> None:
+    keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
+    captioner = _FakeCaptioner()
+    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=captioner, model_name="fake-model")
 
-    class TrackingValidator:
-        def __init__(self, label: str, should_fail: bool) -> None:
-            self._label = label
-            self._fail = should_fail
+    descriptions = pipeline.run()
 
-        async def validate(self, item: Item) -> None:
-            call_order.append(self._label)
-            if self._fail:
-                raise UnprocessableError(self._label)
-
-    pipeline = ValidationPipeline(
-        TrackingValidator("first", should_fail=True),
-        TrackingValidator("second", should_fail=False),
-    )
-    with pytest.raises(UnprocessableError, match="first"):
-        await pipeline.run(_item())
-
-    assert call_order == ["first"]
+    assert len(descriptions) == 3
+    assert [d.scene_name for d in descriptions] == ["scene-1", "scene-2", "scene-3"]
+    assert all(d.model_name == "fake-model" for d in descriptions)
+    assert captioner.seen_paths == [kf.image_path for kf in keyframes]
 
 
-async def test_empty_pipeline_always_passes() -> None:
-    await ValidationPipeline().run(_item())
+def test_run_respects_max_scenes() -> None:
+    keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
+    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=_FakeCaptioner(), model_name="fake-model")
+
+    descriptions = pipeline.run(max_scenes=2)
+
+    assert len(descriptions) == 2
+    assert [d.scene_name for d in descriptions] == ["scene-1", "scene-2"]
 
 
-async def test_pipeline_rejects_blank_name_before_bad_id() -> None:
-    pipeline = ValidationPipeline(NameNotEmptyValidator(), IdFormatValidator())
-    with pytest.raises(UnprocessableError, match="blank"):
-        await pipeline.run(_item(name="", item_id="bad id!"))
+def test_run_on_empty_dataset_returns_empty_list() -> None:
+    pipeline = ScenePipeline(loader=_FakeLoader([]), captioner=_FakeCaptioner(), model_name="fake-model")
+
+    descriptions = pipeline.run()
+
+    assert descriptions == []
+
+
+def test_description_carries_keyframe_fields_through() -> None:
+    keyframe = _keyframe(1)
+    pipeline = ScenePipeline(loader=_FakeLoader([keyframe]), captioner=_FakeCaptioner(), model_name="fake-model")
+
+    [description] = pipeline.run()
+
+    assert description.scene_token == keyframe.scene_token
+    assert description.camera_channel == keyframe.camera_channel
+    assert description.image_path == keyframe.image_path
+    assert description.description == f"a caption for {keyframe.image_path}"

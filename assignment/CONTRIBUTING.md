@@ -20,7 +20,7 @@ pre-commit install
 
 ## Code style
 
-This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and [mypy](https://mypy.readthedocs.io/) (strict mode) for type checking. Pre-commit hooks enforce style automatically on commit.
+This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and [ty](https://github.com/astral-sh/ty) for type checking. Pre-commit hooks enforce style automatically on commit.
 
 ## Tests
 

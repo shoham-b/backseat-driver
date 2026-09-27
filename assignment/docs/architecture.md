@@ -2,65 +2,57 @@
 
 ## Components
 
-| Component | Entry point | Default address | Description |
-|---|---|---|---|
-| **api** | `just dev` (dev) / `just serve` (production) | `:8080` | FastAPI HTTP service |
+The pipeline logic in `bl/` is shared by two independent entry points:
 
+| Component | Entry point | Description |
+|---|---|---|
+| **CLI** (primary) | `uv run vlm_scene_description run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
+| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080` | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
 
 ## Data flow
 
 ```
-┌─────────────────────────────────────────────┐
-│  Client                                      │
-│  HTTP request                                │
-└────────────────────┬────────────────────────┘
-                     │ HTTP
-                     ▼
-┌─────────────────────────────────────────────┐
-│  vlm_scene_description.api  (:8080)            │
-│  FastAPI                                     │
-│                                              │
-│  1. Validate request                         │
-│  2. Call service layer                       │
-│  3. Return response                          │
-└────────────────────┬────────────────────────┘
-                     │ Python call
-                     ▼
-┌─────────────────────────────────────────────┐
-│  vlm_scene_description.services                │
-│  Business logic — no HTTP, no DB knowledge  │
-│                                              │
-│  Accepts: models + Repository (injected)    │
-│  Returns: domain models                      │
-└────────────────────┬────────────────────────┘
-                     │ Repository interface
-                     ▼
-┌─────────────────────────────────────────────┐
-│  vlm_scene_description.db                      │
-│  MemoryRepository  │  SQLiteRepository       │
-│  (dev / tests)     │  (production)           │
-└─────────────────────────────────────────────┘
+CLI path (batch):
+
+┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
+│  NuScenesSceneLoader  │──▶│     ScenePipeline     │──▶│      write_json      │
+│  reads dataset JSON,  │   │  loader → captioner   │   │  list[SceneDescription]│
+│  picks one keyframe   │   │  per scene            │   │  → output/*.json      │
+│  image per scene      │   │                        │   │                      │
+└──────────────────────┘   └───────────┬────────────┘   └──────────────────────┘
+                                        │
+                                        ▼
+                              ┌──────────────────┐
+                              │   BlipCaptioner   │
+                              │  HF image-to-text │
+                              │  pipeline (lazy)   │
+                              └──────────────────┘
+
+API path (on-demand, optional):
+
+┌────────────┐   HTTP POST    ┌───────────────────────┐   Python call   ┌──────────────────┐
+│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│   BlipCaptioner   │
+└────────────┘   (image)      └───────────────────────┘                 └──────────────────┘
 ```
 
 ## Layer design
 
 ```
-models/            bl/                    api/
-──────────         ───────────            ────
-Domain models  →   Business logic    →    FastAPI routes
-Pure Pydantic      No HTTP concepts        Request/response
-No dependencies    Accepts Repository      Calls bl layer
-                   via constructor         Validates input
+models/            bl/                        cli/ | api/
+──────────         ───────────                ─────────────
+Domain models  →   Business logic         →    Entry points
+Pure Pydantic      No HTTP, no nuscenes/        cli/run.py drives the batch
+No dependencies    transformers imports at      pipeline; api/routers/describe.py
+                   module scope — only          drives the on-demand endpoint.
+                   inside methods (lazy)
 ```
 
 Each layer only imports from layers to its left:
 
-- **`models/`** — pure Pydantic models. No imports from `api/`, `bl/`, or `db/`.
-- **`bl/`** — business logic. Imports `models`. Accepts `db.base.Repository` via constructor. No FastAPI types, no HTTP status codes.
-- **`db/`** — data access. Implements `Repository` ABC from `db/base.py`. No business logic.
+- **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`). No imports from `api/`, `bl/`, or `cli/`.
+- **`bl/`** — business logic. `nuscenes_loader.SceneLoader` and `captioner.Captioner` are Protocols; `pipeline.ScenePipeline` is built from them via constructor injection, so it never imports nuscenes-devkit, transformers, or torch — those stay behind lazy imports inside the concrete implementations, which keeps `ScenePipeline` fast and trivially testable with fakes.
 - **`api/`** — HTTP layer. Imports `bl` and `models`. Owns request validation, response serialization, and error mapping.
-
-This separation keeps each layer independently testable: services can be unit-tested with a `MemoryRepository`, and the API can be integration-tested in-process without a real database.
+- **`cli/`** — Typer commands. Wires concrete `bl/` implementations together and drives the pipeline or a test suite.
 
 ## API contracts
 
@@ -68,33 +60,26 @@ This separation keeps each layer independently testable: services can be unit-te
 
 Successes return the documented model directly. Errors use `{"error": {"code": <int>, "status": "<phrase>", "message": "<detail>"}}`.
 
-#### Observability endpoints
-
-| Method | Path | Probe type | k8s field | Description |
-|---|---|---|---|---|
-| `GET` | `/health` | Liveness | `livenessProbe` | Returns 200 if the process is running — no dependency checks |
-| `GET` | `/ready` | Readiness | `readinessProbe` | Returns 200 only when all dependencies (storage, etc.) are reachable; 503 otherwise |
-| `GET` | `/metrics` | — | — | Prometheus metrics (scraped by Prometheus/Grafana) |
-
-k8s removes a pod from the load balancer when `/ready` fails, and restarts it when `/health` fails.
-
-> Add your domain endpoints here as the service grows.
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Liveness probe — returns 200 if the process is running, no dependency checks |
+| `GET` | `/ready` | Readiness probe — returns 200 only when the captioner is available; 503 otherwise |
+| `POST` | `/describe` | Multipart image upload → `{"description": str, "model_name": str}` |
 
 ## Module responsibilities
 
 | Package | Responsibility |
 |---|---|
+| [`vlm_scene_description.models`](../vlm_scene_description/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
+| [`vlm_scene_description.bl`](../vlm_scene_description/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`/`BlipCaptioner`, `ScenePipeline`, `write_json` |
+| [`vlm_scene_description.cli`](../vlm_scene_description/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
 | [`vlm_scene_description.api`](../vlm_scene_description/api/) | FastAPI app, routes, lifespan, exception handlers |
-| [`vlm_scene_description.bl`](../vlm_scene_description/bl/) | Business logic; injected with a `Repository` |
-| [`vlm_scene_description.models`](../vlm_scene_description/models.py) | Shared domain models (Pydantic) |
-| [`vlm_scene_description.db`](../vlm_scene_description/db/) | `Repository` ABC + `MemoryRepository` + `SQLiteRepository` |
 | [`vlm_scene_description.config`](../vlm_scene_description/config.py) | `Settings` (pydantic-settings, env-var backed) |
 | [`vlm_scene_description.logger`](../vlm_scene_description/logger.py) | Loguru setup; `LogFormat` enum; `setup_logging()` |
 
-
 ## Logging
 
-All services use [loguru](https://github.com/Delgan/loguru). `setup_logging(fmt, service)` in [`vlm_scene_description.logger`](../vlm_scene_description/logger.py) removes loguru's default handler and installs the configured one.
+All entry points use [loguru](https://github.com/Delgan/loguru). `setup_logging(fmt, service)` in [`vlm_scene_description.logger`](../vlm_scene_description/logger.py) removes loguru's default handler and installs the configured one.
 
 | Format | Output | Use case |
 |---|---|---|
@@ -103,17 +88,13 @@ All services use [loguru](https://github.com/Delgan/loguru). `setup_logging(fmt,
 
 Set the format via `VLM_SCENE_DESCRIPTION_LOG_FORMAT=colored|json` or in `.env`.
 
-`setup_logging()` is called once per process entry-point (API lifespan). All other modules just `from loguru import logger`.
+`setup_logging()` is called once per process entry-point (API lifespan, CLI `run` command). All other modules just `from loguru import logger`.
 
-## Storage
+## Deployment
 
-[`vlm_scene_description.db.base.Repository`](../vlm_scene_description/db/base.py) is an abstract base class with two implementations:
+The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
-| Implementation | Used in |
-|---|---|
-| `MemoryRepository` | Tests and local dev (`VLM_SCENE_DESCRIPTION_DB_BACKEND=memory`) |
-| `SQLiteRepository` | Production (`VLM_SCENE_DESCRIPTION_DB_BACKEND=sqlite`, path from `VLM_SCENE_DESCRIPTION_DB_PATH`) |
+1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `vlm_scene_description run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
+2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `BlipCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
-`db/factory.py` selects the implementation from `Settings.db_backend` at startup.
-
-ORM tables are defined in [`vlm_scene_description.db.orm`](../vlm_scene_description/db/orm.py) as subclasses of `Base`. Schema changes are managed with Alembic ([`migrations/`](../migrations/)); the migration URL is derived from `Settings.database_url`, and migrations ship inside the API image so they can run as a Kubernetes init container or job.
+Both images share `bl/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

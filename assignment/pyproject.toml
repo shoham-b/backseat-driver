@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
 
 [project.scripts]
@@ -19,23 +19,47 @@ where = ["."]
 include = ["vlm_scene_description*"]
 
 [dependency-groups]
+core = [
+    "typer>=0.12",
+    "loguru>=0.7",
+    "pydantic-settings>=2.9",
+]
+
+vlm = [
+    "torch>=2.4",
+    # Pinned below 5.0: the "image-to-text" unconditional-captioning pipeline task
+    # was folded into the chat-style "image-text-to-text" task in transformers 5,
+    # which requires a text prompt and no longer fits plain scene captioning.
+    "transformers>=4.44,<5",
+    "pillow>=10.4",
+]
+
+nuscenes = [
+    "nuscenes-devkit>=1.1.11",
+]
+
+# Everything the batch CLI pipeline needs at runtime.
+cli = [
+    { include-group = "core" },
+    { include-group = "vlm" },
+    { include-group = "nuscenes" },
+]
+
+# Everything the HTTP API needs at runtime (single-image captioning only —
+# no nuscenes-devkit, since the API never reads the dataset).
 api = [
     "fastapi>=0.115",
     "granian>=1.7",
-    "typer>=0.12",
-    "httpx>=0.28",
-    "loguru>=0.7",
-
-
-
-    "pydantic-settings>=2.9",
-    "stamina>=1.0",
+    "python-multipart>=0.0.12",
+    { include-group = "core" },
+    { include-group = "vlm" },
 ]
 
 systemtest = [
     "pytest>=8",
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
+    { include-group = "core" },
 ]
 docs = [
     "mkdocs>=1.6",
@@ -50,16 +74,23 @@ dev = [
     "pytest-cov>=6",
     "coverage[toml]>=7",
     "httpx>=0.28",
-    "respx>=0.22",
     "hypothesis>=6",
     "schemathesis>=3.0",
+    { include-group = "cli" },
     { include-group = "api" },
-
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
 
 [tool.ruff]
 line-length = 120
-target-version = "py313"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
@@ -68,7 +99,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
 quote-style = "double"
 
 [tool.ty.environment]
-python-version = "3.13"
+python-version = "3.12"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

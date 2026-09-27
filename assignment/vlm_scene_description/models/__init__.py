@@ -1,41 +1,26 @@
-"""Domain models — pure Pydantic, no imports from api/, bl/, or db/."""
+"""Domain models — pure Pydantic, no imports from api/, bl/, or cli/."""
 
-from pydantic import BaseModel
+from datetime import UTC, datetime
 
-
-class Item(BaseModel):
-    """Example domain entity — replace with your own types."""
-
-    id: str
-    name: str
-    description: str | None = None
+from pydantic import BaseModel, Field
 
 
-class ItemUpdate(BaseModel):
-    """Partial-update payload for Item — all fields are optional.
+class SceneKeyframe(BaseModel):
+    """A single representative image picked to stand in for a whole scene."""
 
-    Only fields present in the request body are applied; absent fields leave
-    the existing value unchanged. Use with Repository.update_item() and the
-    PATCH endpoint.
-    """
-
-    name: str | None = None
-    description: str | None = None
+    scene_token: str
+    scene_name: str
+    camera_channel: str
+    image_path: str
 
 
-class Page[T](BaseModel):
-    """Generic paginated response envelope.
+class SceneDescription(BaseModel):
+    """A scene keyframe plus the natural-language description a VLM produced for it."""
 
-    Usage::
-
-        @router.get("/items")
-        async def list_items(...) -> Page[Item]:
-            rows, total = await service.list_all(offset=p.offset, limit=p.page_size)
-            return Page(items=rows, total=total, page=p.page, page_size=p.page_size)
-    """
-
-    items: list[T]
-    total: int
-    page: int
-    page_size: int
-
+    scene_token: str
+    scene_name: str
+    camera_channel: str
+    image_path: str
+    description: str
+    model_name: str
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

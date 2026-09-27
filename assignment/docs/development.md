@@ -4,7 +4,7 @@
 
 | Tool | Install | Purpose |
 |---|---|---|
-| [Python 3.13+](https://www.python.org/) | system / pyenv | Runtime |
+| [Python 3.12+](https://www.python.org/) | system / pyenv | Runtime |
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | Package manager |
 | [just](https://github.com/casey/just) | `cargo install just` / `brew install just` | Task runner |
 | [Docker](https://www.docker.com/) | platform installer | Compose system tests |
@@ -25,14 +25,12 @@ Run `just --list` at any time to see all targets. The full table:
 
 | Command | Description |
 |---|---|
-| `just dev` | Dev server with hot reload (`fastapi dev`) |
-| `just serve` | Production-mode server (`fastapi run`, binds `0.0.0.0:8080`) |
-| `just migrate` | Apply all pending database migrations (`alembic upgrade head`) |
-| `just migrate-rev "msg"` | Generate a migration from ORM model changes |
-| `just migrate-down` | Roll back the last migration |
+| `just run [ARGS]` | Run the scene-description pipeline (`vlm_scene_description run`) |
+| `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
+| `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
-| `just test-smoke` | Smoke tests against a running service |
-| `just test-system` | System tests (requires the service to be running locally) |
+| `just test-smoke` | Smoke tests against a running API |
+| `just test-system` | System tests (requires the API to be running locally) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
 | `just lint` | Ruff check + format check (CI mode — no auto-fixes) |
@@ -49,8 +47,8 @@ Run `just --list` at any time to see all targets. The full table:
 ```bash
 just lint       # ruff check + format check (CI mode — no auto-fixes)
 just fmt        # auto-fix and reformat
-just typecheck  # mypy strict
-just check      # pre-commit on all files (ruff + mypy)
+just typecheck  # ty check
+just check      # pre-commit on all files (ruff + ty)
 ```
 
 All three are enforced in CI.
@@ -61,8 +59,8 @@ There are four test layers, from fastest to slowest:
 
 | Layer | Path | Infrastructure |
 |---|---|---|
-| Unit | `tests/unittests/` | none |
-| Integration | `tests/integrationtests/` | in-process (no external services) |
+| Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are monkeypatched, no dataset or model download |
+| Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
 | Smoke | `tests/smoketests/` | running API (set `API_URL` to override) |
 | System | `tests/systemtests/` | Docker Compose |
 
@@ -72,7 +70,9 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network. Cover pure functions, config parsing, and anything that doesn't need a running service.
+No I/O, no network, no GPU. `bl/nuscenes_loader.py` and `bl/captioner.py` import nuscenes-devkit and
+transformers lazily inside methods specifically so these tests can monkeypatch them out — see
+`tests/unittests/test_nuscenes_loader.py` and `test_captioner.py`.
 
 ### Integration tests
 
@@ -82,14 +82,8 @@ just test   # unit + integration with coverage
 uv run pytest tests/integrationtests -v
 ```
 
-FastAPI runs in-process via `httpx.ASGITransport` — no port binding, no subprocess. Fast and fully isolated.
-
-```python
-# Pattern used in tests/integrationtests/conftest.py
-transport = httpx.ASGITransport(app=app)
-async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-    ...
-```
+FastAPI runs in-process via `httpx.ASGITransport` — no port binding, no subprocess, and the real
+`BlipCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
 
 ### Smoke tests
 
@@ -104,21 +98,15 @@ Or via the CLI:
 uv run vlm_scene_description test smoke --api-url http://staging:8080
 ```
 
-Tests skip automatically when the target is not reachable.
-
 ### System tests (Docker Compose)
 
 ```bash
 just test-compose
 ```
 
-Builds all images, starts the full stack, runs `tests/systemtests/` and `tests/smoketests/` inside the `systemtest` container, then tears everything down. The `systemtest` service has `profiles: [test]` so it doesn't start with a plain `docker compose up`.
-
-To run system tests against an already-running stack:
-
-```bash
-API_URL=http://my-server:8080 uv run pytest tests/systemtests -v
-```
+Builds the `api` image, starts it, runs `tests/systemtests/` and `tests/smoketests/` inside the
+`systemtest` container, then tears everything down. Both `systemtest` and the `cli` service have
+`profiles` set (`test` / `cli`) so neither starts with a plain `docker compose up`.
 
 ### Coverage
 
@@ -132,11 +120,10 @@ Coverage is measured over `vlm_scene_description` excluding `cli/`.
 
 ```
 vlm_scene_description/
-├── api/            # FastAPI app, routes, lifespan, exception handlers
-│   └── routers/    # One router per domain area
-├── bl/             # Business logic layer
-├── cli/            # Typer CLI entry-point and subcommands
-├── db/             # Repository ABC + MemoryRepository + SQLiteRepository
+├── api/            # Optional FastAPI service (/describe, /health, /ready)
+│   └── routers/
+├── bl/             # Business logic: loader, captioner, pipeline, writer, errors
+├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
 └── logger.py       # Loguru setup; LogFormat enum
@@ -147,39 +134,31 @@ tests/
 └── systemtests/
 ```
 
-## Extending the service
+## Extending the pipeline
+
+### Swapping the VLM
+
+`bl/captioner.py` defines a `Captioner` Protocol (`caption(image_path) -> str`, `healthcheck() -> bool`).
+Add a new implementation there (e.g. a different HF model, or a call to an external VLM API) and pass it
+into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
-1. Add request/response models to `vlm_scene_description/models.py` (or a new `api/models.py`).
+1. Add request/response models to `vlm_scene_description/models/` or directly in the router module.
 2. Add business logic to `vlm_scene_description/bl/`.
 3. Create or extend a router in `vlm_scene_description/api/routers/`.
 4. Register the router in `vlm_scene_description/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.
 
-### Adding a repository method
-
-1. Declare the abstract method in `vlm_scene_description/db/base.py`.
-2. Implement it in `db/memory.py` (and `db/sqlite.py` if it exists).
-3. Keep the factory in `db/factory.py` up to date.
-
-### Adding or changing a database table
-
-1. Define/modify the ORM table in `vlm_scene_description/db/orm.py` as a subclass of `Base`.
-2. Generate the migration: `just migrate-rev "add users table"`.
-3. Review the generated file under `migrations/versions/`, then apply with `just migrate`.
-
-Migrations target `Settings.database_url` (the same DB the app uses), so no duplicate config.
-
 ## Docker
 
 ```bash
-docker compose up                        # full stack
-docker compose up --build                # rebuild images first
-docker compose --profile test up         # include systemtest container
+docker compose --profile cli run --rm cli   # run the pipeline
+docker compose up api                       # optional HTTP API
+docker compose --profile test up            # system tests
 ```
 
-Images are defined in `docker/Dockerfile` with named build targets: `api`.
+Images are defined in `docker/Dockerfile` with named build targets: `cli` (default/primary) and `api`.
 
 ## Pre-commit hooks
 
@@ -188,4 +167,5 @@ uv run pre-commit install          # register
 uv run pre-commit run --all-files  # run manually (= just check)
 ```
 
-Hooks run ruff and mypy on every commit. The CI workflow also runs `pip-audit` to check for known security vulnerabilities in dependencies.
+Hooks run ruff and ty on every commit. The CI workflow also runs `pip-audit` to check for known
+security vulnerabilities in dependencies.

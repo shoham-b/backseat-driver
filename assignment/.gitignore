@@ -38,3 +38,8 @@ Thumbs.db
 # Project
 *.db
 *.log
+scratch/
+
+# nuScenes dataset (large, license-gated — download separately) and pipeline output
+data/
+output/

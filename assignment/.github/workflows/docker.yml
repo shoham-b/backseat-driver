@@ -26,6 +26,17 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Build and push CLI image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: cli
+          push: true
+          tags: ghcr.io/shoham-b/vlm_scene_description-cli:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build and push API image
         uses: docker/build-push-action@v6
         with:

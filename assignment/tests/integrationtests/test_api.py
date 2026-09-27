@@ -6,27 +6,26 @@ from unittest.mock import MagicMock
 from fastapi.testclient import TestClient
 
 from vlm_scene_description.api.app import app
-from vlm_scene_description.api.dependencies import get_repository
-from vlm_scene_description.db.base import Repository
-from vlm_scene_description.db.memory import MemoryRepository
+from vlm_scene_description.api.dependencies import get_captioner
+from vlm_scene_description.bl.captioner import BlipCaptioner, Captioner
 
 
-class _UnhealthyRepository(Repository):
-    async def healthcheck(self) -> bool:
+class _UnhealthyCaptioner(BlipCaptioner):
+    def healthcheck(self) -> bool:
         return False
 
 
 @contextmanager
-def _override_repository(factory: Callable[[], Repository]) -> Iterator[None]:
-    original = app.dependency_overrides.get(get_repository)
-    app.dependency_overrides[get_repository] = factory
+def _override_captioner(factory: Callable[[], Captioner]) -> Iterator[None]:
+    original = app.dependency_overrides.get(get_captioner)
+    app.dependency_overrides[get_captioner] = factory
     try:
         yield
     finally:
         if original is None:
-            app.dependency_overrides.pop(get_repository, None)
+            app.dependency_overrides.pop(get_captioner, None)
         else:
-            app.dependency_overrides[get_repository] = original
+            app.dependency_overrides[get_captioner] = original
 
 
 def test_liveness(client: TestClient) -> None:
@@ -56,7 +55,7 @@ def test_readiness_healthy(client: TestClient) -> None:
 
 
 def test_readiness_unhealthy_backend() -> None:
-    with _override_repository(lambda: _UnhealthyRepository()):
+    with _override_captioner(lambda: _UnhealthyCaptioner()):
         response = TestClient(app).get("/ready")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
@@ -66,20 +65,20 @@ def test_readiness_unhealthy_backend() -> None:
     assert "message" in error
 
 
-def test_get_repository_reads_from_app_state() -> None:
+def test_get_captioner_reads_from_app_state() -> None:
     mock_request = MagicMock()
-    mock_request.app.state.repository = MemoryRepository()
+    mock_request.app.state.captioner = BlipCaptioner()
 
-    result = get_repository(mock_request)
+    result = get_captioner(mock_request)
 
-    assert isinstance(result, MemoryRepository)
+    assert isinstance(result, BlipCaptioner)
 
 
 def test_error_response_shape_on_unhandled_exception() -> None:
-    def _raise() -> Repository:
+    def _raise() -> Captioner:
         raise RuntimeError("boom")
 
-    with _override_repository(_raise):
+    with _override_captioner(_raise):
         response = TestClient(app, raise_server_exceptions=False).get("/ready")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
@@ -87,3 +86,26 @@ def test_error_response_shape_on_unhandled_exception() -> None:
     assert error["code"] == HTTPStatus.INTERNAL_SERVER_ERROR
     assert error["status"] == HTTPStatus.INTERNAL_SERVER_ERROR.phrase
     assert "message" in error
+
+
+def test_describe_returns_caption(client: TestClient) -> None:
+    from io import BytesIO
+
+    from PIL import Image
+
+    buf = BytesIO()
+    Image.new("RGB", (4, 4), color="blue").save(buf, format="PNG")
+    buf.seek(0)
+
+    response = client.post("/describe", files={"image": ("scene.png", buf, "image/png")})
+
+    assert response.status_code == HTTPStatus.OK
+    body = response.json()
+    assert body["description"] == "a fake scene description"
+    assert body["model_name"] == "fake-model"
+
+
+def test_describe_rejects_empty_file(client: TestClient) -> None:
+    response = client.post("/describe", files={"image": ("empty.png", b"", "image/png")})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

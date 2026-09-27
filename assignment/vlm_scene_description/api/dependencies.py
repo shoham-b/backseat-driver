@@ -1,9 +1,7 @@
 from fastapi import Request
 
-from vlm_scene_description.db.base import Repository
+from vlm_scene_description.bl.captioner import Captioner
 
 
-def get_repository(request: Request) -> Repository:
-    return request.app.state.repository  # type: ignore[no-any-return]
-
-
+def get_captioner(request: Request) -> Captioner:
+    return request.app.state.captioner  # type: ignore[no-any-return]

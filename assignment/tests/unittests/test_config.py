@@ -10,7 +10,21 @@ def test_defaults() -> None:
     assert s.api_host == "127.0.0.1"
     assert s.api_port == 8080
     assert s.log_format == "colored"
+    assert s.nuscenes_dataroot == "data/sets/nuscenes"
+    assert s.nuscenes_version == "v1.0-mini"
+    assert s.camera_channel == "CAM_FRONT"
+    assert s.vlm_model_name == "Salesforce/blip-image-captioning-base"
+    assert s.output_path == "output/scene_descriptions.json"
 
+
+def test_nuscenes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT", "/mnt/nuscenes")
+    monkeypatch.setenv("VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL", "CAM_BACK")
+
+    s = Settings()
+
+    assert s.nuscenes_dataroot == "/mnt/nuscenes"
+    assert s.camera_channel == "CAM_BACK"
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:

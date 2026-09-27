@@ -15,14 +15,18 @@ This document provides essential knowledge for AI coding agents (Claude Code, Co
 The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally with `just docs`.
 
 **Repository map:**
-- `vlm_scene_description/models/` — Pure Pydantic domain models. No imports from any other layer.
-- `vlm_scene_description/bl/` — Business logic. Imports `models`. Accepts `db.base.Repository` via constructor injection. No FastAPI types, no HTTP concepts.
-- `vlm_scene_description/bl/http_client.py` — Example pattern for outbound HTTP calls using `httpx`. Copy and adapt; test with `respx`.
+- `vlm_scene_description/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
+- `vlm_scene_description/bl/` — Business logic, all Protocol-based so it's testable with fakes:
+  - `nuscenes_loader.py` — `SceneLoader` Protocol + `NuScenesSceneLoader`, picks one representative keyframe per scene from a local nuScenes dataset.
+  - `captioner.py` — `Captioner` Protocol + `BlipCaptioner`, wraps a HuggingFace `image-to-text` pipeline. Model is loaded lazily on first `.caption()` call.
+  - `pipeline.py` — `ScenePipeline`, orchestrates loader → captioner → `list[SceneDescription]`. Never imports nuscenes-devkit/transformers/torch directly.
+  - `writer.py` — writes `list[SceneDescription]` out as JSON.
+  - `errors.py` — `DomainError` hierarchy; `api/exception_handlers.py` maps these to HTTP status codes.
 
-- `vlm_scene_description/api/` — FastAPI application, routes, and lifespan setup.
+- `vlm_scene_description/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON. `test smoke` runs the smoke suite against a running API.
+
+- `vlm_scene_description/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
 - `vlm_scene_description/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
-
-- `vlm_scene_description/db/` — `Repository` ABC + `MemoryRepository` + `factory.py`.
 
 - `vlm_scene_description/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `VLM_SCENE_DESCRIPTION_`.
 - `vlm_scene_description/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
@@ -42,13 +46,13 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 | Command | Purpose |
 |---|---|
-| `just dev` | Dev server with hot reload (`fastapi dev`) |
+| `just run` | Run the scene-description pipeline (the primary deliverable) |
+| `just dev` | Optional API dev server with hot reload (`fastapi dev`) |
 | `just test` | Unit + integration tests with coverage |
 | `just lint` | Ruff check + format check (CI mode, no fixes) |
 | `just fmt` | Auto-fix and reformat |
 | `just typecheck` | ty type check |
 | `just test-compose` | Full system test via Docker Compose |
-| `just observability` | App + OTel Collector + Tempo + Prometheus + Grafana (http://localhost:3000) |
 | `just test-smoke` | Smoke tests against a running service |
 | `just docs` | Build HTML docs with MkDocs |
 
@@ -76,11 +80,11 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - **AAA structure**: Every test must follow Arrange → Act → Assert with a blank line between each phase. Name the sections with a comment only when the block is non-obvious; otherwise the blank lines are enough.
   ```python
   def test_something():
-      client = build_client(api_url="http://test")   # Arrange
+      client = build_client(api_url="http://test")  # Arrange
 
-      response = client.get("/health")               # Act
+      response = client.get("/health")  # Act
 
-      assert response.status_code == HTTPStatus.OK   # Assert
+      assert response.status_code == HTTPStatus.OK  # Assert
   ```
 - **HTTP status codes**: Always use `from http import HTTPStatus` and reference constants by name (`HTTPStatus.OK`, `HTTPStatus.NOT_FOUND`, `HTTPStatus.UNPROCESSABLE_ENTITY`). Never use bare integer literals (`200`, `404`) for status code assertions.
 - **Async tests**: `asyncio_mode = "auto"` in `pyproject.toml` — no `@pytest.mark.asyncio` decorator needed.
@@ -92,10 +96,9 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - **Fail fast**: Never swallow exceptions or add silent fallbacks that alter behaviour. Raise an explicit `ValueError` or `RuntimeError` when invariants are violated — bugs caught immediately are far easier to debug than silent failures discovered later.
 - **No speculative abstraction**: Don't add feature flags, backwards-compat shims, or conditional paths for hypothetical future requirements. Three similar lines is better than a premature abstraction.
-- **Loguru**: Call `setup_logging()` once per process entry-point (API lifespan, worker `main()`, CLI commands that produce output). Import `from loguru import logger` everywhere else — do not use `logging.getLogger`. Use `logger.bind(key=value).info(...)` for one-shot structured fields; use `logger.contextualize(key=value)` (async context manager) for request-scoped fields.
-- **Database schema**: Never change a table's shape without a migration. Edit the ORM model in `db/orm.py`, then `just migrate-rev "msg"` and review the generated file before committing. Do not hand-write SQL DDL in application code.
+- **Loguru**: Call `setup_logging()` once per process entry-point (API lifespan, CLI commands that produce output). Import `from loguru import logger` everywhere else — do not use `logging.getLogger`. Use `logger.bind(key=value).info(...)` for one-shot structured fields; use `logger.contextualize(key=value)` (async context manager) for request-scoped fields.
 - **hypothesis**: Use for property-based tests on pure functions — especially config parsing, model validation, and bl/ business logic. Import `from hypothesis import given, strategies as st`. See `tests/unittests/test_config.py` for examples.
-- **respx**: Use to mock outbound `httpx` calls in unit tests. Decorate with `@respx.mock` or use as a context manager. See `tests/unittests/test_http_client.py` for the pattern. Never use respx in integration tests — those run the full in-process stack.
+- **Heavy deps (transformers/torch/nuscenes-devkit) stay behind lazy imports**: `bl/captioner.py` and `bl/nuscenes_loader.py` import them inside methods, not at module scope, so unit tests can monkeypatch them without a model download or a dataset on disk. See `tests/unittests/test_captioner.py` and `test_nuscenes_loader.py` for the pattern.
 - **schemathesis**: Automatically fuzzes all OpenAPI operations declared in the schema. Tests live in `tests/integrationtests/test_schema.py`. Run with `just test` — it's part of the normal integration test suite.
 - **Comments**: Comment the *why*, not the *what*. Delete any comment that merely restates what the code already says.
 - **Scratch files**: Place any temporary debug or exploration scripts under `scratch/` (gitignored). Do not leave them in the project root or any package directory.

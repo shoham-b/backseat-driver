@@ -1,64 +1,86 @@
 # Getting Started
 
-## Docker Compose (recommended)
+## 1. Get the dataset
 
-The fastest way to run the full stack — no prerequisites beyond Docker:
+nuScenes requires a free registration and cannot be redistributed in this repo. Download **v1.0-mini** from
+[nuscenes.org](https://www.nuscenes.org/nuscenes#download) and extract it so you end up with:
 
-```bash
-docker compose up
+```
+data/sets/nuscenes/
+├── maps/
+├── samples/
+├── sweeps/
+└── v1.0-mini/
 ```
 
-This starts:
+`data/` is gitignored. The default dataroot is `data/sets/nuscenes` — override with `--dataroot` or
+`VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` if you keep it elsewhere.
 
-| Service | Port | Description |
+## 2. Run the pipeline
+
+**Local (uv):**
+
+```bash
+uv sync --group dev
+uv run vlm_scene_description run
+```
+
+**Docker (no local Python needed beyond Docker itself):**
+
+```bash
+docker compose --profile cli run --rm cli
+```
+
+Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and write
+`output/scene_descriptions.json`. The first run downloads the VLM weights
+(`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
+
+**Useful options** (`uv run vlm_scene_description run --help` for the full list):
+
+| Option | Default | Description |
 |---|---|---|
-| **api** | `:8080` | VLM Scene Description HTTP API |
+| `--dataroot` | `data/sets/nuscenes` | Path to the local dataset |
+| `--version` | `v1.0-mini` | nuScenes dataset version |
+| `--camera` | `CAM_FRONT` | Camera channel used as the representative frame |
+| `--model` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `--output` | `output/scene_descriptions.json` | Where to write the JSON results |
+| `--max-scenes` | (all) | Only process the first N scenes — handy for a quick smoke run |
 
-The API is ready when you see `Application startup complete` in the logs.
+## 3. (Optional) Run the HTTP API
 
-## Local development
+The same captioning logic is also exposed as a small on-demand service — see
+[Architecture → Deployment](architecture.md#deployment) for why this exists alongside the CLI.
 
-**Prerequisites:**
+```bash
+docker compose up api
+# or locally:
+just dev
+```
+
+```bash
+curl http://127.0.0.1:8080/health
+# {"status": "ok"}
+
+curl -F "image=@data/sets/nuscenes/samples/CAM_FRONT/some_image.jpg" http://127.0.0.1:8080/describe
+# {"description": "...", "model_name": "Salesforce/blip-image-captioning-base"}
+```
+
+Open `http://127.0.0.1:8080/docs` for interactive Swagger UI.
+
+## Local development prerequisites
 
 | Tool | Install | Purpose |
 |---|---|---|
-| [Python 3.13+](https://www.python.org/) | system / pyenv | Runtime |
+| [Python 3.12+](https://www.python.org/) | system / pyenv | Runtime |
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | Package manager and script runner |
 | [just](https://github.com/casey/just) | `cargo install just` / `brew install just` | Dev task runner |
-
-**Setup:**
 
 ```bash
 git clone <repo-url>
 cd vlm_scene_description
 uv sync --group dev         # install all deps including dev tools
-uv run pre-commit install   # register git hooks (ruff + mypy on every commit)
+uv run pre-commit install   # register git hooks (ruff + ty on every commit)
 cp .env.example .env        # create local config (gitignored)
-```
-
-**Start the dev server with hot reload:**
-
-```bash
-just dev
-```
-
-The API is available at `http://127.0.0.1:8080`. Open `http://127.0.0.1:8080/docs` for interactive Swagger UI.
-
-## Exploring the API
-
-Once the stack is running, three interactive interfaces are available:
-
-| Interface | URL | Description |
-|---|---|---|
-| Swagger UI | `http://127.0.0.1:8080/docs` | Browse endpoints, inspect schemas, try requests |
-| ReDoc | `http://127.0.0.1:8080/redoc` | Read-only reference |
-| OpenAPI schema | `http://127.0.0.1:8080/openapi.json` | Machine-readable spec |
-
-**Health check:**
-
-```bash
-curl http://127.0.0.1:8080/health
-# {"status": "ok"}
 ```
 
 ## Configuration
@@ -67,10 +89,12 @@ All settings are prefixed with `VLM_SCENE_DESCRIPTION_`. Copy `.env.example` to 
 
 | Variable | Default | Description |
 |---|---|---|
-| `VLM_SCENE_DESCRIPTION_API_HOST` | `127.0.0.1` | API bind address |
-| `VLM_SCENE_DESCRIPTION_API_PORT` | `8080` | API bind port |
-| `VLM_SCENE_DESCRIPTION_DB_BACKEND` | `memory` | Storage backend (`memory` or `sqlite`) |
-| `VLM_SCENE_DESCRIPTION_DB_PATH` | `vlm_scene_description.db` | SQLite database path (when `DB_BACKEND=sqlite`) |
-| `VLM_SCENE_DESCRIPTION_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (one object per line, for log aggregators) |
+| `VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
+| `VLM_SCENE_DESCRIPTION_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
+| `VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
+| `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `VLM_SCENE_DESCRIPTION_OUTPUT_PATH` | `output/scene_descriptions.json` | Pipeline output path |
+| `VLM_SCENE_DESCRIPTION_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
+| `VLM_SCENE_DESCRIPTION_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 
-See [`vlm_scene_description/config.py`](../vlm_scene_description/config.py) for the full settings class and defaults.
+See [`vlm_scene_description/config.py`](../vlm_scene_description/config.py) for the full settings class.

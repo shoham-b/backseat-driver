@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
       - run: uv sync --group dev
       - run: uv run ty check vlm_scene_description tests
 
@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
       - run: uv sync --group dev
       - run: uv run pytest tests/unittests tests/integrationtests --cov --cov-report=xml --junitxml=junit.xml
       - uses: codecov/codecov-action@v5
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
       - run: docker compose --profile test up --build --abort-on-container-exit --exit-code-from systemtest
       - if: always()
         run: docker compose --profile test down
@@ -79,7 +79,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
       - run: uv sync --group dev
       - run: uvx pip-audit
 
@@ -91,7 +91,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.13"
+          python-version: "3.12"
       - run: uvx zizmor .github/workflows/
 
   actionlint:

@@ -1,4 +1,16 @@
 services:
+  cli:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: cli
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output
+    environment:
+      VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
+    profiles: [cli]
+
   api:
     build:
       context: .

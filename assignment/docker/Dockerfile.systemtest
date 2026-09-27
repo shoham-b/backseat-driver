@@ -2,24 +2,26 @@
 # Runs system + smoke tests against an already-running API container.
 # Usage: docker compose --profile test up --abort-on-container-exit
 
-ARG PYTHON_VERSION=3.13
+ARG PYTHON_VERSION=3.12
 FROM python:${PYTHON_VERSION}-slim
 
 WORKDIR /app
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy
 
-# Install api + systemtest deps (no project source yet — layer cache friendly)
+# Install systemtest deps (no project source yet — layer cache friendly).
+# Deliberately not the api/cli groups — these tests only speak HTTP to an
+# already-running container, so they don't need torch/transformers locally.
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-vlm_scene_description-systemtest \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --group api --group systemtest
+    uv sync --frozen --no-install-project --group systemtest
 
 # Install project source so conftest.py imports resolve
 COPY vlm_scene_description/ vlm_scene_description/
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-vlm_scene_description-systemtest \
-    uv sync --frozen --group api --group systemtest
+    uv sync --frozen --group systemtest
 
 COPY tests/conftest.py tests/
 COPY tests/systemtests/ tests/systemtests/

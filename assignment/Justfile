@@ -10,6 +10,10 @@ default:
 sync:
     uv sync --group dev
 
+# Run the scene-description pipeline over the local nuScenes dataset
+run *ARGS:
+    uv run vlm_scene_description run {{ARGS}}
+
 # Auto-fix and format
 fmt:
     uv run ruff check --fix .

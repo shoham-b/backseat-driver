@@ -16,10 +16,6 @@
 
 ::: vlm_scene_description.logger
 
-## Database
-
-::: vlm_scene_description.db.base
-
 ## HTTP API
 
 ::: vlm_scene_description.api.app
