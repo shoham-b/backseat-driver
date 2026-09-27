@@ -1,0 +1,86 @@
+[project]
+name = "vlm_scene_description"
+version = "0.1.0"
+description = "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.13"
+authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
+
+[project.scripts]
+vlm_scene_description = "vlm_scene_description.cli.__main__:app"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vlm_scene_description*"]
+
+[dependency-groups]
+api = [
+    "fastapi>=0.115",
+    "granian>=1.7",
+    "typer>=0.12",
+    "httpx>=0.28",
+    "loguru>=0.7",
+
+
+
+    "pydantic-settings>=2.9",
+    "stamina>=1.0",
+]
+
+systemtest = [
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28",
+]
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9",
+    "mkdocstrings[python]>=0.27",
+]
+dev = [
+    "ruff>=0.11",
+    "ty>=0.0.1",
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6",
+    "coverage[toml]>=7",
+    "httpx>=0.28",
+    "respx>=0.22",
+    "hypothesis>=6",
+    "schemathesis>=3.0",
+    { include-group = "api" },
+
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+# Session-scoped async fixtures (e.g. the system-test httpx client) must share the tests' event loop.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+
+[tool.coverage.run]
+source = ["vlm_scene_description"]
+omit = ["*/cli/*"]
+
+[tool.coverage.report]
+fail_under = 80
+

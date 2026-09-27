@@ -1,0 +1,13 @@
+# Development overrides — hot-reload, source mounts, no image builds
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  api:
+    build:
+      target: build-api      # Use the build stage, not the stripped runtime
+    command: ["uv", "run", "fastapi", "dev", "vlm_scene_description/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
+    volumes:
+      - ./vlm_scene_description:/app/vlm_scene_description:ro   # live source mount
+    environment:
+      VLM_SCENE_DESCRIPTION_LOG_FORMAT: colored
+
+

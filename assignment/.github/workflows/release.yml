@@ -1,0 +1,51 @@
+name: Release
+
+# Triggered by release-please after it creates a GitHub release.
+# Builds the wheel, attaches it to the release, and pushes Docker images.
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build wheel
+        run: uv build --wheel
+
+      - name: Attach wheel to release
+        run: gh release upload ${{ github.event.release.tag_name }} dist/*.whl
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to ghcr.io
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: api
+          push: true
+          tags: |
+            ghcr.io/shoham-b/vlm_scene_description-api:${{ github.event.release.tag_name }}
+            ghcr.io/shoham-b/vlm_scene_description-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
