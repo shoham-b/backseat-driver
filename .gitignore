@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project
+*.db
+scratch/
+
+# nuScenes dataset (large, license-gated — download separately) and pipeline output
+data/
+output/
