@@ -3,9 +3,9 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from vlm_scene_description.api.dependencies import get_captioner
-from vlm_scene_description.api.errors import APIError
-from vlm_scene_description.bl.captioner import Captioner
+from vlmscene.api.dependencies import get_captioner
+from vlmscene.api.errors import APIError
+from vlmscene.bl.captioner import Captioner
 
 router = APIRouter(tags=["observability"])
 

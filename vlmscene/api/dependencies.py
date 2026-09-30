@@ -1,6 +1,6 @@
 from fastapi import Request
 
-from vlm_scene_description.bl.captioner import Captioner
+from vlmscene.bl.captioner import Captioner
 
 
 def get_captioner(request: Request) -> Captioner:

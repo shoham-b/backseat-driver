@@ -6,7 +6,7 @@
 |---|---|---|
 | Language & packaging | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv`'s dependency-groups (`core`/`vlm`/`nuscenes`/`cli`/`api`/`dev`/`docs`) let the CLI and API images install only what they each need |
 | Task runner | [Justfile](../Justfile) | `just run`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
-| CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`vlm_scene_description run`) |
+| CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`vlm-scene-description run`) |
 | HTTP API | [FastAPI](https://fastapi.tiangolo.com/) + [Granian](https://github.com/emmett-framework/granian) | Optional on-demand deployment shape; Granian as the production ASGI server |
 | Domain models & config | [Pydantic](https://docs.pydantic.dev/) / [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | `SceneKeyframe`/`SceneDescription` schemas; env-var-backed `Settings` |
 | Logging | [Loguru](https://github.com/Delgan/loguru) | Structured logs, colored locally / JSON in production |
@@ -26,7 +26,7 @@ The pipeline logic in `bl/` is shared by two independent entry points:
 
 | Component | Entry point | Description |
 |---|---|---|
-| **CLI** (primary) | `uv run vlm_scene_description run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
+| **CLI** (primary) | `uv run vlm-scene-description run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
 | **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080` | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
 
 ### Object model
@@ -118,7 +118,7 @@ Each layer only imports from layers to its left:
 
 ## API contracts
 
-### HTTP API (`vlm_scene_description.api`)
+### HTTP API (`vlmscene.api`)
 
 Successes return the documented model directly. Errors use `{"error": {"code": <int>, "status": "<phrase>", "message": "<detail>"}}`.
 
@@ -132,16 +132,16 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 
 | Package | Responsibility |
 |---|---|
-| [`vlm_scene_description.models`](../vlm_scene_description/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
-| [`vlm_scene_description.bl`](../vlm_scene_description/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`/`BlipCaptioner`, `ScenePipeline`, `write_json` |
-| [`vlm_scene_description.cli`](../vlm_scene_description/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
-| [`vlm_scene_description.api`](../vlm_scene_description/api/) | FastAPI app, routes, lifespan, exception handlers |
-| [`vlm_scene_description.config`](../vlm_scene_description/config.py) | `Settings` (pydantic-settings, env-var backed) |
-| [`vlm_scene_description.logger`](../vlm_scene_description/logger.py) | Loguru setup; `LogFormat` enum; `setup_logging()` |
+| [`vlmscene.models`](../vlmscene/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
+| [`vlmscene.bl`](../vlmscene/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`/`BlipCaptioner`, `ScenePipeline`, `write_json` |
+| [`vlmscene.cli`](../vlmscene/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
+| [`vlmscene.api`](../vlmscene/api/) | FastAPI app, routes, lifespan, exception handlers |
+| [`vlmscene.config`](../vlmscene/config.py) | `Settings` (pydantic-settings, env-var backed) |
+| [`vlmscene.logger`](../vlmscene/logger.py) | Loguru setup; `LogFormat` enum; `setup_logging()` |
 
 ## Logging
 
-All entry points use [loguru](https://github.com/Delgan/loguru). `setup_logging(fmt, service)` in [`vlm_scene_description.logger`](../vlm_scene_description/logger.py) removes loguru's default handler and installs the configured one.
+All entry points use [loguru](https://github.com/Delgan/loguru). `setup_logging(fmt, service)` in [`vlmscene.logger`](../vlmscene/logger.py) removes loguru's default handler and installs the configured one.
 
 | Format | Output | Use case |
 |---|---|---|
@@ -156,7 +156,7 @@ Set the format via `VLM_SCENE_DESCRIPTION_LOG_FORMAT=colored|json` or in `.env`.
 
 The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
-1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `vlm_scene_description run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
+1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `vlm-scene-description run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
 2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `BlipCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
 Both images share `bl/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

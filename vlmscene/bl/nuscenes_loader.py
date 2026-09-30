@@ -14,7 +14,7 @@ Usage::
 
 from typing import TYPE_CHECKING, Any, Protocol
 
-from vlm_scene_description.models import SceneKeyframe
+from vlmscene.models import SceneKeyframe
 
 # NotFoundError (bl.errors) belongs in _keyframe_for_scene once implemented —
 # raised when scene[self._camera_channel] is missing from the sample's data.

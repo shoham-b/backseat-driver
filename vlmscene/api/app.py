@@ -4,19 +4,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
-from vlm_scene_description.api.errors import APIError
-from vlm_scene_description.api.exception_handlers import (
+from vlmscene.api.errors import APIError
+from vlmscene.api.exception_handlers import (
     api_error_handler,
     domain_error_handler,
     unhandled_exception_handler,
 )
-from vlm_scene_description.api.middleware import RequestIDMiddleware
-from vlm_scene_description.api.routers.describe import router as describe_router
-from vlm_scene_description.api.routers.health import router as health_router
-from vlm_scene_description.bl.captioner import BlipCaptioner
-from vlm_scene_description.bl.errors import DomainError
-from vlm_scene_description.config import get_settings
-from vlm_scene_description.logger import LogFormat, setup_logging
+from vlmscene.api.middleware import RequestIDMiddleware
+from vlmscene.api.routers.describe import router as describe_router
+from vlmscene.api.routers.health import router as health_router
+from vlmscene.bl.captioner import BlipCaptioner
+from vlmscene.bl.errors import DomainError
+from vlmscene.config import get_settings
+from vlmscene.logger import LogFormat, setup_logging
 
 
 @asynccontextmanager

@@ -2,20 +2,20 @@
 
 ## Models
 
-::: vlm_scene_description.models
+::: vlmscene.models
 
 ## Business Logic
 
-::: vlm_scene_description.bl
+::: vlmscene.bl
 
 ## Config
 
-::: vlm_scene_description.config
+::: vlmscene.config
 
 ## Logger
 
-::: vlm_scene_description.logger
+::: vlmscene.logger
 
 ## HTTP API
 
-::: vlm_scene_description.api.app
+::: vlmscene.api.app

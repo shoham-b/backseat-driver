@@ -8,7 +8,7 @@ from typing import Annotated
 
 import typer
 
-from vlm_scene_description.cli import test_app
+from vlmscene.cli import test_app
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 

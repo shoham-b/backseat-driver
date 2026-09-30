@@ -10,9 +10,9 @@ and never imports nuscenes-devkit, transformers, or torch directly.
 
 from loguru import logger
 
-from vlm_scene_description.bl.captioner import Captioner
-from vlm_scene_description.bl.nuscenes_loader import SceneLoader
-from vlm_scene_description.models import SceneDescription
+from vlmscene.bl.captioner import Captioner
+from vlmscene.bl.nuscenes_loader import SceneLoader
+from vlmscene.models import SceneDescription
 
 
 class ScenePipeline:

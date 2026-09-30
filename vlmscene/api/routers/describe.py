@@ -13,9 +13,9 @@ from fastapi import APIRouter, Depends, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from vlm_scene_description.api.dependencies import get_captioner
-from vlm_scene_description.bl.captioner import Captioner
-from vlm_scene_description.bl.errors import UnprocessableError
+from vlmscene.api.dependencies import get_captioner
+from vlmscene.bl.captioner import Captioner
+from vlmscene.bl.errors import UnprocessableError
 
 router = APIRouter(tags=["describe"])
 

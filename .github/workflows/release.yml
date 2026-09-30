@@ -44,8 +44,8 @@ jobs:
           target: cli
           push: true
           tags: |
-            ghcr.io/shoham-b/vlm_scene_description-cli:${{ github.event.release.tag_name }}
-            ghcr.io/shoham-b/vlm_scene_description-cli:latest
+            ghcr.io/shoham-b/vlm-scene-description-cli:${{ github.event.release.tag_name }}
+            ghcr.io/shoham-b/vlm-scene-description-cli:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -57,8 +57,8 @@ jobs:
           target: api
           push: true
           tags: |
-            ghcr.io/shoham-b/vlm_scene_description-api:${{ github.event.release.tag_name }}
-            ghcr.io/shoham-b/vlm_scene_description-api:latest
+            ghcr.io/shoham-b/vlm-scene-description-api:${{ github.event.release.tag_name }}
+            ghcr.io/shoham-b/vlm-scene-description-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

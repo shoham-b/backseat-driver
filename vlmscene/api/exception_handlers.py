@@ -4,8 +4,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from vlm_scene_description.api.errors import APIError
-from vlm_scene_description.bl.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from vlmscene.api.errors import APIError
+from vlmscene.bl.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
 
 # Maps each concrete DomainError subclass to its HTTP status code.
 # Add entries here as new domain errors are introduced in bl/errors.py.

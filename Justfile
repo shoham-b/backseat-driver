@@ -12,7 +12,7 @@ sync:
 
 # Run the scene-description pipeline over the local nuScenes dataset
 run *ARGS:
-    uv run vlm_scene_description run {{ARGS}}
+    uv run vlm-scene-description run {{ARGS}}
 
 # Auto-fix and format
 fmt:
@@ -26,7 +26,7 @@ lint:
 
 # Type check
 typecheck:
-    uv run ty check vlm_scene_description tests
+    uv run ty check vlmscene tests
 
 # Unit + integration tests with coverage
 test:
@@ -39,7 +39,7 @@ test-compose:
 
 # Smoke tests against a running service (set API_URL to override target)
 test-smoke:
-    uv run vlm_scene_description test smoke --verbose
+    uv run vlm-scene-description test smoke --verbose
 
 # Full system tests — auto-starts service locally
 test-system:
@@ -51,11 +51,11 @@ test-all:
 
 # Dev server with auto-reload
 dev:
-    uv run granian --interface asgi --reload vlm_scene_description.api.app:app
+    uv run granian --interface asgi --reload vlmscene.api.app:app
 
 # Production-mode server
 serve:
-    uv run granian --interface asgi --host 0.0.0.0 --port 8080 vlm_scene_description.api.app:app
+    uv run granian --interface asgi --host 0.0.0.0 --port 8080 vlmscene.api.app:app
 
 
 

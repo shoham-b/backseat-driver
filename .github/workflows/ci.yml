@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --group dev
-      - run: uv run ty check vlm_scene_description tests
+      - run: uv run ty check vlmscene tests
 
   test:
     runs-on: ubuntu-latest

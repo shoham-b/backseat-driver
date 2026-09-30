@@ -4,9 +4,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from vlm_scene_description.api.app import app
-from vlm_scene_description.api.dependencies import get_captioner
-from vlm_scene_description.bl.captioner import Captioner
+from vlmscene.api.app import app
+from vlmscene.api.dependencies import get_captioner
+from vlmscene.bl.captioner import Captioner
 
 
 class FakeCaptioner(Captioner):

@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from vlm_scene_description.bl.errors import NotFoundError
-from vlm_scene_description.bl.nuscenes_loader import NuScenesSceneLoader
+from vlmscene.bl.errors import NotFoundError
+from vlmscene.bl.nuscenes_loader import NuScenesSceneLoader
 
 
 class _FakeNuScenes:

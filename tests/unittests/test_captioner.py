@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from vlm_scene_description.bl.captioner import BlipCaptioner
+from vlmscene.bl.captioner import BlipCaptioner
 
 
 def test_model_name_returns_configured_name() -> None:

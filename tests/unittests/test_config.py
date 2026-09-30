@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from vlm_scene_description.config import Settings, get_settings
+from vlmscene.config import Settings, get_settings
 
 
 def test_defaults() -> None:

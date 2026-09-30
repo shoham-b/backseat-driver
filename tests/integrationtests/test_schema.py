@@ -6,8 +6,8 @@ from collections.abc import Iterator
 import pytest
 import schemathesis
 
-from vlm_scene_description.api.app import app
-from vlm_scene_description.api.dependencies import get_captioner
+from vlmscene.api.app import app
+from vlmscene.api.dependencies import get_captioner
 
 
 class _FakeCaptioner:

@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 import pytest
 
-from vlm_scene_description.api.errors import APIError
+from vlmscene.api.errors import APIError
 
 
 def test_api_error_default_status() -> None:

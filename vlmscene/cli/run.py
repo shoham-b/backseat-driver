@@ -2,8 +2,8 @@
 
 Usage::
 
-    vlm_scene_description run
-    vlm_scene_description run --dataroot data/sets/nuscenes --version v1.0-mini \
+    vlmscene run
+    vlmscene run --dataroot data/sets/nuscenes --version v1.0-mini \
         --camera CAM_FRONT --output output/scene_descriptions.json
 """
 
@@ -11,9 +11,9 @@ from typing import Annotated
 
 import typer
 
-from vlm_scene_description.cli import app
-from vlm_scene_description.config import get_settings
-from vlm_scene_description.logger import LogFormat, setup_logging
+from vlmscene.cli import app
+from vlmscene.config import get_settings
+from vlmscene.logger import LogFormat, setup_logging
 
 
 @app.command()
@@ -31,10 +31,10 @@ def run(
     settings = get_settings()
     setup_logging(LogFormat(settings.log_format), service="cli")
 
-    from vlm_scene_description.bl.captioner import BlipCaptioner
-    from vlm_scene_description.bl.nuscenes_loader import NuScenesSceneLoader
-    from vlm_scene_description.bl.pipeline import ScenePipeline
-    from vlm_scene_description.bl.writer import write_json
+    from vlmscene.bl.captioner import BlipCaptioner
+    from vlmscene.bl.nuscenes_loader import NuScenesSceneLoader
+    from vlmscene.bl.pipeline import ScenePipeline
+    from vlmscene.bl.writer import write_json
 
     dataroot = dataroot or settings.nuscenes_dataroot
     version = version or settings.nuscenes_version

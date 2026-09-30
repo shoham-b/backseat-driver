@@ -25,7 +25,7 @@ Run `just --list` at any time to see all targets. The full table:
 
 | Command | Description |
 |---|---|
-| `just run [ARGS]` | Run the scene-description pipeline (`vlm_scene_description run`) |
+| `just run [ARGS]` | Run the scene-description pipeline (`vlm-scene-description run`) |
 | `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
 | `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
@@ -95,7 +95,7 @@ API_URL=http://staging:8080 just test-smoke   # against another target
 Or via the CLI:
 
 ```bash
-uv run vlm_scene_description test smoke --api-url http://staging:8080
+uv run vlm-scene-description test smoke --api-url http://staging:8080
 ```
 
 ### System tests (Docker Compose)
@@ -114,12 +114,12 @@ Builds the `api` image, starts it, runs `tests/systemtests/` and `tests/smoketes
 just test   # includes --cov; must stay above 80% (enforced in CI)
 ```
 
-Coverage is measured over `vlm_scene_description` excluding `cli/`.
+Coverage is measured over `vlmscene` excluding `cli/`.
 
 ## Package structure
 
 ```
-vlm_scene_description/
+vlmscene/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
 ├── bl/             # Business logic: loader, captioner, pipeline, writer, errors
@@ -144,10 +144,10 @@ into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
-1. Add request/response models to `vlm_scene_description/models/` or directly in the router module.
-2. Add business logic to `vlm_scene_description/bl/`.
-3. Create or extend a router in `vlm_scene_description/api/routers/`.
-4. Register the router in `vlm_scene_description/api/app.py`.
+1. Add request/response models to `vlmscene/models/` or directly in the router module.
+2. Add business logic to `vlmscene/bl/`.
+3. Create or extend a router in `vlmscene/api/routers/`.
+4. Register the router in `vlmscene/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.
 
 ## Docker

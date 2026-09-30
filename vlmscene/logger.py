@@ -9,7 +9,7 @@ class LogFormat(StrEnum):
     JSON = "json"
 
 
-def setup_logging(fmt: LogFormat = LogFormat.COLORED, service: str = "vlm_scene_description") -> None:
+def setup_logging(fmt: LogFormat = LogFormat.COLORED, service: str = "vlmscene") -> None:
     logger.configure(extra={"service": service})
     logger.remove()
     if fmt == LogFormat.JSON:

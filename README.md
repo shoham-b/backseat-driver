@@ -19,13 +19,13 @@ generic scaffold.
 
 ## What it does
 
-1. **Loads a scene** — [`bl/nuscenes_loader.py`](vlm_scene_description/bl/nuscenes_loader.py) reads the
+1. **Loads a scene** — [`bl/nuscenes_loader.py`](vlmscene/bl/nuscenes_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`bl/captioner.py`](vlm_scene_description/bl/captioner.py) passes that image through
+2. **Runs a VLM** — [`bl/captioner.py`](vlmscene/bl/captioner.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
-3. **Outputs the results** — [`bl/writer.py`](vlm_scene_description/bl/writer.py) writes one JSON object
+3. **Outputs the results** — [`bl/writer.py`](vlmscene/bl/writer.py) writes one JSON object
    per scene to `output/scene_descriptions.json`:
 
    ```json
@@ -42,9 +42,9 @@ generic scaffold.
    ]
    ```
 
-All three steps are Protocol-based ([`SceneLoader`](vlm_scene_description/bl/nuscenes_loader.py),
-[`Captioner`](vlm_scene_description/bl/captioner.py)) and composed in
-[`bl/pipeline.py`](vlm_scene_description/bl/pipeline.py), so the orchestration logic never imports
+All three steps are Protocol-based ([`SceneLoader`](vlmscene/bl/nuscenes_loader.py),
+[`Captioner`](vlmscene/bl/captioner.py)) and composed in
+[`bl/pipeline.py`](vlmscene/bl/pipeline.py), so the orchestration logic never imports
 nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
 
 ## Assumptions
@@ -62,7 +62,7 @@ Stated explicitly, per the assignment's request:
   redistribution, so it's expected to be downloaded separately and mounted/volume-copied into
   `data/sets/nuscenes` (gitignored). See [Quickstart](#quickstart) below.
 - **Batch job, not a request/response service, is the primary shape.** The assignment describes a
-  pipeline over a *set* of scenes, so the CLI (`vlm_scene_description run`) producing one JSON file is the
+  pipeline over a *set* of scenes, so the CLI (`vlm-scene-description run`) producing one JSON file is the
   main deliverable. A small optional HTTP API (`/describe`) is included to concretely answer "how would
   you deploy this" for the on-demand case — see [docs/architecture.md#deployment](docs/architecture.md#deployment).
 - **No GPU, no batching/parallelism.** Scenes are captioned one at a time on CPU, matching "no need for
@@ -80,7 +80,7 @@ uv sync --group dev
 #    data/sets/nuscenes/{maps,samples,sweeps,v1.0-mini}
 
 # 3. Run the pipeline
-uv run vlm_scene_description run
+uv run vlm-scene-description run
 # → output/scene_descriptions.json
 ```
 

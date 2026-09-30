@@ -22,7 +22,7 @@ data/sets/nuscenes/
 
 ```bash
 uv sync --group dev
-uv run vlm_scene_description run
+uv run vlm-scene-description run
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
@@ -35,7 +35,7 @@ Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and
 `output/scene_descriptions.json`. The first run downloads the VLM weights
 (`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
 
-**Useful options** (`uv run vlm_scene_description run --help` for the full list):
+**Useful options** (`uv run vlm-scene-description run --help` for the full list):
 
 | Option | Default | Description |
 |---|---|---|
@@ -97,4 +97,4 @@ All settings are prefixed with `VLM_SCENE_DESCRIPTION_`. Copy `.env.example` to 
 | `VLM_SCENE_DESCRIPTION_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
 | `VLM_SCENE_DESCRIPTION_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 
-See [`vlm_scene_description/config.py`](../vlm_scene_description/config.py) for the full settings class.
+See [`vlmscene/config.py`](../vlmscene/config.py) for the full settings class.

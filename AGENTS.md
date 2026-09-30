@@ -10,26 +10,26 @@ This document provides essential knowledge for AI coding agents (Claude Code, Co
 
 **Mandatory reading for architecture:**
 - **[docs/index.md](docs/index.md)** — Quick-start and documentation hub.
-- **[docs/api.md](docs/api.md)** — Auto-generated API reference for `vlm_scene_description.*`.
+- **[docs/api.md](docs/api.md)** — Auto-generated API reference for `vlmscene.*`.
 
 The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally with `just docs`.
 
 **Repository map:**
-- `vlm_scene_description/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
-- `vlm_scene_description/bl/` — Business logic, all Protocol-based so it's testable with fakes:
+- `vlmscene/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
+- `vlmscene/bl/` — Business logic, all Protocol-based so it's testable with fakes:
   - `nuscenes_loader.py` — `SceneLoader` Protocol + `NuScenesSceneLoader`, picks one representative keyframe per scene from a local nuScenes dataset.
   - `captioner.py` — `Captioner` Protocol + `BlipCaptioner`, wraps a HuggingFace `image-to-text` pipeline. Model is loaded lazily on first `.caption()` call.
   - `pipeline.py` — `ScenePipeline`, orchestrates loader → captioner → `list[SceneDescription]`. Never imports nuscenes-devkit/transformers/torch directly.
   - `writer.py` — writes `list[SceneDescription]` out as JSON.
   - `errors.py` — `DomainError` hierarchy; `api/exception_handlers.py` maps these to HTTP status codes.
 
-- `vlm_scene_description/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON. `test smoke` runs the smoke suite against a running API.
+- `vlmscene/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON. `test smoke` runs the smoke suite against a running API.
 
-- `vlm_scene_description/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
-- `vlm_scene_description/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
+- `vlmscene/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
+- `vlmscene/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
 
-- `vlm_scene_description/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `VLM_SCENE_DESCRIPTION_`.
-- `vlm_scene_description/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
+- `vlmscene/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `VLM_SCENE_DESCRIPTION_`.
+- `vlmscene/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
 - `tests/unittests/` — Fast, isolated unit tests (no I/O).
 - `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`.
 - `tests/smoketests/` — Black-box HTTP tests against a running service.
@@ -56,13 +56,13 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 | `just test-smoke` | Smoke tests against a running service |
 | `just docs` | Build HTML docs with MkDocs |
 
-**CLI entry-point:** `uv run vlm_scene_description --help`
+**CLI entry-point:** `uv run vlm-scene-description --help`
 
 ---
 
 ### 3. Configuration
 
-- All settings live in `vlm_scene_description/config.py` — the `Settings` class backed by pydantic-settings.
+- All settings live in `vlmscene/config.py` — the `Settings` class backed by pydantic-settings.
 - Every environment variable is prefixed with `VLM_SCENE_DESCRIPTION_` (e.g., `VLM_SCENE_DESCRIPTION_API_PORT=9090`).
 - Override locally via `.env` (gitignored). Copy `.env.example` to get started.
 - `get_settings()` is `@lru_cache`-decorated — call `get_settings.cache_clear()` in tests that override env vars via `monkeypatch.setenv`.

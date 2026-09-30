@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from vlm_scene_description.bl.writer import write_json
-from vlm_scene_description.models import SceneDescription
+from vlmscene.bl.writer import write_json
+from vlmscene.models import SceneDescription
 
 
 def _description(n: int) -> SceneDescription:

@@ -1,5 +1,5 @@
-from vlm_scene_description.bl.pipeline import ScenePipeline
-from vlm_scene_description.models import SceneKeyframe
+from vlmscene.bl.pipeline import ScenePipeline
+from vlmscene.models import SceneKeyframe
 
 
 class _FakeLoader:

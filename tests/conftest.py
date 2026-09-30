@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from vlm_scene_description.config import Settings
+from vlmscene.config import Settings
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

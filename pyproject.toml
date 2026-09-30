@@ -1,5 +1,5 @@
 [project]
-name = "vlm_scene_description"
+name = "vlm-scene-description"
 version = "0.1.0"
 description = "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
 readme = "README.md"
@@ -8,7 +8,7 @@ requires-python = ">=3.12"
 authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
 
 [project.scripts]
-vlm_scene_description = "vlm_scene_description.cli.__main__:app"
+vlm-scene-description = "vlmscene.cli.__main__:app"
 
 [build-system]
 requires = ["setuptools>=61"]
@@ -16,7 +16,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["vlm_scene_description*"]
+include = ["vlmscene*"]
 
 [dependency-groups]
 core = [
@@ -109,7 +109,7 @@ asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 
 [tool.coverage.run]
-source = ["vlm_scene_description"]
+source = ["vlmscene"]
 omit = ["*/cli/*"]
 
 [tool.coverage.report]
