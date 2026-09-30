@@ -7,6 +7,10 @@ app = typer.Typer(
 )
 test_app = typer.Typer(help="Run test suites", no_args_is_help=True)
 app.add_typer(test_app, name="test")
+worker_app = typer.Typer(help="Run a queue worker (distributed mode)", no_args_is_help=True)
+app.add_typer(worker_app, name="worker")
+db_app = typer.Typer(help="Database setup (distributed mode)", no_args_is_help=True)
+app.add_typer(db_app, name="db")
 
 
 @app.callback()

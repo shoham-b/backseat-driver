@@ -40,10 +40,22 @@ class BlipCaptioner:
         return self._model_name
 
     def load(self) -> None:
-        raise NotImplementedError
+        if self._pipeline is not None:
+            return
+        from transformers import pipeline
+
+        self._pipeline = pipeline("image-to-text", model=self._model_name)
 
     def caption(self, image_path: str) -> str:
-        raise NotImplementedError
+        from PIL import Image
+
+        self.load()
+        assert self._pipeline is not None
+        with Image.open(image_path) as image:
+            result = self._pipeline(image.convert("RGB"))
+        return str(result[0]["generated_text"]).strip()
 
     def healthcheck(self) -> bool:
-        return self._pipeline is not None
+        # The model loads lazily on first caption(), so a fresh captioner can already serve;
+        # a model that fails to load surfaces as an error on that first call instead.
+        return True

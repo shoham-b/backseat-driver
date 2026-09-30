@@ -3,10 +3,12 @@ from contextlib import contextmanager
 from http import HTTPStatus
 from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
+from tests.fakes import FakeJobQueue, FakeJobStore
 from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_captioner
+from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
 from vlmscene.bl.captioner import BlipCaptioner, Captioner
 
 
@@ -109,3 +111,17 @@ def test_describe_rejects_empty_file(client: TestClient) -> None:
     response = client.post("/describe", files={"image": ("empty.png", b"", "image/png")})
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+@pytest.mark.parametrize(
+    ("dependency", "unhealthy"),
+    [(get_job_queue, FakeJobQueue(healthy=False)), (get_job_store, FakeJobStore(healthy=False))],
+)
+def test_readiness_unhealthy_queue_or_store(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, dependency: Callable[..., object], unhealthy: object
+) -> None:
+    monkeypatch.setitem(app.dependency_overrides, dependency, lambda: unhealthy)
+
+    response = client.get("/ready")
+
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE

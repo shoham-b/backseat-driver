@@ -18,3 +18,5 @@ Results are written to `output/scene_descriptions.json` by default.
 See [Getting Started](getting-started.md) for dataset setup, Docker usage, and the optional HTTP API, or run `just --list` to see all available dev tasks.
 
 See [Architecture](architecture.md) for the tech stack and object model, and [Design Decisions](design-decisions.md) for the alternatives considered and why each was (or wasn't) chosen.
+
+See [Distributed mode](distributed.md) for the optional API + queue + worker deployment built around the same pipeline.

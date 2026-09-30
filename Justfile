@@ -57,6 +57,14 @@ dev:
 serve:
     uv run granian --interface asgi --host 0.0.0.0 --port 8080 vlmscene.api.app:app
 
+# Distributed mode: API + RabbitMQ + Postgres + ingest/caption workers
+up:
+    docker compose up --build
+
+# Stop the distributed stack
+down:
+    docker compose down
+
 
 
 # Build HTML docs
