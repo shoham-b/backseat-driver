@@ -34,16 +34,16 @@ Run it with `just up` (and `docker compose up --scale caption-worker=4` to add w
 - **Messages carry references, not pixels.** A `CaptionTask` holds the keyframe's `image_path`; workers read the shared `data` volume. Swapping in an object store would change `image_path` semantics only.
 - **Job state is derived, not stored.** `pending` until ingest records `expected_scenes`, `running` while `completed < expected`, `completed` after. There is no "mark done" step to race between workers.
 - **At-least-once, idempotent.** A message is acked only after its result is written. `(job_id, scene_token)` is the primary key and inserts use `ON CONFLICT DO NOTHING`, so redelivery is harmless.
-- **Poison messages are bounded.** Queues are quorum queues with a delivery limit of 3; after that a message is dead-lettered to `vlmscene.dead` for inspection. A failed ingest therefore leaves its job `pending` — there is no `failed` state yet.
+- **Workers are Celery workers** (`vlmscene/tasks.py`), over RabbitMQ quorum queues, with late acks and one message at a time. A task that fails is retried with backoff up to 3 times, except malformed messages, which are never retried. After that the failure is logged with its `transaction_id` and the message is dropped, so its job stays `pending`/`running` — there is no `failed` state or dead-letter queue yet. Remote control and gossip are off because RabbitMQ 4 rejects the transient queues they need.
 - **Fail fast at startup, tolerant at construction.** Clients never connect in their constructors (so tests and `--help` need no infrastructure); `/ready` reports broker and database reachability, and compose gates the API on both being healthy. The caption worker loads its model before consuming.
 - **Every job has a `transaction_id`** (the caller's `X-Request-ID`, or a generated one). It is stored on the job, returned by the API, carried in every queue message body (and mirrored in the `X-Request-ID` header), and bound to every worker log line with the `job_id`, so one identifier follows a request across all services.
 
 ## Scaling
 
-Caption workers are stateless consumers of one queue, so throughput scales with replica count (keep `caption_prefetch` small so work spreads evenly). On Kubernetes, scale them with KEDA on queue depth and let GPU node pools scale from zero. That manifest work is not in this repo yet.
+Caption workers run the solo pool (the model loads once per process and CUDA is never forked), so scale by adding processes or containers. They are stateless consumers of one queue, so throughput scales with replica count. On Kubernetes, scale them with KEDA on queue depth and let GPU node pools scale from zero. That manifest work is not in this repo yet.
 
 ## Not done yet
 
 - An in-memory `JobQueue`/`JobStore` so the CLI could run these same worker classes in one process.
-- A `failed` job state and a dead-letter consumer.
+- A `failed` job state, and a dead-letter queue for tasks that exhaust their retries.
 - Object storage instead of a shared volume; Kubernetes/KEDA manifests.

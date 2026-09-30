@@ -14,7 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from vlmscene.api.dependencies import get_job_queue, get_job_store
-from vlmscene.bl.job_queue import INGEST_QUEUE, REQUEST_ID_HEADER, JobQueue
+from vlmscene.bl.job_queue import JobQueue
 from vlmscene.bl.job_store import JobStore
 from vlmscene.models import IngestTask, Job, SceneDescription
 
@@ -40,12 +40,7 @@ async def create_job(
     # The store and queue clients are blocking, so keep them off the event loop like /describe does.
     await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id)
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
-    await run_in_threadpool(
-        queue.publish,
-        INGEST_QUEUE,
-        task.model_dump_json().encode(),
-        {REQUEST_ID_HEADER: transaction_id},
-    )
+    await run_in_threadpool(queue.enqueue_ingest, task)
     return await run_in_threadpool(store.get_job, job_id)
 
 

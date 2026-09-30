@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     # Distributed mode (API + queue workers); unused by the batch CLI
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     database_url: str = "postgresql://vlmscene:vlmscene@localhost:5432/vlmscene"
-    caption_prefetch: int = 1
 
     # Pipeline output
     output_path: str = "output/scene_descriptions.json"

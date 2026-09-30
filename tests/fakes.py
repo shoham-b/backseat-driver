@@ -1,31 +1,24 @@
 """In-memory test doubles for the distributed mode — no broker, no database, no model."""
 
-from collections import defaultdict
-from collections.abc import Mapping
 from datetime import UTC, datetime
 from uuid import UUID
 
 from vlmscene.bl.errors import NotFoundError
-from vlmscene.bl.job_queue import MessageHandler
 from vlmscene.bl.job_store import derive_state
-from vlmscene.models import Job, SceneDescription, SceneKeyframe
+from vlmscene.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
 
 
 class FakeJobQueue:
     def __init__(self, healthy: bool = True) -> None:
         self.healthy = healthy
-        self.published: list[tuple[str, bytes, Mapping[str, str]]] = []
-        self._pending: dict[str, list[tuple[bytes, Mapping[str, str]]]] = defaultdict(list)
+        self.ingest_tasks: list[IngestTask] = []
+        self.caption_tasks: list[CaptionTask] = []
 
-    def publish(self, queue: str, body: bytes, headers: Mapping[str, str] | None = None) -> None:
-        self.published.append((queue, body, headers or {}))
-        self._pending[queue].append((body, headers or {}))
+    def enqueue_ingest(self, task: IngestTask) -> None:
+        self.ingest_tasks.append(task)
 
-    def consume(self, queue: str, handler: MessageHandler, prefetch: int = 1) -> None:
-        """Deliver everything queued so far, then return (the real consume blocks forever)."""
-        while self._pending[queue]:
-            body, headers = self._pending[queue].pop(0)
-            handler(body, headers)
+    def enqueue_caption(self, task: CaptionTask) -> None:
+        self.caption_tasks.append(task)
 
     def healthcheck(self) -> bool:
         return self.healthy

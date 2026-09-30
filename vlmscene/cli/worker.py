@@ -1,4 +1,4 @@
-"""Queue workers for the distributed mode — long-running consumers, one per queue.
+"""Queue workers for the distributed mode — long-running Celery workers, one per queue.
 
 Usage::
 
@@ -10,51 +10,28 @@ from vlmscene.cli import worker_app
 from vlmscene.config import get_settings
 from vlmscene.logger import LogFormat, setup_logging
 
+# Gossip, mingle and heartbeat are worker-to-worker chatter that needs the remote-control queues (see make_celery_app).
+_NO_CLUSTER = ["--without-gossip", "--without-mingle", "--without-heartbeat"]
+
 
 @worker_app.command()
 def ingest() -> None:
     """Consume ingest tasks: load the dataset and fan out one caption task per scene."""
-    settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="ingest-worker")
+    from vlmscene.bl.job_queue import INGEST_QUEUE
+    from vlmscene.tasks import celery_app
 
-    from loguru import logger
-
-    from vlmscene.bl.job_queue import INGEST_QUEUE, RabbitMQJobQueue
-    from vlmscene.bl.job_store import PostgresJobStore
-    from vlmscene.bl.nuscenes_loader import NuScenesSceneLoader
-    from vlmscene.bl.workers import IngestWorker
-
-    queue = RabbitMQJobQueue(settings.rabbitmq_url)
-    loader = NuScenesSceneLoader(
-        dataroot=settings.nuscenes_dataroot,
-        version=settings.nuscenes_version,
-        camera_channel=settings.camera_channel,
-    )
-    worker = IngestWorker(loader=loader, queue=queue, store=PostgresJobStore(settings.database_url))
-
-    logger.bind(queue=INGEST_QUEUE).info("ingest worker started")
-    queue.consume(INGEST_QUEUE, worker.handle, prefetch=1)
+    setup_logging(LogFormat(get_settings().log_format), service="ingest-worker")
+    celery_app.worker_main(["worker", "-Q", INGEST_QUEUE, "-n", "ingest@%h", "--pool=solo", *_NO_CLUSTER])
 
 
 @worker_app.command()
 def caption() -> None:
     """Consume caption tasks: run each scene's keyframe through the VLM and record the result."""
-    settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="caption-worker")
+    from vlmscene.bl.job_queue import CAPTION_QUEUE
+    from vlmscene.tasks import caption_worker, celery_app
 
-    from loguru import logger
-
-    from vlmscene.bl.captioner import BlipCaptioner
-    from vlmscene.bl.job_queue import CAPTION_QUEUE, RabbitMQJobQueue
-    from vlmscene.bl.job_store import PostgresJobStore
-    from vlmscene.bl.workers import CaptionWorker
-
-    captioner = BlipCaptioner(model_name=settings.vlm_model_name)
-    # Load before consuming, not on the first message: a model that can't load should fail
-    # the worker at startup, not leave it pulling messages it would fail every time.
-    captioner.load()
-    worker = CaptionWorker(captioner=captioner, store=PostgresJobStore(settings.database_url))
-    queue = RabbitMQJobQueue(settings.rabbitmq_url)
-
-    logger.bind(queue=CAPTION_QUEUE, model=captioner.model_name).info("caption worker started")
-    queue.consume(CAPTION_QUEUE, worker.handle, prefetch=settings.caption_prefetch)
+    setup_logging(LogFormat(get_settings().log_format), service="caption-worker")
+    # Load the model before consuming, not on the first message: a model that can't load should
+    # fail the worker at startup, not leave it pulling messages it would fail every time.
+    caption_worker()
+    celery_app.worker_main(["worker", "-Q", CAPTION_QUEUE, "-n", "caption@%h", "--pool=solo", *_NO_CLUSTER])

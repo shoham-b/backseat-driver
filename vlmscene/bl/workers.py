@@ -1,26 +1,19 @@
-"""Message handlers for the two queue workers.
+"""Handlers for the two queue workers.
 
 Plain classes over Protocols, like `ScenePipeline`, so they are unit-testable with
-fakes. `handle` is the `MessageHandler` a queue consumer calls per message; it
-returns only once the work is durably recorded, which is what lets the queue ack
-after the fact (at-least-once delivery).
+fakes. They know nothing about Celery: `vlmscene.tasks` wraps `handle` in a task. A
+handler returns only once its work is durably recorded, which is what lets the task be
+acked afterwards (at-least-once delivery), and every step is safe to run twice.
 """
-
-from collections.abc import Mapping
-from uuid import UUID
 
 from loguru import logger
 
 from vlmscene.bl.captioner import Captioner
-from vlmscene.bl.job_queue import CAPTION_QUEUE, JobQueue
+from vlmscene.bl.job_queue import JobQueue
 from vlmscene.bl.job_store import JobStore
 from vlmscene.bl.nuscenes_loader import SceneLoader
 from vlmscene.bl.pipeline import describe_keyframe
 from vlmscene.models import CaptionTask, IngestTask
-
-
-def _log_context(job_id: UUID, transaction_id: str) -> dict[str, str]:
-    return {"job_id": str(job_id), "transaction_id": transaction_id}
 
 
 class IngestWorker:
@@ -31,9 +24,8 @@ class IngestWorker:
         self._queue = queue
         self._store = store
 
-    def handle(self, body: bytes, headers: Mapping[str, str]) -> None:
-        task = IngestTask.model_validate_json(body)
-        with logger.contextualize(**_log_context(task.job_id, task.transaction_id)):
+    def handle(self, task: IngestTask) -> None:
+        with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
             keyframes = self._loader.load_keyframes()
             if task.max_scenes is not None:
                 keyframes = keyframes[: task.max_scenes]
@@ -41,8 +33,9 @@ class IngestWorker:
             # Recorded before fanning out, so a job can't look complete while tasks are still being published.
             self._store.set_expected_scenes(task.job_id, len(keyframes))
             for keyframe in keyframes:
-                caption_task = CaptionTask(job_id=task.job_id, transaction_id=task.transaction_id, keyframe=keyframe)
-                self._queue.publish(CAPTION_QUEUE, caption_task.model_dump_json().encode(), headers)
+                self._queue.enqueue_caption(
+                    CaptionTask(job_id=task.job_id, transaction_id=task.transaction_id, keyframe=keyframe)
+                )
             logger.bind(scenes=len(keyframes)).info("ingest fanned out")
 
 
@@ -53,9 +46,8 @@ class CaptionWorker:
         self._captioner = captioner
         self._store = store
 
-    def handle(self, body: bytes, headers: Mapping[str, str]) -> None:
-        task = CaptionTask.model_validate_json(body)
-        with logger.contextualize(**_log_context(task.job_id, task.transaction_id)):
+    def handle(self, task: CaptionTask) -> None:
+        with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
             description = describe_keyframe(task.keyframe, self._captioner)
             self._store.record_description(task.job_id, description)
             logger.bind(scene=task.keyframe.scene_name).info("scene described")
