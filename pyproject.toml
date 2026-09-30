@@ -30,7 +30,7 @@ vlm = [
     # Pinned below 5.0: the "image-to-text" unconditional-captioning pipeline task
     # was folded into the chat-style "image-text-to-text" task in transformers 5,
     # which requires a text prompt and no longer fits plain scene captioning.
-    "transformers>=4.44,<5",
+    "transformers>=4.44,<6",
     "pillow>=10.4",
 ]
 
