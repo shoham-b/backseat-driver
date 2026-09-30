@@ -36,7 +36,7 @@ Run it with `just up` (and `docker compose up --scale caption-worker=4` to add w
 - **At-least-once, idempotent.** A message is acked only after its result is written. `(job_id, scene_token)` is the primary key and inserts use `ON CONFLICT DO NOTHING`, so redelivery is harmless.
 - **Poison messages are bounded.** Queues are quorum queues with a delivery limit of 3; after that a message is dead-lettered to `vlmscene.dead` for inspection. A failed ingest therefore leaves its job `pending` — there is no `failed` state yet.
 - **Fail fast at startup, tolerant at construction.** Clients never connect in their constructors (so tests and `--help` need no infrastructure); `/ready` reports broker and database reachability, and compose gates the API on both being healthy. The caption worker loads its model before consuming.
-- **Request IDs travel in message headers** (`X-Request-ID`) and are bound to every worker log line with the `job_id`.
+- **Every job has a `transaction_id`** (the caller's `X-Request-ID`, or a generated one). It is stored on the job, returned by the API, carried in every queue message body (and mirrored in the `X-Request-ID` header), and bound to every worker log line with the `job_id`, so one identifier follows a request across all services.
 
 ## Scaling
 

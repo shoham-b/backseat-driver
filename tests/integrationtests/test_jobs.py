@@ -22,6 +22,7 @@ def test_create_job_returns_accepted_and_enqueues_ingest(
     assert response.status_code == HTTPStatus.ACCEPTED
     body = response.json()
     assert body["state"] == JobState.PENDING
+    assert body["transaction_id"] == "trace-7"
     [(queue_name, payload, headers)] = job_queue.published
     assert queue_name == INGEST_QUEUE
     assert IngestTask.model_validate_json(payload).max_scenes == 3

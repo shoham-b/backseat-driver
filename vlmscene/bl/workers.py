@@ -12,18 +12,15 @@ from uuid import UUID
 from loguru import logger
 
 from vlmscene.bl.captioner import Captioner
-from vlmscene.bl.job_queue import CAPTION_QUEUE, REQUEST_ID_HEADER, JobQueue
+from vlmscene.bl.job_queue import CAPTION_QUEUE, JobQueue
 from vlmscene.bl.job_store import JobStore
 from vlmscene.bl.nuscenes_loader import SceneLoader
 from vlmscene.bl.pipeline import describe_keyframe
 from vlmscene.models import CaptionTask, IngestTask
 
 
-def _log_context(job_id: UUID, headers: Mapping[str, str]) -> dict[str, str]:
-    context = {"job_id": str(job_id)}
-    if REQUEST_ID_HEADER in headers:
-        context["request_id"] = headers[REQUEST_ID_HEADER]
-    return context
+def _log_context(job_id: UUID, transaction_id: str) -> dict[str, str]:
+    return {"job_id": str(job_id), "transaction_id": transaction_id}
 
 
 class IngestWorker:
@@ -36,7 +33,7 @@ class IngestWorker:
 
     def handle(self, body: bytes, headers: Mapping[str, str]) -> None:
         task = IngestTask.model_validate_json(body)
-        with logger.contextualize(**_log_context(task.job_id, headers)):
+        with logger.contextualize(**_log_context(task.job_id, task.transaction_id)):
             keyframes = self._loader.load_keyframes()
             if task.max_scenes is not None:
                 keyframes = keyframes[: task.max_scenes]
@@ -44,7 +41,7 @@ class IngestWorker:
             # Recorded before fanning out, so a job can't look complete while tasks are still being published.
             self._store.set_expected_scenes(task.job_id, len(keyframes))
             for keyframe in keyframes:
-                caption_task = CaptionTask(job_id=task.job_id, keyframe=keyframe)
+                caption_task = CaptionTask(job_id=task.job_id, transaction_id=task.transaction_id, keyframe=keyframe)
                 self._queue.publish(CAPTION_QUEUE, caption_task.model_dump_json().encode(), headers)
             logger.bind(scenes=len(keyframes)).info("ingest fanned out")
 
@@ -58,7 +55,7 @@ class CaptionWorker:
 
     def handle(self, body: bytes, headers: Mapping[str, str]) -> None:
         task = CaptionTask.model_validate_json(body)
-        with logger.contextualize(**_log_context(task.job_id, headers)):
+        with logger.contextualize(**_log_context(task.job_id, task.transaction_id)):
             description = describe_keyframe(task.keyframe, self._captioner)
             self._store.record_description(task.job_id, description)
             logger.bind(scene=task.keyframe.scene_name).info("scene described")

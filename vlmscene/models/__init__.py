@@ -40,6 +40,7 @@ class Job(BaseModel):
     """A request to describe every scene of the dataset, with its current progress."""
 
     job_id: UUID
+    transaction_id: str  # correlates the API request, the job row, every queue message and worker log line
     state: JobState
     max_scenes: int | None
     expected_scenes: int | None
@@ -51,6 +52,7 @@ class IngestTask(BaseModel):
     """Queue message: load the dataset and fan out one CaptionTask per scene."""
 
     job_id: UUID
+    transaction_id: str
     max_scenes: int | None = None
 
 
@@ -58,4 +60,5 @@ class CaptionTask(BaseModel):
     """Queue message: caption one scene's keyframe on behalf of a job."""
 
     job_id: UUID
+    transaction_id: str
     keyframe: SceneKeyframe

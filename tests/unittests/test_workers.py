@@ -11,16 +11,16 @@ from vlmscene.models import CaptionTask, IngestTask, JobState
 
 
 def _ingest_body(job_id: UUID, max_scenes: int | None = None) -> bytes:
-    return IngestTask(job_id=job_id, max_scenes=max_scenes).model_dump_json().encode()
+    return IngestTask(job_id=job_id, transaction_id="tx-1", max_scenes=max_scenes).model_dump_json().encode()
 
 
 def _caption_body(job_id: UUID, n: int = 1) -> bytes:
-    return CaptionTask(job_id=job_id, keyframe=make_keyframe(n)).model_dump_json().encode()
+    return CaptionTask(job_id=job_id, transaction_id="tx-1", keyframe=make_keyframe(n)).model_dump_json().encode()
 
 
 def test_ingest_fans_out_one_caption_task_per_scene() -> None:
     job_id, queue, store = uuid4(), FakeJobQueue(), FakeJobStore()
-    store.create_job(job_id, None)
+    store.create_job(job_id, None, "tx-1")
     worker = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store)
 
     worker.handle(_ingest_body(job_id), {})
@@ -33,7 +33,7 @@ def test_ingest_fans_out_one_caption_task_per_scene() -> None:
 
 def test_ingest_records_expected_scenes_and_honours_max_scenes() -> None:
     job_id, queue, store = uuid4(), FakeJobQueue(), FakeJobStore()
-    store.create_job(job_id, 1)
+    store.create_job(job_id, 1, "tx-1")
     worker = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store)
 
     worker.handle(_ingest_body(job_id, max_scenes=1), {})
@@ -44,7 +44,7 @@ def test_ingest_records_expected_scenes_and_honours_max_scenes() -> None:
 
 def test_ingest_forwards_request_id_header_to_caption_tasks() -> None:
     job_id, queue, store = uuid4(), FakeJobQueue(), FakeJobStore()
-    store.create_job(job_id, None)
+    store.create_job(job_id, None, "tx-1")
     worker = IngestWorker(FakeSceneLoader([make_keyframe(1)]), queue, store)
 
     worker.handle(_ingest_body(job_id), {REQUEST_ID_HEADER: "trace-1"})
@@ -72,7 +72,7 @@ def test_ingest_rejects_malformed_message() -> None:
 
 def test_caption_worker_records_description() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None)
+    store.create_job(job_id, None, "tx-1")
 
     CaptionWorker(FakeCaptioner(), store).handle(_caption_body(job_id), {})
 
@@ -83,7 +83,7 @@ def test_caption_worker_records_description() -> None:
 
 def test_caption_redelivery_is_idempotent() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None)
+    store.create_job(job_id, None, "tx-1")
     store.set_expected_scenes(job_id, 1)
     worker = CaptionWorker(FakeCaptioner(), store)
 

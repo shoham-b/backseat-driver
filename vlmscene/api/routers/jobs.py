@@ -35,15 +35,16 @@ async def create_job(
     """Start a job that describes every scene in the dataset."""
     max_scenes = body.max_scenes if body else None
     job_id = uuid4()
+    transaction_id: str = request.state.request_id
 
     # The store and queue clients are blocking, so keep them off the event loop like /describe does.
-    await run_in_threadpool(store.create_job, job_id, max_scenes)
-    task = IngestTask(job_id=job_id, max_scenes=max_scenes)
+    await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id)
+    task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
     await run_in_threadpool(
         queue.publish,
         INGEST_QUEUE,
         task.model_dump_json().encode(),
-        {REQUEST_ID_HEADER: request.state.request_id},
+        {REQUEST_ID_HEADER: transaction_id},
     )
     return await run_in_threadpool(store.get_job, job_id)
 

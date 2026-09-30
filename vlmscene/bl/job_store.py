@@ -18,6 +18,7 @@ from vlmscene.models import Job, JobState, SceneDescription
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     job_id          uuid PRIMARY KEY,
+    transaction_id  text NOT NULL,
     max_scenes      integer,
     expected_scenes integer,
     created_at      timestamptz NOT NULL DEFAULT now()
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS scene_descriptions (
 class JobStore(Protocol):
     """Anything that can track jobs and the scene descriptions produced for them."""
 
-    def create_job(self, job_id: UUID, max_scenes: int | None) -> None: ...
+    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None: ...
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         """Record how many scenes the job will produce. Raises NotFoundError for an unknown job."""
@@ -83,9 +84,12 @@ class PostgresJobStore:
         with self._get_pool().connection() as conn:
             conn.execute(_SCHEMA)
 
-    def create_job(self, job_id: UUID, max_scenes: int | None) -> None:
+    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
         with self._get_pool().connection() as conn:
-            conn.execute("INSERT INTO jobs (job_id, max_scenes) VALUES (%s, %s)", (job_id, max_scenes))
+            conn.execute(
+                "INSERT INTO jobs (job_id, max_scenes, transaction_id) VALUES (%s, %s, %s)",
+                (job_id, max_scenes, transaction_id),
+            )
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         with self._get_pool().connection() as conn:
@@ -118,7 +122,7 @@ class PostgresJobStore:
         with self._get_pool().connection() as conn:
             row = conn.execute(
                 """
-                SELECT j.max_scenes, j.expected_scenes, j.created_at,
+                SELECT j.transaction_id, j.max_scenes, j.expected_scenes, j.created_at,
                        (SELECT count(*) FROM scene_descriptions d WHERE d.job_id = j.job_id)
                 FROM jobs j WHERE j.job_id = %s
                 """,
@@ -127,9 +131,10 @@ class PostgresJobStore:
         if row is None:
             raise NotFoundError(f"job {job_id} not found")
 
-        max_scenes, expected_scenes, created_at, completed_scenes = row
+        transaction_id, max_scenes, expected_scenes, created_at, completed_scenes = row
         return Job(
             job_id=job_id,
+            transaction_id=transaction_id,
             state=derive_state(expected_scenes, completed_scenes),
             max_scenes=max_scenes,
             expected_scenes=expected_scenes,

@@ -34,26 +34,27 @@ class FakeJobQueue:
 class FakeJobStore:
     def __init__(self, healthy: bool = True) -> None:
         self.healthy = healthy
-        self._jobs: dict[UUID, tuple[int | None, int | None, datetime]] = {}
+        self._jobs: dict[UUID, tuple[str, int | None, int | None, datetime]] = {}
         self._descriptions: dict[UUID, dict[str, SceneDescription]] = {}
 
-    def create_job(self, job_id: UUID, max_scenes: int | None) -> None:
-        self._jobs[job_id] = (max_scenes, None, datetime.now(UTC))
+    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
+        self._jobs[job_id] = (transaction_id, max_scenes, None, datetime.now(UTC))
         self._descriptions[job_id] = {}
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
-        max_scenes, _, created_at = self._get(job_id)
-        self._jobs[job_id] = (max_scenes, expected_scenes, created_at)
+        transaction_id, max_scenes, _, created_at = self._get(job_id)
+        self._jobs[job_id] = (transaction_id, max_scenes, expected_scenes, created_at)
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         self._get(job_id)
         self._descriptions[job_id].setdefault(description.scene_token, description)
 
     def get_job(self, job_id: UUID) -> Job:
-        max_scenes, expected_scenes, created_at = self._get(job_id)
+        transaction_id, max_scenes, expected_scenes, created_at = self._get(job_id)
         completed = len(self._descriptions[job_id])
         return Job(
             job_id=job_id,
+            transaction_id=transaction_id,
             state=derive_state(expected_scenes, completed),
             max_scenes=max_scenes,
             expected_scenes=expected_scenes,
@@ -68,7 +69,7 @@ class FakeJobStore:
     def healthcheck(self) -> bool:
         return self.healthy
 
-    def _get(self, job_id: UUID) -> tuple[int | None, int | None, datetime]:
+    def _get(self, job_id: UUID) -> tuple[str, int | None, int | None, datetime]:
         if job_id not in self._jobs:
             raise NotFoundError(f"job {job_id} not found")
         return self._jobs[job_id]
