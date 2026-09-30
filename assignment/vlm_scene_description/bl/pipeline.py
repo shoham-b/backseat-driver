@@ -18,10 +18,9 @@ from vlm_scene_description.models import SceneDescription
 class ScenePipeline:
     """Runs the loader → captioner pipeline over every scene in the dataset."""
 
-    def __init__(self, loader: SceneLoader, captioner: Captioner, model_name: str) -> None:
+    def __init__(self, loader: SceneLoader, captioner: Captioner) -> None:
         self._loader = loader
         self._captioner = captioner
-        self._model_name = model_name
 
     def run(self, max_scenes: int | None = None) -> list[SceneDescription]:
         keyframes = self._loader.load_keyframes()
@@ -39,7 +38,7 @@ class ScenePipeline:
                     camera_channel=keyframe.camera_channel,
                     image_path=keyframe.image_path,
                     description=description,
-                    model_name=self._model_name,
+                    model_name=self._captioner.model_name,
                 )
             )
         return descriptions

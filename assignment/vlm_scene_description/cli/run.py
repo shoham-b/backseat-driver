@@ -44,7 +44,7 @@ def run(
 
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channel=camera)
     captioner = BlipCaptioner(model_name=model)
-    pipeline = ScenePipeline(loader=loader, captioner=captioner, model_name=model)
+    pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
     typer.secho(f"Loading scenes from {dataroot!r} ({version})", fg=typer.colors.CYAN)
     descriptions = pipeline.run(max_scenes=max_scenes)

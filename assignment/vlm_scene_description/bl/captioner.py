@@ -1,22 +1,31 @@
 """Vision-language captioning — turns an image on disk into a short description.
 
 BlipCaptioner wraps a small HuggingFace image-captioning pipeline (BLIP by
-default). The underlying model is loaded lazily on first use and cached on
-the instance, so constructing a BlipCaptioner is cheap even before any
-model weights have been downloaded.
+default). `load()` and `caption()` are separate so a caller can choose to
+eager-load at process startup (so a readiness probe means something) or let
+`caption()` load lazily on first use — the leaf model-loading and inference
+logic itself is not implemented yet; this module fixes the object shape and
+call sequence, not the behavior.
 """
 
 from typing import Any, Protocol
-
-from loguru import logger
 
 
 class Captioner(Protocol):
     """Anything that can describe an image in natural language."""
 
+    @property
+    def model_name(self) -> str: ...
+
+    def load(self) -> None:
+        """Load the underlying model. Safe to call more than once."""
+        ...
+
     def caption(self, image_path: str) -> str: ...
 
-    def healthcheck(self) -> bool: ...
+    def healthcheck(self) -> bool:
+        """True once the model is loaded and ready to serve requests."""
+        ...
 
 
 class BlipCaptioner:
@@ -30,21 +39,11 @@ class BlipCaptioner:
     def model_name(self) -> str:
         return self._model_name
 
-    def healthcheck(self) -> bool:
-        return True
+    def load(self) -> None:
+        raise NotImplementedError
 
     def caption(self, image_path: str) -> str:
-        from PIL import Image
+        raise NotImplementedError
 
-        pipeline = self._get_pipeline()
-        image = Image.open(image_path).convert("RGB")
-        result = pipeline(image)
-        return str(result[0]["generated_text"]).strip()
-
-    def _get_pipeline(self) -> Any:
-        if self._pipeline is None:
-            from transformers import pipeline as hf_pipeline
-
-            logger.bind(model=self._model_name).info("loading VLM captioning model")
-            self._pipeline = hf_pipeline("image-to-text", model=self._model_name)
-        return self._pipeline
+    def healthcheck(self) -> bool:
+        return self._pipeline is not None

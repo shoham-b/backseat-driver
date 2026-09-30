@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from vlm_scene_description.api.dependencies import get_captioner
@@ -38,9 +39,10 @@ async def describe(
         tmp_path = Path(tmp_dir) / (image.filename or "upload")
         tmp_path.write_bytes(contents)
         try:
-            description = captioner.caption(str(tmp_path))
+            # Inference is synchronous/CPU-bound — off the event loop so one
+            # slow request doesn't stall every other request being served.
+            description = await run_in_threadpool(captioner.caption, str(tmp_path))
         except Exception as exc:
             raise UnprocessableError(f"could not read image: {exc}") from exc
 
-    model_name = getattr(captioner, "model_name", "unknown")
-    return DescribeResponse(description=description, model_name=model_name)
+    return DescribeResponse(description=description, model_name=captioner.model_name)

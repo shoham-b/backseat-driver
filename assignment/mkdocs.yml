@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Architecture: architecture.md
+  - Design Decisions: design-decisions.md
   - Development: development.md
   - CLI Reference: cli.md
   - API Reference: api.md

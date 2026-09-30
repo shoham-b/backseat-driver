@@ -11,8 +11,13 @@ class _FakeLoader:
 
 
 class _FakeCaptioner:
+    model_name = "fake-model"
+
     def __init__(self) -> None:
         self.seen_paths: list[str] = []
+
+    def load(self) -> None:
+        return None
 
     def caption(self, image_path: str) -> str:
         self.seen_paths.append(image_path)
@@ -34,7 +39,7 @@ def _keyframe(n: int) -> SceneKeyframe:
 def test_run_describes_every_scene() -> None:
     keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
     captioner = _FakeCaptioner()
-    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=captioner, model_name="fake-model")
+    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=captioner)
 
     descriptions = pipeline.run()
 
@@ -46,7 +51,7 @@ def test_run_describes_every_scene() -> None:
 
 def test_run_respects_max_scenes() -> None:
     keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
-    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=_FakeCaptioner(), model_name="fake-model")
+    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=_FakeCaptioner())
 
     descriptions = pipeline.run(max_scenes=2)
 
@@ -55,7 +60,7 @@ def test_run_respects_max_scenes() -> None:
 
 
 def test_run_on_empty_dataset_returns_empty_list() -> None:
-    pipeline = ScenePipeline(loader=_FakeLoader([]), captioner=_FakeCaptioner(), model_name="fake-model")
+    pipeline = ScenePipeline(loader=_FakeLoader([]), captioner=_FakeCaptioner())
 
     descriptions = pipeline.run()
 
@@ -64,7 +69,7 @@ def test_run_on_empty_dataset_returns_empty_list() -> None:
 
 def test_description_carries_keyframe_fields_through() -> None:
     keyframe = _keyframe(1)
-    pipeline = ScenePipeline(loader=_FakeLoader([keyframe]), captioner=_FakeCaptioner(), model_name="fake-model")
+    pipeline = ScenePipeline(loader=_FakeLoader([keyframe]), captioner=_FakeCaptioner())
 
     [description] = pipeline.run()
 
