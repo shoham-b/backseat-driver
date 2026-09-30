@@ -34,7 +34,7 @@ test:
 
 # System tests via Docker Compose — builds images, runs system + smoke tests against containerised API
 test-compose:
-    docker compose --profile test up --build --abort-on-container-exit --exit-code-from systemtest
+    docker compose --profile test run --build --rm systemtest
     docker compose --profile test down
 
 # Smoke tests against a running service (set API_URL to override target)

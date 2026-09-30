@@ -67,7 +67,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: docker compose --profile test up --build --abort-on-container-exit --exit-code-from systemtest
+      - run: docker compose --profile test run --build --rm systemtest
       - if: always()
         run: docker compose --profile test down
 
