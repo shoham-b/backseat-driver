@@ -18,6 +18,7 @@ class _FakeNuScenes:
                 "name": "scene-0001",
                 "first_sample_token": "sample-1",
                 "nbr_samples": 3,
+                "description": "Parked truck, intersection",
             }
         ]
         self._samples: dict[str, dict[str, Any]] = {
@@ -48,6 +49,7 @@ def test_load_keyframes_picks_the_middle_sample() -> None:
     assert keyframe.scene_name == "scene-0001"
     assert keyframe.camera_channel == "CAM_FRONT"
     assert keyframe.image_path == "/data/sets/nuscenes/samples/CAM_FRONT/sd-2.jpg"
+    assert keyframe.reference_description == "Parked truck, intersection"
 
 
 def test_load_keyframes_uses_configured_camera_channel() -> None:

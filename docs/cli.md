@@ -57,6 +57,31 @@ Each scene's output line during the run looks like:
 
 ---
 
+## `report`
+
+Compare how several models described the same scenes. Takes the JSON files written by `run` (one per
+model) and writes a single self-contained HTML page (images embedded, no server needed).
+
+```bash
+uv run backseat-driver run --backend huggingface --output output/blip.json
+uv run backseat-driver run --backend ollama --output output/llava.json
+uv run backseat-driver report output/blip.json output/llava.json --output output/report.html
+```
+
+The page lets you filter by scene, model, and description text, shows every model's description
+next to the keyframe, and tabulates precision / recall / F1 / average length per model (recomputed
+for the scenes currently shown).
+
+**How accuracy is measured.** Each description is scored against the human-written nuScenes scene
+label (e.g. "Parked truck, construction, intersection") by content-word overlap — stopwords
+removed, plurals folded, words found in the label highlighted. Precision is the share of the model's
+words found in the label, recall the share of the label's words the model mentioned. Synonyms don't
+match and verbose models score low on precision, so read the numbers as a relative signal between
+models rather than absolute accuracy. Results produced before this feature carry no label and are
+shown unscored; re-run `run` to get scores.
+
+---
+
 ## `test smoke`
 
 Run the smoke test suite against a live API.

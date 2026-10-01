@@ -22,6 +22,7 @@ def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner) -> SceneDes
         scene_name=keyframe.scene_name,
         camera_channel=keyframe.camera_channel,
         image_path=keyframe.image_path,
+        reference_description=keyframe.reference_description,
         description=captioner.caption(keyframe.image_path),
         model_name=captioner.model_name,
     )

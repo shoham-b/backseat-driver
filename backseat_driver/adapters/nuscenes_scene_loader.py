@@ -52,6 +52,7 @@ class NuScenesSceneLoader(SceneLoader):
             scene_name=scene["name"],
             camera_channel=self._camera_channel,
             image_path=nusc.get_sample_data_path(sample_data_token),
+            reference_description=scene.get("description") or None,
         )
 
     @staticmethod
