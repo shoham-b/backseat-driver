@@ -57,7 +57,7 @@ Each scene's output line during the run looks like:
 
 ---
 
-## `report`
+## `report` and `ui`
 
 Compare how several models described the same scenes. Takes the JSON files written by `run` (one per
 model) and writes a single self-contained HTML page (images embedded, no server needed).
@@ -79,6 +79,24 @@ words found in the label, recall the share of the label's words the model mentio
 match and verbose models score low on precision, so read the numbers as a relative signal between
 models rather than absolute accuracy. Results produced before this feature carry no label and are
 shown unscored; re-run `run` to get scores.
+
+### `ui`
+
+Same page, served locally instead of written to a file. With no arguments it uses every `*.json` in the
+output directory; `just ui` is the shortcut.
+
+```bash
+uv run backseat-driver ui output/blip.json output/llava.json --port 8081
+just ui                      # all JSON files in output/
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `--host` | `127.0.0.1` | Interface to serve on |
+| `--port` | `8081` | Port to serve on |
+| `--open/--no-open` | `--open` | Open the page in a browser |
+
+The page is rebuilt from the files on each start; restart after a new `run`.
 
 ---
 
