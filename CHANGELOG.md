@@ -11,4 +11,6 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Initial project scaffold
+- nuScenes scene loader, BLIP captioner, and pipeline that writes scene descriptions as JSON
+- `run` CLI command for the full pipeline
+- Optional FastAPI `/describe` endpoint and distributed job mode (Celery, RabbitMQ, Postgres)
