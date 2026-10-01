@@ -17,24 +17,31 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
+          enable-cache: false
 
       - name: Build wheel
         run: uv build --wheel
 
       - name: Attach wheel to release
-        run: gh release upload ${{ github.event.release.tag_name }} dist/*.whl
+        run: gh release upload "$TAG_NAME" dist/*.whl
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to ghcr.io
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+        run: echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$ACTOR" --password-stdin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
 
       - name: Build and push CLI image
         uses: docker/build-push-action@v7
