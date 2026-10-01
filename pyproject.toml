@@ -41,8 +41,8 @@ nuscenes = [
 # Broker + database clients shared by the API and the queue workers.
 jobs = [
     "celery>=5.6.3",
-    "psycopg-pool>=3.2",
     "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0",
 ]
 
 # Everything the batch CLI pipeline needs at runtime.
