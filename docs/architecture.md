@@ -31,7 +31,7 @@ The pipeline logic in `bl/` is shared by two independent entry points:
 
 ### Object model
 
-Three roles, deliberately not four — `SceneLoader` and `Captioner` are `Protocol`s because they each have a real reason to vary (dataset backend; VLM backend) and a real reason to be faked in tests (filesystem/dataset I/O; slow model inference). `write_json` stays a plain function — the thing worth typing on the output side is the `SceneDescription` schema itself, not the act of writing it.
+Three roles, deliberately not four — `SceneLoader` and `Captioner` are abstract classes because they each have a real reason to vary (dataset backend; VLM backend) and a real reason to be faked in tests (filesystem/dataset I/O; slow model inference). `write_json` stays a plain function — the thing worth typing on the output side is the `SceneDescription` schema itself, not the act of writing it.
 
 ```
                               ┌───────────────┐
@@ -42,9 +42,9 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are `Protoc
               ▼                       ▼                       ▼
     ┌───────────────────┐   ┌───────────────────┐   ┌──────────────────────┐
     │   SceneLoader      │   │    Captioner       │   │     write_json        │
-    │   (Protocol)        │   │    (Protocol)       │   │   (plain function)    │
+    │   (abstract)         │   │    (abstract)       │   │   (plain function)    │
     │                     │   │                     │   │                       │
-    │ NuScenesSceneLoader │   │   BlipCaptioner     │   │ list[SceneDescription]│
+    │ NuScenesSceneLoader │   │ HuggingFaceCaptioner │   │ list[SceneDescription]│
     │ — Adapter over       │   │  — Strategy: the     │   │   → JSON file          │
     │ nuscenes-devkit,     │   │  swappable VLM       │   │                       │
     │ returns SceneKeyframe│   │  backend             │   │                       │
@@ -55,7 +55,7 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are `Protoc
                     ┌────────────────────┐                           │
                     │    ScenePipeline    │  bl/pipeline.py           │
                     │  Facade/orchestrator│  — constructor-injected   │
-                    │  loader → captioner │     with both Protocols,  │
+                    │  loader → captioner │     with both ports,  │
                     │  per scene           │     never imports         │
                     └──────────┬──────────┘     nuscenes/transformers │
                                │ list[SceneDescription]                │
@@ -65,8 +65,8 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are `Protoc
 | Object | Kind | Pattern role |
 |---|---|---|
 | `SceneKeyframe`, `SceneDescription` | Pydantic model | Value object — pure data, no behavior |
-| `SceneLoader` / `NuScenesSceneLoader` | Protocol / implementation | Adapter — isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
-| `Captioner` / `BlipCaptioner` | Protocol / implementation | Strategy — swappable VLM backend (unit tests inject a fake) |
+| `SceneLoader` / `NuScenesSceneLoader` | Abstract class / implementation | Adapter — isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
+| `Captioner` / `HuggingFaceCaptioner` | Abstract class / implementation | Strategy — swappable VLM backend (unit tests inject a fake) |
 | `ScenePipeline` | Class | Facade — one `run()` entry point over loader→captioner, no I/O or model logic of its own |
 | `write_json` | Function | — deliberately *not* promoted to a class; nothing varies here yet |
 | `Settings` | pydantic-settings class | Single typed source of config, read once per process |
@@ -84,17 +84,17 @@ CLI path (batch):
 └──────────────────────┘   └───────────┬────────────┘   └──────────────────────┘
                                         │
                                         ▼
-                              ┌──────────────────┐
-                              │   BlipCaptioner   │
-                              │  HF image-to-text │
-                              │  pipeline (lazy)   │
-                              └──────────────────┘
+                              ┌──────────────────────┐
+                              │ HuggingFaceCaptioner │
+                              │ image-to-text        │
+                              │ pipeline (lazy)      │
+                              └──────────────────────┘
 
 API path (on-demand, optional):
 
-┌────────────┐   HTTP POST    ┌───────────────────────┐   Python call   ┌──────────────────┐
-│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│   BlipCaptioner   │
-└────────────┘   (image)      └───────────────────────┘                 └──────────────────┘
+┌────────────┐   HTTP POST    ┌───────────────────────┐   Python call   ┌──────────────────────┐
+│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│ HuggingFaceCaptioner │
+└────────────┘   (image)      └───────────────────────┘                 └──────────────────────┘
 ```
 
 ## Layer design
@@ -112,9 +112,10 @@ No dependencies    transformers imports at      pipeline; api/routers/describe.p
 Each layer only imports from layers to its left:
 
 - **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`). No imports from `api/`, `bl/`, or `cli/`.
-- **`bl/`** — business logic. `nuscenes_loader.SceneLoader` and `captioner.Captioner` are Protocols; `pipeline.ScenePipeline` is built from them via constructor injection, so it never imports nuscenes-devkit, transformers, or torch — those stay behind lazy imports inside the concrete implementations, which keeps `ScenePipeline` fast and trivially testable with fakes.
+- **`bl/`** — business logic. `scene_loader.SceneLoader` and `captioner.Captioner` are abstract classes (as are `JobQueue` and `JobStore`) whose implementations live in `adapters/`; `pipeline.ScenePipeline` is built from them via constructor injection, so it never imports nuscenes-devkit, transformers, or torch — those stay behind lazy imports inside the concrete implementations, which keeps `ScenePipeline` fast and trivially testable with fakes.
 - **`api/`** — HTTP layer. Imports `bl` and `models`. Owns request validation, response serialization, and error mapping.
-- **`cli/`** — Typer commands. Wires concrete `bl/` implementations together and drives the pipeline or a test suite.
+- **`adapters/`** — concrete implementations of the `bl/` abstract classes, one per external platform (nuScenes devkit, HuggingFace, Ollama, Anthropic, Celery/RabbitMQ, Postgres). Imports `bl` and `models`; the only layer that imports platform SDKs.
+- **`cli/`** — Typer commands. Wires concrete `adapters/` implementations together and drives the pipeline or a test suite.
 
 ## API contracts
 
@@ -133,7 +134,8 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | Package | Responsibility |
 |---|---|
 | [`vlmscene.models`](../vlmscene/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
-| [`vlmscene.bl`](../vlmscene/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`/`BlipCaptioner`, `ScenePipeline`, `write_json` |
+| [`vlmscene.bl`](../vlmscene/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`, `JobQueue`, `JobStore` abstract ports, `ScenePipeline`, `write_json` |
+| [`vlmscene.adapters`](../vlmscene/adapters/) | Platform-specific `Captioner` implementations, kept out of `bl`: `HuggingFaceCaptioner` (BLIP, terse), `OllamaCaptioner` and `AnthropicCaptioner` (verbose, prompt-driven), chosen via `build_captioner` |
 | [`vlmscene.cli`](../vlmscene/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
 | [`vlmscene.api`](../vlmscene/api/) | FastAPI app, routes, lifespan, exception handlers |
 | [`vlmscene.config`](../vlmscene/config.py) | `Settings` (pydantic-settings, env-var backed) |
@@ -157,6 +159,6 @@ Set the format via `VLM_SCENE_DESCRIPTION_LOG_FORMAT=colored|json` or in `.env`.
 The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
 1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `vlm-scene-description run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
-2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `BlipCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
+2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `HuggingFaceCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
 Both images share `bl/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

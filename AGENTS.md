@@ -16,9 +16,10 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 **Repository map:**
 - `vlmscene/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
-- `vlmscene/bl/` — Business logic, all Protocol-based so it's testable with fakes:
-  - `nuscenes_loader.py` — `SceneLoader` Protocol + `NuScenesSceneLoader`, picks one representative keyframe per scene from a local nuScenes dataset.
-  - `captioner.py` — `Captioner` Protocol + `BlipCaptioner`, wraps a HuggingFace `image-to-text` pipeline. Model is loaded lazily on first `.caption()` call.
+- `vlmscene/bl/` — Business logic only. Everything that talks to an external system is an abstract class (ABC "port") here and is implemented in `adapters/`, so `bl/` is testable with fakes and never imports nuscenes-devkit/transformers/celery/psycopg:
+  - `scene_loader.py` — `SceneLoader` ABC.
+  - `captioner.py` — `Captioner` ABC.
+- `vlmscene/adapters/` — The only place that knows about a platform: concrete subclasses of the `bl/` ABCs. New external integrations go here, never in `bl/`. `nuscenes_scene_loader.py` (nuScenes devkit), `celery_job_queue.py` (Celery/RabbitMQ), `postgres_job_store.py` (Postgres), `huggingface_captioner.py` wraps a HuggingFace `image-to-text` pipeline (model loaded lazily on first `.caption()`); `ollama_captioner.py` and `anthropic_captioner.py` call a local Ollama server / the hosted Claude API over stdlib HTTP (shared helper in `_http.py`) for verbose, prompt-driven descriptions; `factory.py` (`build_captioner`) picks one from `VLM_SCENE_DESCRIPTION_VLM_BACKEND`.
   - `pipeline.py` — `ScenePipeline`, orchestrates loader → captioner → `list[SceneDescription]`. Never imports nuscenes-devkit/transformers/torch directly.
   - `writer.py` — writes `list[SceneDescription]` out as JSON.
   - `errors.py` — `DomainError` hierarchy; `api/exception_handlers.py` maps these to HTTP status codes.
@@ -27,7 +28,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - `vlmscene/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
 - `vlmscene/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
-- `vlmscene/bl/job_queue.py`, `job_store.py`, `workers.py` — optional distributed mode: `JobQueue` (Celery over RabbitMQ) and `JobStore` (Postgres) Protocols + adapters, and `IngestWorker`/`CaptionWorker` handlers that reuse `pipeline.describe_keyframe`; `vlmscene/tasks.py` wraps the handlers as Celery tasks. Adapters never connect in their constructors. See `docs/distributed.md`.
+- `vlmscene/bl/job_queue.py`, `job_store.py`, `workers.py` — optional distributed mode: `JobQueue` and `JobStore` ABCs (adapters in `adapters/`), and `IngestWorker`/`CaptionWorker` handlers that reuse `pipeline.describe_keyframe`; `vlmscene/tasks.py` wraps the handlers as Celery tasks. Adapters never connect in their constructors. See `docs/distributed.md`.
 - `vlmscene/api/routers/jobs.py` — `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`.
 - CLI: `worker ingest|caption` (Celery workers) and `db init` (creates tables).
 
@@ -101,7 +102,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - **No speculative abstraction**: Don't add feature flags, backwards-compat shims, or conditional paths for hypothetical future requirements. Three similar lines is better than a premature abstraction.
 - **Loguru**: Call `setup_logging()` once per process entry-point (API lifespan, CLI commands that produce output). Import `from loguru import logger` everywhere else — do not use `logging.getLogger`. Use `logger.bind(key=value).info(...)` for one-shot structured fields; use `logger.contextualize(key=value)` (async context manager) for request-scoped fields.
 - **hypothesis**: Use for property-based tests on pure functions — especially config parsing, model validation, and bl/ business logic. Import `from hypothesis import given, strategies as st`. See `tests/unittests/test_config.py` for examples.
-- **Heavy deps (transformers/torch/nuscenes-devkit) stay behind lazy imports**: `bl/captioner.py` and `bl/nuscenes_loader.py` import them inside methods, not at module scope, so unit tests can monkeypatch them without a model download or a dataset on disk. See `tests/unittests/test_captioner.py` and `test_nuscenes_loader.py` for the pattern.
+- **Heavy deps (transformers/torch/nuscenes-devkit) stay behind lazy imports**: `adapters/huggingface_captioner.py` and `adapters/nuscenes_scene_loader.py` import them inside methods, not at module scope, so unit tests can monkeypatch them without a model download or a dataset on disk. See `tests/unittests/test_huggingface_captioner.py` and `test_nuscenes_scene_loader.py` for the pattern.
 - **schemathesis**: Automatically fuzzes all OpenAPI operations declared in the schema. Tests live in `tests/integrationtests/test_schema.py`. Run with `just test` — it's part of the normal integration test suite.
 - **Comments**: Comment the *why*, not the *what*. Delete any comment that merely restates what the code already says.
 - **Scratch files**: Place any temporary debug or exploration scripts under `scratch/` (gitignored). Do not leave them in the project root or any package directory.

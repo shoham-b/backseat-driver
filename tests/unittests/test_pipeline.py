@@ -1,30 +1,6 @@
+from tests.fakes import FakeCaptioner, FakeSceneLoader
 from vlmscene.bl.pipeline import ScenePipeline
 from vlmscene.models import SceneKeyframe
-
-
-class _FakeLoader:
-    def __init__(self, keyframes: list[SceneKeyframe]) -> None:
-        self._keyframes = keyframes
-
-    def load_keyframes(self) -> list[SceneKeyframe]:
-        return self._keyframes
-
-
-class _FakeCaptioner:
-    model_name = "fake-model"
-
-    def __init__(self) -> None:
-        self.seen_paths: list[str] = []
-
-    def load(self) -> None:
-        return None
-
-    def caption(self, image_path: str) -> str:
-        self.seen_paths.append(image_path)
-        return f"a caption for {image_path}"
-
-    def healthcheck(self) -> bool:
-        return True
 
 
 def _keyframe(n: int) -> SceneKeyframe:
@@ -38,8 +14,8 @@ def _keyframe(n: int) -> SceneKeyframe:
 
 def test_run_describes_every_scene() -> None:
     keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
-    captioner = _FakeCaptioner()
-    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=captioner)
+    captioner = FakeCaptioner()
+    pipeline = ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=captioner)
 
     descriptions = pipeline.run()
 
@@ -51,7 +27,7 @@ def test_run_describes_every_scene() -> None:
 
 def test_run_respects_max_scenes() -> None:
     keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
-    pipeline = ScenePipeline(loader=_FakeLoader(keyframes), captioner=_FakeCaptioner())
+    pipeline = ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner())
 
     descriptions = pipeline.run(max_scenes=2)
 
@@ -60,7 +36,7 @@ def test_run_respects_max_scenes() -> None:
 
 
 def test_run_on_empty_dataset_returns_empty_list() -> None:
-    pipeline = ScenePipeline(loader=_FakeLoader([]), captioner=_FakeCaptioner())
+    pipeline = ScenePipeline(loader=FakeSceneLoader([]), captioner=FakeCaptioner())
 
     descriptions = pipeline.run()
 
@@ -69,7 +45,7 @@ def test_run_on_empty_dataset_returns_empty_list() -> None:
 
 def test_description_carries_keyframe_fields_through() -> None:
     keyframe = _keyframe(1)
-    pipeline = ScenePipeline(loader=_FakeLoader([keyframe]), captioner=_FakeCaptioner())
+    pipeline = ScenePipeline(loader=FakeSceneLoader([keyframe]), captioner=FakeCaptioner())
 
     [description] = pipeline.run()
 

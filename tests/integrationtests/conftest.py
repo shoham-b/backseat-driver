@@ -4,24 +4,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.fakes import FakeJobQueue, FakeJobStore
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
 from vlmscene.api.app import app
 from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
-
-
-class FakeCaptioner:
-    """Stub captioner — returns a canned caption instantly, no model download."""
-
-    model_name = "fake-model"
-
-    def load(self) -> None:
-        pass
-
-    def caption(self, image_path: str) -> str:
-        return "a fake scene description"
-
-    def healthcheck(self) -> bool:
-        return True
 
 
 @pytest.fixture(scope="session")
@@ -37,7 +22,7 @@ def job_store() -> FakeJobStore:
 @pytest.fixture(scope="session", autouse=True)
 def _override_dependencies(job_queue: FakeJobQueue, job_store: FakeJobStore) -> Iterator[None]:
     """No test in this layer may reach a real model, broker or database."""
-    app.dependency_overrides[get_captioner] = lambda: FakeCaptioner()
+    app.dependency_overrides[get_captioner] = lambda: FakeCaptioner("a fake scene description")
     app.dependency_overrides[get_job_queue] = lambda: job_queue
     app.dependency_overrides[get_job_store] = lambda: job_store
     yield

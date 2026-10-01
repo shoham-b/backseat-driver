@@ -12,22 +12,17 @@ Usage::
     keyframes = loader.load_keyframes()
 """
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from vlmscene.bl.errors import NotFoundError
+from vlmscene.bl.scene_loader import SceneLoader
 from vlmscene.models import SceneKeyframe
 
 if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes
 
 
-class SceneLoader(Protocol):
-    """Anything that can produce one representative keyframe per scene."""
-
-    def load_keyframes(self) -> list[SceneKeyframe]: ...
-
-
-class NuScenesSceneLoader:
+class NuScenesSceneLoader(SceneLoader):
     """Reads scenes from a local nuScenes dataset via nuscenes-devkit."""
 
     def __init__(

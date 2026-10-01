@@ -3,12 +3,15 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
+from vlmscene.bl.captioner import Captioner
 from vlmscene.bl.errors import NotFoundError
-from vlmscene.bl.job_store import derive_state
+from vlmscene.bl.job_queue import JobQueue
+from vlmscene.bl.job_store import JobStore, derive_state
+from vlmscene.bl.scene_loader import SceneLoader
 from vlmscene.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
 
 
-class FakeJobQueue:
+class FakeJobQueue(JobQueue):
     def __init__(self, healthy: bool = True) -> None:
         self.healthy = healthy
         self.ingest_tasks: list[IngestTask] = []
@@ -24,7 +27,7 @@ class FakeJobQueue:
         return self.healthy
 
 
-class FakeJobStore:
+class FakeJobStore(JobStore):
     def __init__(self, healthy: bool = True) -> None:
         self.healthy = healthy
         self._jobs: dict[UUID, tuple[str, int | None, int | None, datetime]] = {}
@@ -68,7 +71,7 @@ class FakeJobStore:
         return self._jobs[job_id]
 
 
-class FakeSceneLoader:
+class FakeSceneLoader(SceneLoader):
     def __init__(self, keyframes: list[SceneKeyframe]) -> None:
         self._keyframes = keyframes
 
@@ -76,14 +79,23 @@ class FakeSceneLoader:
         return self._keyframes
 
 
-class FakeCaptioner:
-    model_name = "fake-model"
+class FakeCaptioner(Captioner):
+    """Returns a canned caption (default: derived from the path) and records the paths it saw."""
+
+    def __init__(self, caption_text: str | None = None) -> None:
+        self._caption_text = caption_text
+        self.seen_paths: list[str] = []
+
+    @property
+    def model_name(self) -> str:
+        return "fake-model"
 
     def load(self) -> None:
         pass
 
     def caption(self, image_path: str) -> str:
-        return f"a caption for {image_path}"
+        self.seen_paths.append(image_path)
+        return self._caption_text or f"a caption for {image_path}"
 
     def healthcheck(self) -> bool:
         return True

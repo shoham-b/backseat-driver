@@ -4,14 +4,14 @@
 2. Run each keyframe through a VLM to get a caption (Captioner).
 3. Return a SceneDescription per scene, ready to be written out.
 
-Both dependencies are Protocols, so the pipeline is unit-testable with fakes
+Both dependencies are abstract ports, so the pipeline is unit-testable with fakes
 and never imports nuscenes-devkit, transformers, or torch directly.
 """
 
 from loguru import logger
 
 from vlmscene.bl.captioner import Captioner
-from vlmscene.bl.nuscenes_loader import SceneLoader
+from vlmscene.bl.scene_loader import SceneLoader
 from vlmscene.models import SceneDescription, SceneKeyframe
 
 

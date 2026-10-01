@@ -1,8 +1,15 @@
+from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import computed_field
+from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class VlmBackend(StrEnum):
+    HUGGINGFACE = "huggingface"
+    OLLAMA = "ollama"
+    ANTHROPIC = "anthropic"
 
 
 class Settings(BaseSettings):
@@ -22,7 +29,12 @@ class Settings(BaseSettings):
     camera_channel: str = "CAM_FRONT"
 
     # VLM captioning
+    vlm_backend: VlmBackend = VlmBackend.HUGGINGFACE
     vlm_model_name: str = "Salesforce/blip-image-captioning-base"
+    ollama_model_name: str = "llava"
+    ollama_url: str = "http://localhost:11434"
+    anthropic_model_name: str = "claude-haiku-4-5-20251001"
+    anthropic_api_key: SecretStr | None = None
 
     # Distributed mode (API + queue workers); unused by the batch CLI
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"

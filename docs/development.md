@@ -70,9 +70,9 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `bl/nuscenes_loader.py` and `bl/captioner.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `adapters/nuscenes_scene_loader.py` and `adapters/huggingface_captioner.py` import nuscenes-devkit and
 transformers lazily inside methods specifically so these tests can monkeypatch them out — see
-`tests/unittests/test_nuscenes_loader.py` and `test_captioner.py`.
+`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_captioner.py`.
 
 ### Integration tests
 
@@ -83,7 +83,7 @@ uv run pytest tests/integrationtests -v
 ```
 
 FastAPI runs in-process via `httpx.ASGITransport` — no port binding, no subprocess, and the real
-`BlipCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
+`HuggingFaceCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
 
 ### Smoke tests
 
@@ -122,7 +122,8 @@ Coverage is measured over `vlmscene` excluding `cli/`.
 vlmscene/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── bl/             # Business logic: loader, captioner, pipeline, writer, errors
+├── bl/             # Business logic and the abstract ports it depends on: pipeline, workers, writer, errors
+├── adapters/       # Concrete platform implementations of the bl/ ports (nuScenes, HuggingFace, Ollama, Anthropic, Celery, Postgres)
 ├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
@@ -138,8 +139,8 @@ tests/
 
 ### Swapping the VLM
 
-`bl/captioner.py` defines a `Captioner` Protocol (`caption(image_path) -> str`, `healthcheck() -> bool`).
-Add a new implementation there (e.g. a different HF model, or a call to an external VLM API) and pass it
+`bl/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
+Subclass it under `vlmscene/adapters/` (e.g. a different HF model, or a call to an external VLM API) and pass it
 into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint

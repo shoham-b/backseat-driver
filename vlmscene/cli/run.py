@@ -12,7 +12,7 @@ from typing import Annotated
 import typer
 
 from vlmscene.cli import app
-from vlmscene.config import get_settings
+from vlmscene.config import VlmBackend, get_settings
 from vlmscene.logger import LogFormat, setup_logging
 
 
@@ -21,7 +21,11 @@ def run(
     dataroot: Annotated[str | None, typer.Option(help="Path to the local nuScenes dataset root")] = None,
     version: Annotated[str | None, typer.Option(help="nuScenes dataset version, e.g. v1.0-mini")] = None,
     camera: Annotated[str | None, typer.Option(help="Camera channel to use as the representative frame")] = None,
-    model: Annotated[str | None, typer.Option(help="HuggingFace image-to-text model name")] = None,
+    backend: Annotated[
+        VlmBackend | None,
+        typer.Option(help="Captioner backend: huggingface (terse BLIP), ollama or anthropic (verbose, prompt-driven)"),
+    ] = None,
+    model: Annotated[str | None, typer.Option(help="Model name for the chosen backend")] = None,
     output: Annotated[str | None, typer.Option(help="Path to write the JSON results to")] = None,
     max_scenes: Annotated[
         int | None, typer.Option(help="Only process the first N scenes (useful for a quick run)")
@@ -31,19 +35,18 @@ def run(
     settings = get_settings()
     setup_logging(LogFormat(settings.log_format), service="cli")
 
-    from vlmscene.bl.captioner import BlipCaptioner
-    from vlmscene.bl.nuscenes_loader import NuScenesSceneLoader
+    from vlmscene.adapters.factory import build_captioner
+    from vlmscene.adapters.nuscenes_scene_loader import NuScenesSceneLoader
     from vlmscene.bl.pipeline import ScenePipeline
     from vlmscene.bl.writer import write_json
 
     dataroot = dataroot or settings.nuscenes_dataroot
     version = version or settings.nuscenes_version
     camera = camera or settings.camera_channel
-    model = model or settings.vlm_model_name
     output = output or settings.output_path
 
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channel=camera)
-    captioner = BlipCaptioner(model_name=model)
+    captioner = build_captioner(settings, backend=backend, model_name=model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
     typer.secho(f"Loading scenes from {dataroot!r} ({version})", fg=typer.colors.CYAN)

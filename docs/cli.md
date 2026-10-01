@@ -31,7 +31,8 @@ uv run vlm-scene-description run [OPTIONS]
 | `--dataroot` | `VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `VLM_SCENE_DESCRIPTION_NUSCENES_VERSION` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | `VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL` | `CAM_FRONT` | Camera channel used as the representative frame |
-| `--model` | `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `--backend` | `VLM_SCENE_DESCRIPTION_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
+| `--model` | `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` | `Salesforce/blip-image-captioning-base` / `llava` | Model for the chosen backend |
 | `--output` | `VLM_SCENE_DESCRIPTION_OUTPUT_PATH` | `output/scene_descriptions.json` | Where to write the JSON results |
 | `--max-scenes` | — | (all scenes) | Only process the first N scenes |
 

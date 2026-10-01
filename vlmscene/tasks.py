@@ -16,10 +16,16 @@ from celery import Task
 from celery.signals import setup_logging as celery_setup_logging
 from pydantic import ValidationError
 
-from vlmscene.bl.captioner import BlipCaptioner
-from vlmscene.bl.job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, CeleryJobQueue, make_celery_app
-from vlmscene.bl.job_store import PostgresJobStore
-from vlmscene.bl.nuscenes_loader import NuScenesSceneLoader
+from vlmscene.adapters.celery_job_queue import (
+    CAPTION_TASK,
+    INGEST_TASK,
+    MAX_RETRIES,
+    CeleryJobQueue,
+    make_celery_app,
+)
+from vlmscene.adapters.factory import build_captioner
+from vlmscene.adapters.nuscenes_scene_loader import NuScenesSceneLoader
+from vlmscene.adapters.postgres_job_store import PostgresJobStore
 from vlmscene.bl.workers import CaptionWorker, IngestWorker
 from vlmscene.config import get_settings
 from vlmscene.logger import LogFormat, setup_logging
@@ -52,7 +58,7 @@ def ingest_worker() -> IngestWorker:
 
 @cache
 def caption_worker() -> CaptionWorker:
-    captioner = BlipCaptioner(model_name=get_settings().vlm_model_name)
+    captioner = build_captioner(get_settings())
     captioner.load()
     return CaptionWorker(captioner=captioner, store=_store())
 

@@ -7,12 +7,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.fakes import FakeJobQueue, FakeJobStore
+from vlmscene.adapters.huggingface_captioner import HuggingFaceCaptioner
 from vlmscene.api.app import app
 from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
-from vlmscene.bl.captioner import BlipCaptioner, Captioner
+from vlmscene.bl.captioner import Captioner
 
 
-class _UnhealthyCaptioner(BlipCaptioner):
+class _UnhealthyCaptioner(HuggingFaceCaptioner):
     def healthcheck(self) -> bool:
         return False
 
@@ -69,11 +70,11 @@ def test_readiness_unhealthy_backend() -> None:
 
 def test_get_captioner_reads_from_app_state() -> None:
     mock_request = MagicMock()
-    mock_request.app.state.captioner = BlipCaptioner()
+    mock_request.app.state.captioner = HuggingFaceCaptioner()
 
     result = get_captioner(mock_request)
 
-    assert isinstance(result, BlipCaptioner)
+    assert isinstance(result, HuggingFaceCaptioner)
 
 
 def test_error_response_shape_on_unhandled_exception() -> None:
