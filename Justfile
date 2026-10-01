@@ -55,11 +55,11 @@ test-all:
 
 # Dev server with auto-reload
 dev:
-    uv run granian --interface asgi --reload backseat_driver.api.app:app
+    uv run fastapi dev backseat_driver/api/app.py
 
 # Production-mode server
 serve:
-    uv run granian --interface asgi --host 0.0.0.0 --port 8080 backseat_driver.api.app:app
+    uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port 8080
 
 # Distributed mode: API + RabbitMQ + Postgres + ingest/caption workers
 up:
