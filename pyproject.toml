@@ -85,6 +85,7 @@ dev = [
     "httpx>=0.28",
     "hypothesis>=6",
     "schemathesis>=3.0",
+    "pytest-codspeed>=5.0.3",
     { include-group = "cli" },
     { include-group = "api" },
 ]
