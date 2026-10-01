@@ -10,7 +10,7 @@
 
 A small production-shaped pipeline that reads driving scenes from the [nuScenes v1.0-mini](https://www.nuscenes.org/nuscenes)
 dataset, describes each one with a vision-language model, and writes the results out as JSON — built
-for the "Scene Description via VLM" take-home assignment (see [home_assignment_vlm.pdf](home_assignment_vlm.pdf)).
+for the "Scene Description via VLM" take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf)).
 
 Scaffolded from [python-project-template](https://github.com/shoham-b/python-project-template)
 (layered `models/` → `bl/` → `cli/`+`api/`, containerized, CI, typed, tested at four levels) and then
