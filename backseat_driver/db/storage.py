@@ -1,5 +1,6 @@
-"""Postgres adapter for the `JobStore` port, built on the SQLAlchemy ORM.
+"""Postgres persistence: engine/session lifecycle and queries over the ORM tables.
 
+Returns ORM rows and primitives, never domain models; mapping to the domain is the adapter's job.
 Never connects until first used.
 """
 
@@ -13,17 +14,11 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from backseat_driver.adapters.postgres.orm import Base, JobRow, SceneDescriptionRow
-from backseat_driver.bl.errors import NotFoundError
-from backseat_driver.bl.job_store import JobStore, derive_state
-from backseat_driver.models import Job, SceneDescription
+from backseat_driver.db.orm import Base, JobRow, SceneDescriptionRow
 
 
-class PostgresJobStore(JobStore):
-    """`JobStore` backed by Postgres through a lazily created SQLAlchemy engine.
-
-    `database_url` must name the psycopg 3 driver, e.g. `postgresql+psycopg://...`.
-    """
+class JobStorage:
+    """`database_url` must name the psycopg 3 driver, e.g. `postgresql+psycopg://...`."""
 
     def __init__(self, database_url: str) -> None:
         self._database_url = database_url
@@ -35,11 +30,12 @@ class PostgresJobStore(JobStore):
         """Create the tables if missing. Run once per deployment (`db init`), not per process."""
         Base.metadata.create_all(self._get_engine())
 
-    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
+    def insert_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
         with self._session() as session, session.begin():
             session.add(JobRow(job_id=job_id, max_scenes=max_scenes, transaction_id=transaction_id))
 
-    def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
+    def update_expected_scenes(self, job_id: UUID, expected_scenes: int) -> bool:
+        """Return False when no such job exists."""
         statement = (
             update(JobRow)
             .where(JobRow.job_id == job_id)
@@ -47,59 +43,35 @@ class PostgresJobStore(JobStore):
             .returning(JobRow.job_id)
         )
         with self._session() as session, session.begin():
-            if session.execute(statement).first() is None:
-                raise NotFoundError(f"job {job_id} not found")
+            return session.execute(statement).first() is not None
 
-    def record_description(self, job_id: UUID, description: SceneDescription) -> None:
+    def insert_description(self, job_id: UUID, values: dict) -> None:
+        """Idempotent: a redelivered scene is ignored."""
         statement = (
             pg_insert(SceneDescriptionRow)
-            .values(job_id=job_id, **description.model_dump())
+            .values(job_id=job_id, **values)
             .on_conflict_do_nothing(index_elements=["job_id", "scene_token"])
         )
         with self._session() as session, session.begin():
             session.execute(statement)
 
-    def get_job(self, job_id: UUID) -> Job:
+    def fetch_job(self, job_id: UUID) -> tuple[JobRow, int] | None:
+        """The job row and its completed-scene count, or None when no such job exists."""
         completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
         with self._session() as session:
             row = session.execute(select(JobRow, completed).where(JobRow.job_id == job_id)).one_or_none()
-        if row is None:
-            raise NotFoundError(f"job {job_id} not found")
+        return None if row is None else (row[0], row[1])
 
-        job, completed_scenes = row
-        return Job(
-            job_id=job_id,
-            transaction_id=job.transaction_id,
-            state=derive_state(job.expected_scenes, completed_scenes),
-            max_scenes=job.max_scenes,
-            expected_scenes=job.expected_scenes,
-            completed_scenes=completed_scenes,
-            created_at=job.created_at,
-        )
-
-    def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
-        self.get_job(job_id)  # raises NotFoundError, so an unknown job isn't reported as "no descriptions"
+    def fetch_descriptions(self, job_id: UUID) -> list[SceneDescriptionRow]:
         statement = (
             select(SceneDescriptionRow)
             .where(SceneDescriptionRow.job_id == job_id)
             .order_by(SceneDescriptionRow.scene_name)
         )
         with self._session() as session:
-            rows = session.scalars(statement).all()
-        return [
-            SceneDescription(
-                scene_token=row.scene_token,
-                scene_name=row.scene_name,
-                camera_channel=row.camera_channel,
-                image_path=row.image_path,
-                description=row.description,
-                model_name=row.model_name,
-                generated_at=row.generated_at,
-            )
-            for row in rows
-        ]
+            return list(session.scalars(statement).all())
 
-    def healthcheck(self) -> bool:
+    def ping(self) -> bool:
         try:
             with self._get_engine().connect() as conn:
                 conn.exec_driver_sql("SELECT 1")
@@ -120,7 +92,7 @@ class PostgresJobStore(JobStore):
 
     def _engine_unlocked(self) -> Engine:
         # create_engine is lazy: no connection is opened until first use. The connect timeout keeps
-        # healthcheck and startup failing fast against an unreachable host.
+        # ping and startup failing fast against an unreachable host.
         if self._engine is None:
             self._engine = create_engine(
                 self._database_url,
