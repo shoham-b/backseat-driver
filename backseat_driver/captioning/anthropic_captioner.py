@@ -9,8 +9,8 @@ import base64
 import urllib.request
 from pathlib import Path
 
-from backseat_driver.adapters._http import DETAILED_SCENE_PROMPT, post_json
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning._http import DETAILED_SCENE_PROMPT, post_json
+from backseat_driver.captioning.captioner import Captioner
 
 _API_VERSION = "2023-06-01"
 # A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).

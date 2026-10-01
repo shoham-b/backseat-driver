@@ -1,4 +1,4 @@
-"""Domain models — pure Pydantic, no imports from api/, bl/, or cli/."""
+"""Domain models — pure Pydantic, no imports from any other package."""
 
 from datetime import UTC, datetime
 from enum import StrEnum

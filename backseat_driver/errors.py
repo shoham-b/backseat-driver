@@ -1,7 +1,7 @@
-"""Domain error types — keep BL free of HTTP concepts.
+"""Domain error types — keep domain code free of HTTP concepts.
 
-Raise these from business-logic code. api/exception_handlers.py translates
-them into HTTP 4xx responses, so BL code never imports from fastapi or http.
+Raise these from domain code. api/exception_handlers.py translates
+them into HTTP 4xx responses, so domain code never imports from fastapi or http.
 """
 
 

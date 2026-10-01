@@ -1,8 +1,8 @@
 from fastapi import Request
 
-from backseat_driver.bl.captioner import Captioner
-from backseat_driver.bl.job_queue import JobQueue
-from backseat_driver.bl.job_store import JobStore
+from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.jobs.job_queue import JobQueue
+from backseat_driver.jobs.job_store import JobStore
 
 
 def get_captioner(request: Request) -> Captioner:

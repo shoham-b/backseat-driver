@@ -1,10 +1,10 @@
-"""Postgres adapter for the `JobStore` port: maps persistence rows (`db/`) to domain models."""
+"""Postgres adapter for the `JobStore` port: maps persistence rows (`orm.py`/`storage.py`) to domain models."""
 
 from uuid import UUID
 
-from backseat_driver.bl.errors import NotFoundError
-from backseat_driver.bl.job_store import JobStore, derive_state
-from backseat_driver.db.storage import JobStorage
+from backseat_driver.errors import NotFoundError
+from backseat_driver.jobs.job_store import JobStore, derive_state
+from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import Job, SceneDescription
 
 

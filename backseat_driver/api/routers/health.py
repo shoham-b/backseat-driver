@@ -6,9 +6,9 @@ from fastapi.concurrency import run_in_threadpool
 
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from backseat_driver.api.errors import APIError
-from backseat_driver.bl.captioner import Captioner
-from backseat_driver.bl.job_queue import JobQueue
-from backseat_driver.bl.job_store import JobStore
+from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.jobs.job_queue import JobQueue
+from backseat_driver.jobs.job_store import JobStore
 
 router = APIRouter(tags=["observability"])
 

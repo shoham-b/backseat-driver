@@ -14,7 +14,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from backseat_driver.db.orm import Base, JobRow, SceneDescriptionRow
+from backseat_driver.jobs.orm import Base, JobRow, SceneDescriptionRow
 
 
 class JobStorage:

@@ -71,7 +71,7 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `adapters/nuscenes_scene_loader.py` and `adapters/huggingface_captioner.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_captioner.py` import nuscenes-devkit and
 transformers lazily inside methods specifically so these tests can monkeypatch them out — see
 `tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_captioner.py`.
 
@@ -136,8 +136,10 @@ and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --cods
 backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── bl/             # Business logic and the abstract ports it depends on: pipeline, workers, writer, errors
-├── adapters/       # Concrete platform implementations of the bl/ ports (nuScenes, HuggingFace, Ollama, Anthropic, Celery, Postgres)
+├── captioning/     # Captioner port + HuggingFace/Ollama/Anthropic backends and build_captioner
+├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
+├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
+├── errors.py       # DomainError hierarchy
 ├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
@@ -153,14 +155,14 @@ tests/
 
 ### Swapping the VLM
 
-`bl/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
-Subclass it under `backseat_driver/adapters/` (e.g. a different HF model, or a call to an external VLM API) and pass it
+`captioning/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
+Subclass it in `backseat_driver/captioning/`, next to the existing backends (e.g. a different HF model, or a call to an external VLM API) and pass it
 into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
 1. Add request/response models to `backseat_driver/models/` or directly in the router module.
-2. Add business logic to `backseat_driver/bl/`.
+2. Add domain logic to the matching capability package (`captioning/`, `scenes/`, `jobs/`).
 3. Create or extend a router in `backseat_driver/api/routers/`.
 4. Register the router in `backseat_driver/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.

@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from backseat_driver.bl.job_store import derive_state
+from backseat_driver.jobs.job_store import derive_state
 from backseat_driver.models import JobState
 
 

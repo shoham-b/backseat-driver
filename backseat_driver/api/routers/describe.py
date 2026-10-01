@@ -1,6 +1,6 @@
 """On-demand captioning endpoint — describe a single uploaded image.
 
-Demonstrates deploying the same bl.captioner.Captioner used by the batch CLI
+Demonstrates deploying the same captioning.Captioner used by the batch CLI
 pipeline as a small inference service, instead of (or alongside) running the
 CLI as a scheduled batch job.
 """
@@ -15,8 +15,8 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backseat_driver.api.dependencies import get_captioner
-from backseat_driver.bl.captioner import Captioner
-from backseat_driver.bl.errors import UnprocessableError
+from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.errors import UnprocessableError
 
 _PLAIN_SUFFIX = re.compile(r"\.[a-z0-9]{1,8}")
 

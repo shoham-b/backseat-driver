@@ -1,7 +1,7 @@
 """Port for vision-language captioning — turns an image on disk into a short description.
 
-Platform-specific implementations (HuggingFace, Ollama, Anthropic) live in
-`backseat_driver.adapters`, so business logic depends only on this abstract class.
+Platform-specific implementations (HuggingFace, Ollama, Anthropic) live next to it in
+this package, so the rest of the code depends only on this abstract class.
 """
 
 from abc import ABC, abstractmethod
