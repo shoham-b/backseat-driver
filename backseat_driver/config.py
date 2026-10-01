@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     # Distributed mode (API + queue workers); unused by the batch CLI
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
-    database_url: str = "postgresql://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
+    database_url: str = "postgresql+psycopg://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
 
     # Pipeline output
     output_path: str = "output/scene_descriptions.json"
