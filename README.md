@@ -1,11 +1,11 @@
 # VLM Scene Description
 
 ![Python Version](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)
-![Tests Status](https://github.com/shoham-b/vlm_scene_description/actions/workflows/ci.yml/badge.svg)
-![Docker Build](https://github.com/shoham-b/vlm_scene_description/actions/workflows/docker.yml/badge.svg)
-![CodeQL](https://github.com/shoham-b/vlm_scene_description/actions/workflows/codeql.yml/badge.svg)
-[![codecov](https://codecov.io/gh/shoham-b/vlm_scene_description/graph/badge.svg)](https://codecov.io/gh/shoham-b/vlm_scene_description)
-[![Docs](https://img.shields.io/badge/docs-github--pages-blue)](https://shoham-b.github.io/vlm_scene_description/)
+![Tests Status](https://github.com/shoham-b/backseat-driver/actions/workflows/ci.yml/badge.svg)
+![Docker Build](https://github.com/shoham-b/backseat-driver/actions/workflows/docker.yml/badge.svg)
+![CodeQL](https://github.com/shoham-b/backseat-driver/actions/workflows/codeql.yml/badge.svg)
+[![codecov](https://codecov.io/gh/shoham-b/backseat-driver/graph/badge.svg)](https://codecov.io/gh/shoham-b/backseat-driver)
+[![Docs](https://img.shields.io/badge/docs-github--pages-blue)](https://shoham-b.github.io/backseat-driver/)
 [![Generated from python-project-template](https://img.shields.io/badge/generated%20from-python--project--template-8A2BE2)](https://github.com/shoham-b/python-project-template)
 
 A small production-shaped pipeline that reads driving scenes from the [nuScenes v1.0-mini](https://www.nuscenes.org/nuscenes)
@@ -92,7 +92,7 @@ docker compose --profile cli run --rm cli
 
 Full setup instructions (including the optional HTTP API) are in
 **[docs/getting-started.md](docs/getting-started.md)**. Full documentation is published at
-**https://shoham-b.github.io/vlm_scene_description/**.
+**https://shoham-b.github.io/backseat-driver/**.
 
 ## How this was tested
 

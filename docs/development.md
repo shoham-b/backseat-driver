@@ -13,7 +13,7 @@
 
 ```bash
 git clone <repo-url>
-cd vlm_scene_description
+cd backseat-driver
 uv sync --group dev         # install all deps + dev tools
 uv run pre-commit install   # register git hooks
 cp .env.example .env
