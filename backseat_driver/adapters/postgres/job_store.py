@@ -4,47 +4,19 @@ Never connects until first used.
 """
 
 import threading
-from datetime import datetime
 from uuid import UUID
 
 from loguru import logger
-from sqlalchemy import DateTime, ForeignKey, Integer, String, create_engine, func, select, update
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
+from backseat_driver.adapters.postgres.orm import Base, JobRow, SceneDescriptionRow
 from backseat_driver.bl.errors import NotFoundError
 from backseat_driver.bl.job_store import JobStore, derive_state
 from backseat_driver.models import Job, SceneDescription
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class JobRow(Base):
-    __tablename__ = "jobs"
-
-    job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
-    transaction_id: Mapped[str] = mapped_column(String)
-    max_scenes: Mapped[int | None] = mapped_column(Integer)
-    expected_scenes: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class SceneDescriptionRow(Base):
-    __tablename__ = "scene_descriptions"
-
-    job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("jobs.job_id"), primary_key=True)
-    scene_token: Mapped[str] = mapped_column(String, primary_key=True)
-    scene_name: Mapped[str] = mapped_column(String)
-    camera_channel: Mapped[str] = mapped_column(String)
-    image_path: Mapped[str] = mapped_column(String)
-    description: Mapped[str] = mapped_column(String)
-    model_name: Mapped[str] = mapped_column(String)
-    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class PostgresJobStore(JobStore):
