@@ -1,0 +1,32 @@
+name: CodSpeed
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: codspeed-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # CodSpeed authenticates via OIDC, no token secret needed
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --group dev
+      - uses: CodSpeedHQ/action@v4
+        with:
+          mode: instrumentation
+          run: uv run --with pytest-codspeed pytest tests/benchmarks --codspeed
