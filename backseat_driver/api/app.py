@@ -6,7 +6,7 @@ from loguru import logger
 
 from backseat_driver.adapters.celery_job_queue import CeleryJobQueue
 from backseat_driver.adapters.factory import build_captioner
-from backseat_driver.adapters.postgres.job_store import PostgresJobStore
+from backseat_driver.adapters.postgres_job_store import PostgresJobStore
 from backseat_driver.api.errors import APIError
 from backseat_driver.api.exception_handlers import (
     api_error_handler,
