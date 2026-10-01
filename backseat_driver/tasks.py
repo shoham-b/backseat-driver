@@ -25,7 +25,7 @@ from backseat_driver.adapters.celery_job_queue import (
 )
 from backseat_driver.adapters.factory import build_captioner
 from backseat_driver.adapters.nuscenes_scene_loader import NuScenesSceneLoader
-from backseat_driver.adapters.postgres_job_store import PostgresJobStore
+from backseat_driver.adapters.postgres.job_store import PostgresJobStore
 from backseat_driver.bl.workers import CaptionWorker, IngestWorker
 from backseat_driver.config import get_settings
 from backseat_driver.logger import LogFormat, setup_logging
