@@ -1,5 +1,5 @@
 {
-  "name": "VLM Scene Description",
+  "name": "Backseat Driver",
   "image": "mcr.microsoft.com/devcontainers/python:1-3.12",
   "features": {
     "ghcr.io/astral-sh/uv:1": {},

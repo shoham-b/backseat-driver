@@ -9,10 +9,10 @@ from typing import Any
 
 import pytest
 
-from vlmscene.adapters.factory import build_captioner
-from vlmscene.adapters.huggingface_captioner import HuggingFaceCaptioner
-from vlmscene.adapters.ollama_captioner import OllamaCaptioner
-from vlmscene.config import Settings, VlmBackend
+from backseat_driver.adapters.factory import build_captioner
+from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.adapters.ollama_captioner import OllamaCaptioner
+from backseat_driver.config import Settings, VlmBackend
 
 
 class _FakeResponse(io.BytesIO):

@@ -25,7 +25,7 @@ Run `just --list` at any time to see all targets. The full table:
 
 | Command | Description |
 |---|---|
-| `just run [ARGS]` | Run the scene-description pipeline (`vlm-scene-description run`) |
+| `just run [ARGS]` | Run the scene-description pipeline (`backseat-driver run`) |
 | `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
 | `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
@@ -95,7 +95,7 @@ API_URL=http://staging:8080 just test-smoke   # against another target
 Or via the CLI:
 
 ```bash
-uv run vlm-scene-description test smoke --api-url http://staging:8080
+uv run backseat-driver test smoke --api-url http://staging:8080
 ```
 
 ### System tests (Docker Compose)
@@ -114,12 +114,12 @@ Builds the `api` image, starts it, runs `tests/systemtests/` and `tests/smoketes
 just test   # includes --cov; must stay above 80% (enforced in CI)
 ```
 
-Coverage is measured over `vlmscene` excluding `cli/`.
+Coverage is measured over `backseat_driver` excluding `cli/`.
 
 ## Package structure
 
 ```
-vlmscene/
+backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
 ├── bl/             # Business logic and the abstract ports it depends on: pipeline, workers, writer, errors
@@ -140,15 +140,15 @@ tests/
 ### Swapping the VLM
 
 `bl/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
-Subclass it under `vlmscene/adapters/` (e.g. a different HF model, or a call to an external VLM API) and pass it
+Subclass it under `backseat_driver/adapters/` (e.g. a different HF model, or a call to an external VLM API) and pass it
 into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
-1. Add request/response models to `vlmscene/models/` or directly in the router module.
-2. Add business logic to `vlmscene/bl/`.
-3. Create or extend a router in `vlmscene/api/routers/`.
-4. Register the router in `vlmscene/api/app.py`.
+1. Add request/response models to `backseat_driver/models/` or directly in the router module.
+2. Add business logic to `backseat_driver/bl/`.
+3. Create or extend a router in `backseat_driver/api/routers/`.
+4. Register the router in `backseat_driver/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.
 
 ## Docker

@@ -3,10 +3,10 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
+from backseat_driver import tasks
+from backseat_driver.bl.workers import CaptionWorker
+from backseat_driver.models import CaptionTask
 from tests.fakes import FakeCaptioner, FakeJobStore, make_keyframe
-from vlmscene import tasks
-from vlmscene.bl.workers import CaptionWorker
-from vlmscene.models import CaptionTask
 
 
 def test_caption_task_validates_the_payload_and_hands_it_to_the_worker(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -29,4 +29,4 @@ def test_malformed_payload_fails_without_being_retried() -> None:
 
 
 def test_tasks_are_registered_under_the_names_the_api_publishes_to() -> None:
-    assert {"vlmscene.ingest", "vlmscene.caption"} <= set(tasks.celery_app.tasks)
+    assert {"backseat_driver.ingest", "backseat_driver.caption"} <= set(tasks.celery_app.tasks)

@@ -5,12 +5,12 @@ The batch CLI is the primary deliverable: one process, one flow — `SceneLoader
 ```
 Client ──REST──▶ API ──(1) create job──▶ Postgres
                   │
-                  └─(2) IngestTask──▶ RabbitMQ [vlmscene.ingest]
+                  └─(2) IngestTask──▶ RabbitMQ [backseat_driver.ingest]
                                           ▼
                               ingest-worker (NuScenesSceneLoader)
                                  │ set expected_scenes, then one CaptionTask per scene
                                  ▼
-                          RabbitMQ [vlmscene.caption]
+                          RabbitMQ [backseat_driver.caption]
                                  ▼
                      caption-worker × N (HuggingFaceCaptioner, model loaded once)
                                  ▼
@@ -21,10 +21,10 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 
 | Service | Command | Role |
 |---|---|---|
-| `api` | `granian … vlmscene.api.app:app` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
-| `ingest-worker` | `vlm-scene-description worker ingest` | Reads the dataset, fans out one caption task per scene |
-| `caption-worker` | `vlm-scene-description worker caption` | Captions one keyframe and stores the result; scale horizontally |
-| `db-init` | `vlm-scene-description db init` | One-shot: creates the tables |
+| `api` | `granian … backseat_driver.api.app:app` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
+| `ingest-worker` | `backseat-driver worker ingest` | Reads the dataset, fans out one caption task per scene |
+| `caption-worker` | `backseat-driver worker caption` | Captions one keyframe and stores the result; scale horizontally |
+| `db-init` | `backseat-driver db init` | One-shot: creates the tables |
 | `rabbitmq`, `postgres` | | Broker and job store |
 
 Run it with `just up` (and `docker compose up --scale caption-worker=4` to add workers). The dataset must be in `./data`, mounted read-only into both workers.
@@ -34,7 +34,7 @@ Run it with `just up` (and `docker compose up --scale caption-worker=4` to add w
 - **Messages carry references, not pixels.** A `CaptionTask` holds the keyframe's `image_path`; workers read the shared `data` volume. Swapping in an object store would change `image_path` semantics only.
 - **Job state is derived, not stored.** `pending` until ingest records `expected_scenes`, `running` while `completed < expected`, `completed` after. There is no "mark done" step to race between workers.
 - **At-least-once, idempotent.** A message is acked only after its result is written. `(job_id, scene_token)` is the primary key and inserts use `ON CONFLICT DO NOTHING`, so redelivery is harmless.
-- **Workers are Celery workers** (`vlmscene/tasks.py`), over RabbitMQ quorum queues, with late acks and one message at a time. A task that fails is retried with backoff up to 3 times, except malformed messages, which are never retried. After that the failure is logged with its `transaction_id` and the message is dropped, so its job stays `pending`/`running` — there is no `failed` state or dead-letter queue yet. Remote control and gossip are off because RabbitMQ 4 rejects the transient queues they need.
+- **Workers are Celery workers** (`backseat_driver/tasks.py`), over RabbitMQ quorum queues, with late acks and one message at a time. A task that fails is retried with backoff up to 3 times, except malformed messages, which are never retried. After that the failure is logged with its `transaction_id` and the message is dropped, so its job stays `pending`/`running` — there is no `failed` state or dead-letter queue yet. Remote control and gossip are off because RabbitMQ 4 rejects the transient queues they need.
 - **Fail fast at startup, tolerant at construction.** Clients never connect in their constructors (so tests and `--help` need no infrastructure); `/ready` reports broker and database reachability, and compose gates the API on both being healthy. The caption worker loads its model before consuming.
 - **Every job has a `transaction_id`** (the caller's `X-Request-ID`, or a generated one). It is stored on the job, returned by the API, carried in every queue message body (and mirrored in the `X-Request-ID` header), and bound to every worker log line with the `job_id`, so one identifier follows a request across all services.
 

@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from vlmscene.config import Settings, get_settings
+from backseat_driver.config import Settings, get_settings
 
 
 def test_defaults() -> None:
@@ -18,8 +18,8 @@ def test_defaults() -> None:
 
 
 def test_nuscenes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT", "/mnt/nuscenes")
-    monkeypatch.setenv("VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL", "CAM_BACK")
+    monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/mnt/nuscenes")
+    monkeypatch.setenv("BACKSEAT_DRIVER_CAMERA_CHANNEL", "CAM_BACK")
 
     s = Settings()
 
@@ -28,7 +28,7 @@ def test_nuscenes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("VLM_SCENE_DESCRIPTION_API_PORT", "9090")
+    monkeypatch.setenv("BACKSEAT_DRIVER_API_PORT", "9090")
     s = Settings()
     assert s.api_port == 9090
 

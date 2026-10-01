@@ -1,6 +1,6 @@
 # AGENTS.md
 
-## VLM Scene Description — AI Agent Guide
+## Backseat Driver — AI Agent Guide
 
 This document provides essential knowledge for AI coding agents (Claude Code, Copilot, Cursor, etc.) to be productive in this codebase. Read this before exploring source files.
 
@@ -10,30 +10,30 @@ This document provides essential knowledge for AI coding agents (Claude Code, Co
 
 **Mandatory reading for architecture:**
 - **[docs/index.md](docs/index.md)** — Quick-start and documentation hub.
-- **[docs/api.md](docs/api.md)** — Auto-generated API reference for `vlmscene.*`.
+- **[docs/api.md](docs/api.md)** — Auto-generated API reference for `backseat_driver.*`.
 
 The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally with `just docs`.
 
 **Repository map:**
-- `vlmscene/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
-- `vlmscene/bl/` — Business logic only. Everything that talks to an external system is an abstract class (ABC "port") here and is implemented in `adapters/`, so `bl/` is testable with fakes and never imports nuscenes-devkit/transformers/celery/psycopg:
+- `backseat_driver/models/` — Pure Pydantic domain models (`SceneKeyframe`, `SceneDescription`). No imports from any other layer.
+- `backseat_driver/bl/` — Business logic only. Everything that talks to an external system is an abstract class (ABC "port") here and is implemented in `adapters/`, so `bl/` is testable with fakes and never imports nuscenes-devkit/transformers/celery/psycopg:
   - `scene_loader.py` — `SceneLoader` ABC.
   - `captioner.py` — `Captioner` ABC.
-- `vlmscene/adapters/` — The only place that knows about a platform: concrete subclasses of the `bl/` ABCs. New external integrations go here, never in `bl/`. `nuscenes_scene_loader.py` (nuScenes devkit), `celery_job_queue.py` (Celery/RabbitMQ), `postgres_job_store.py` (Postgres), `huggingface_captioner.py` wraps a HuggingFace `image-to-text` pipeline (model loaded lazily on first `.caption()`); `ollama_captioner.py` and `anthropic_captioner.py` call a local Ollama server / the hosted Claude API over stdlib HTTP (shared helper in `_http.py`) for verbose, prompt-driven descriptions; `factory.py` (`build_captioner`) picks one from `VLM_SCENE_DESCRIPTION_VLM_BACKEND`.
+- `backseat_driver/adapters/` — The only place that knows about a platform: concrete subclasses of the `bl/` ABCs. New external integrations go here, never in `bl/`. `nuscenes_scene_loader.py` (nuScenes devkit), `celery_job_queue.py` (Celery/RabbitMQ), `postgres_job_store.py` (Postgres), `huggingface_captioner.py` wraps a HuggingFace `image-to-text` pipeline (model loaded lazily on first `.caption()`); `ollama_captioner.py` and `anthropic_captioner.py` call a local Ollama server / the hosted Claude API over stdlib HTTP (shared helper in `_http.py`) for verbose, prompt-driven descriptions; `factory.py` (`build_captioner`) picks one from `BACKSEAT_DRIVER_VLM_BACKEND`.
   - `pipeline.py` — `ScenePipeline`, orchestrates loader → captioner → `list[SceneDescription]`. Never imports nuscenes-devkit/transformers/torch directly.
   - `writer.py` — writes `list[SceneDescription]` out as JSON.
   - `errors.py` — `DomainError` hierarchy; `api/exception_handlers.py` maps these to HTTP status codes.
 
-- `vlmscene/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON. `test smoke` runs the smoke suite against a running API.
+- `backseat_driver/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON. `test smoke` runs the smoke suite against a running API.
 
-- `vlmscene/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
-- `vlmscene/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
-- `vlmscene/bl/job_queue.py`, `job_store.py`, `workers.py` — optional distributed mode: `JobQueue` and `JobStore` ABCs (adapters in `adapters/`), and `IngestWorker`/`CaptionWorker` handlers that reuse `pipeline.describe_keyframe`; `vlmscene/tasks.py` wraps the handlers as Celery tasks. Adapters never connect in their constructors. See `docs/distributed.md`.
-- `vlmscene/api/routers/jobs.py` — `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`.
+- `backseat_driver/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
+- `backseat_driver/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
+- `backseat_driver/bl/job_queue.py`, `job_store.py`, `workers.py` — optional distributed mode: `JobQueue` and `JobStore` ABCs (adapters in `adapters/`), and `IngestWorker`/`CaptionWorker` handlers that reuse `pipeline.describe_keyframe`; `backseat_driver/tasks.py` wraps the handlers as Celery tasks. Adapters never connect in their constructors. See `docs/distributed.md`.
+- `backseat_driver/api/routers/jobs.py` — `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`.
 - CLI: `worker ingest|caption` (Celery workers) and `db init` (creates tables).
 
-- `vlmscene/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `VLM_SCENE_DESCRIPTION_`.
-- `vlmscene/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
+- `backseat_driver/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `BACKSEAT_DRIVER_`.
+- `backseat_driver/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
 - `tests/unittests/` — Fast, isolated unit tests (no I/O).
 - `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`.
 - `tests/smoketests/` — Black-box HTTP tests against a running service.
@@ -60,14 +60,14 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 | `just test-smoke` | Smoke tests against a running service |
 | `just docs` | Build HTML docs with MkDocs |
 
-**CLI entry-point:** `uv run vlm-scene-description --help`
+**CLI entry-point:** `uv run backseat-driver --help`
 
 ---
 
 ### 3. Configuration
 
-- All settings live in `vlmscene/config.py` — the `Settings` class backed by pydantic-settings.
-- Every environment variable is prefixed with `VLM_SCENE_DESCRIPTION_` (e.g., `VLM_SCENE_DESCRIPTION_API_PORT=9090`).
+- All settings live in `backseat_driver/config.py` — the `Settings` class backed by pydantic-settings.
+- Every environment variable is prefixed with `BACKSEAT_DRIVER_` (e.g., `BACKSEAT_DRIVER_API_PORT=9090`).
 - Override locally via `.env` (gitignored). Copy `.env.example` to get started.
 - `get_settings()` is `@lru_cache`-decorated — call `get_settings.cache_clear()` in tests that override env vars via `monkeypatch.setenv`.
 

@@ -1,4 +1,4 @@
-# Contributing to VLM Scene Description
+# Contributing to Backseat Driver
 
 Thank you for your interest in contributing!
 
@@ -6,7 +6,7 @@ Thank you for your interest in contributing!
 
 ```bash
 git clone <repo-url>
-cd vlm_scene_description
+cd backseat-driver
 uv sync --group dev
 pre-commit install
 ```

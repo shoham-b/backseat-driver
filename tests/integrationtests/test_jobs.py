@@ -4,12 +4,12 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
+from backseat_driver.api.app import app
+from backseat_driver.api.dependencies import get_job_queue, get_job_store
+from backseat_driver.api.middleware import REQUEST_ID_HEADER
+from backseat_driver.bl.workers import CaptionWorker, IngestWorker
+from backseat_driver.models import JobState
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
-from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_job_queue, get_job_store
-from vlmscene.api.middleware import REQUEST_ID_HEADER
-from vlmscene.bl.workers import CaptionWorker, IngestWorker
-from vlmscene.models import JobState
 
 
 def test_create_job_returns_accepted_and_enqueues_ingest(

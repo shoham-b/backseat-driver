@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from vlmscene.adapters.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
 
 
 def test_model_name_returns_configured_name() -> None:

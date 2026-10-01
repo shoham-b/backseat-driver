@@ -4,10 +4,10 @@ services:
   api:
     build:
       target: build-api      # Use the build stage, not the stripped runtime
-    command: ["uv", "run", "fastapi", "dev", "vlmscene/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
+    command: ["uv", "run", "fastapi", "dev", "backseat_driver/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
     volumes:
-      - ./vlmscene:/app/vlmscene:ro   # live source mount
+      - ./backseat_driver:/app/backseat_driver:ro   # live source mount
     environment:
-      VLM_SCENE_DESCRIPTION_LOG_FORMAT: colored
+      BACKSEAT_DRIVER_LOG_FORMAT: colored
 
 

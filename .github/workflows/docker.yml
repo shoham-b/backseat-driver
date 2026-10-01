@@ -35,7 +35,7 @@ jobs:
           file: docker/Dockerfile
           target: cli
           push: true
-          tags: ghcr.io/shoham-b/vlm-scene-description-cli:latest
+          tags: ghcr.io/shoham-b/backseat-driver-cli:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -46,7 +46,7 @@ jobs:
           file: docker/Dockerfile
           target: api
           push: true
-          tags: ghcr.io/shoham-b/vlm-scene-description-api:latest
+          tags: ghcr.io/shoham-b/backseat-driver-api:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -2,10 +2,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backseat_driver.bl.errors import NotFoundError
+from backseat_driver.bl.workers import CaptionWorker, IngestWorker
+from backseat_driver.models import CaptionTask, IngestTask, JobState
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
-from vlmscene.bl.errors import NotFoundError
-from vlmscene.bl.workers import CaptionWorker, IngestWorker
-from vlmscene.models import CaptionTask, IngestTask, JobState
 
 
 def _ingest_task(job_id: UUID, max_scenes: int | None = None) -> IngestTask:

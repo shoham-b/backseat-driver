@@ -2,20 +2,20 @@
 
 ## Models
 
-::: vlmscene.models
+::: backseat_driver.models
 
 ## Business Logic
 
-::: vlmscene.bl
+::: backseat_driver.bl
 
 ## Config
 
-::: vlmscene.config
+::: backseat_driver.config
 
 ## Logger
 
-::: vlmscene.logger
+::: backseat_driver.logger
 
 ## HTTP API
 
-::: vlmscene.api.app
+::: backseat_driver.api.app

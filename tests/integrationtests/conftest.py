@@ -4,9 +4,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from backseat_driver.api.app import app
+from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
-from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
 
 
 @pytest.fixture(scope="session")
