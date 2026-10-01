@@ -33,6 +33,7 @@ Run `just --list` at any time to see all targets. The full table:
 | `just test-system` | System tests (requires the API to be running locally) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
+| `just bench` | Performance benchmarks (pytest-codspeed) |
 | `just lint` | Ruff check + format check (CI mode — no auto-fixes) |
 | `just fmt` | Auto-fix and reformat |
 | `just typecheck` | ty type check |
@@ -115,6 +116,19 @@ just test   # includes --cov; must stay above 80% (enforced in CI)
 ```
 
 Coverage is measured over `backseat_driver` excluding `cli/`.
+
+### Benchmarks
+
+```bash
+just bench   # or: uv run pytest tests/benchmarks --codspeed
+```
+
+`tests/benchmarks/` holds [pytest-codspeed](https://codspeed.io/docs/reference/pytest-codspeed) benchmarks
+for the pipeline, the queue workers, queue-message (de)serialization, the JSON writer and nuScenes keyframe
+selection. Like the unit tests they run against in-memory fakes, so they measure the code around the VLM, not
+the model. The `CodSpeed` workflow runs them in CPU simulation mode on every push and pull request and reports
+regressions on the PR. To measure locally the same way, install the [CodSpeed CLI](https://codspeed.io/docs/cli)
+and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --codspeed`.
 
 ## Package structure
 

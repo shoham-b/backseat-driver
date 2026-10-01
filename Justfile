@@ -37,6 +37,10 @@ test-compose:
     docker compose --profile test run --build --rm systemtest
     docker compose --profile test down
 
+# Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
+bench:
+    uv run pytest tests/benchmarks --codspeed
+
 # Smoke tests against a running service (set API_URL to override target)
 test-smoke:
     uv run backseat-driver test smoke --verbose

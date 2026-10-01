@@ -5,6 +5,7 @@
 ![Docker Build](https://github.com/shoham-b/backseat-driver/actions/workflows/docker.yml/badge.svg)
 ![CodeQL](https://github.com/shoham-b/backseat-driver/actions/workflows/codeql.yml/badge.svg)
 [![codecov](https://codecov.io/gh/shoham-b/backseat-driver/graph/badge.svg)](https://codecov.io/gh/shoham-b/backseat-driver)
+[![CodSpeed](https://img.shields.io/endpoint?url=https://codspeed.io/badge.json)](https://app.codspeed.io/shoham-b/backseat-driver?utm_source=badge)
 [![Docs](https://img.shields.io/badge/docs-github--pages-blue)](https://shoham-b.github.io/backseat-driver/)
 [![Generated from python-project-template](https://img.shields.io/badge/generated%20from-python--project--template-8A2BE2)](https://github.com/shoham-b/python-project-template)
 
