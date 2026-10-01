@@ -37,7 +37,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uv sync --group dev
       - run: uv run ty check backseat_driver tests
 
@@ -51,7 +51,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uv sync --group dev
       - run: uv run pytest tests/unittests tests/integrationtests --cov --cov-report=xml --junitxml=junit.xml
       - uses: codecov/codecov-action@v5
@@ -74,7 +74,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: docker compose --profile test run --build --rm systemtest
       - if: always()
         run: docker compose --profile test down
@@ -89,7 +89,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uv sync --group dev
       - run: uvx pip-audit
 
@@ -103,7 +103,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
       - run: uvx zizmor .github/workflows/
 
   actionlint:

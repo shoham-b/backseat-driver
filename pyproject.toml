@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
 
 [project.scripts]
@@ -97,7 +97,7 @@ torch = [{ index = "pytorch-cpu" }]
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
@@ -106,7 +106,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
 quote-style = "double"
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -4,7 +4,7 @@
 
 | Concern | Tech | Why |
 |---|---|---|
-| Language & packaging | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv`'s dependency-groups (`core`/`vlm`/`nuscenes`/`cli`/`api`/`dev`/`docs`) let the CLI and API images install only what they each need |
+| Language & packaging | Python 3.14, [uv](https://docs.astral.sh/uv/) | `uv`'s dependency-groups (`core`/`vlm`/`nuscenes`/`cli`/`api`/`dev`/`docs`) let the CLI and API images install only what they each need |
 | Task runner | [Justfile](../Justfile) | `just run`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
 | CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`backseat-driver run`) |
 | HTTP API | [FastAPI](https://fastapi.tiangolo.com/) (`fastapi dev` / `fastapi run`) | Optional on-demand deployment shape; served by the FastAPI CLI (uvicorn) |

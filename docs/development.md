@@ -4,7 +4,7 @@
 
 | Tool | Install | Purpose |
 |---|---|---|
-| [Python 3.12+](https://www.python.org/) | system / pyenv | Runtime |
+| [Python 3.14+](https://www.python.org/) | system / pyenv | Runtime |
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | Package manager |
 | [just](https://github.com/casey/just) | `cargo install just` / `brew install just` | Task runner |
 | [Docker](https://www.docker.com/) | platform installer | Compose system tests |

@@ -72,7 +72,7 @@ Open `http://127.0.0.1:8080/docs` for interactive Swagger UI.
 
 | Tool | Install | Purpose |
 |---|---|---|
-| [Python 3.12+](https://www.python.org/) | system / pyenv | Runtime |
+| [Python 3.14+](https://www.python.org/) | system / pyenv | Runtime |
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` | Package manager and script runner |
 | [just](https://github.com/casey/just) | `cargo install just` / `brew install just` | Dev task runner |
 

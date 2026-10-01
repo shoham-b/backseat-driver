@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM tables for the Postgres adapter. Storage logic lives in `job_store.py`."""
+"""SQLAlchemy ORM tables for the persistence layer. Query logic lives in `storage.py`."""
 
 from datetime import datetime
 from uuid import UUID

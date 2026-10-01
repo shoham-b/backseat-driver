@@ -1,6 +1,6 @@
 # Backseat Driver
 
-![Python Version](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)
+![Python Version](https://img.shields.io/badge/python-3.14-blue?logo=python&logoColor=white)
 ![Tests Status](https://github.com/shoham-b/backseat-driver/actions/workflows/ci.yml/badge.svg)
 ![Docker Build](https://github.com/shoham-b/backseat-driver/actions/workflows/docker.yml/badge.svg)
 ![CodeQL](https://github.com/shoham-b/backseat-driver/actions/workflows/codeql.yml/badge.svg)
