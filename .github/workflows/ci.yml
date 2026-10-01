@@ -101,7 +101,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: uvx zizmor .github/workflows/
+      - run: uvx zizmor --config .github/zizmor.yml .github/workflows/
 
   actionlint:
     runs-on: ubuntu-latest

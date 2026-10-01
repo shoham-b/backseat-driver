@@ -1,5 +1,5 @@
 # Development overrides — hot-reload, source mounts, no image builds
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+# Usage: docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up
 services:
   api:
     build:
