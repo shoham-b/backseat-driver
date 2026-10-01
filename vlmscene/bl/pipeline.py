@@ -12,7 +12,19 @@ from loguru import logger
 
 from vlmscene.bl.captioner import Captioner
 from vlmscene.bl.nuscenes_loader import SceneLoader
-from vlmscene.models import SceneDescription
+from vlmscene.models import SceneDescription, SceneKeyframe
+
+
+def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner) -> SceneDescription:
+    """Caption one keyframe. Shared by the batch pipeline and the distributed caption worker."""
+    return SceneDescription(
+        scene_token=keyframe.scene_token,
+        scene_name=keyframe.scene_name,
+        camera_channel=keyframe.camera_channel,
+        image_path=keyframe.image_path,
+        description=captioner.caption(keyframe.image_path),
+        model_name=captioner.model_name,
+    )
 
 
 class ScenePipeline:
@@ -30,15 +42,5 @@ class ScenePipeline:
         descriptions: list[SceneDescription] = []
         for keyframe in keyframes:
             logger.bind(scene=keyframe.scene_name).info("describing scene")
-            description = self._captioner.caption(keyframe.image_path)
-            descriptions.append(
-                SceneDescription(
-                    scene_token=keyframe.scene_token,
-                    scene_name=keyframe.scene_name,
-                    camera_channel=keyframe.camera_channel,
-                    image_path=keyframe.image_path,
-                    description=description,
-                    model_name=self._captioner.model_name,
-                )
-            )
+            descriptions.append(describe_keyframe(keyframe, self._captioner))
         return descriptions

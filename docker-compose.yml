@@ -1,3 +1,23 @@
+x-distributed-env: &distributed-env
+  VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
+  VLM_SCENE_DESCRIPTION_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  VLM_SCENE_DESCRIPTION_DATABASE_URL: postgresql://vlmscene:vlmscene@postgres:5432/vlmscene
+
+x-worker: &worker
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+    target: cli
+  volumes:
+    - ./data:/app/data:ro
+  environment:
+    <<: *distributed-env
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    db-init:
+      condition: service_completed_successfully
+
 services:
   cli:
     build:
@@ -11,6 +31,44 @@ services:
       VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
     profiles: [cli]
 
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "15672:15672" # management UI (guest/guest)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: vlmscene
+      POSTGRES_PASSWORD: vlmscene
+      POSTGRES_DB: vlmscene
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "vlmscene"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # One-shot: creates the tables, then exits. Everything that touches the database waits for it.
+  db-init:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: cli
+    command: ["db", "init"]
+    environment:
+      <<: *distributed-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   api:
     build:
       context: .
@@ -19,9 +77,12 @@ services:
     ports:
       - "8080:8080"
     environment:
-      VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
-
-
+      <<: *distributed-env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/ready')"]
       interval: 5s
@@ -29,6 +90,16 @@ services:
       retries: 5
       start_period: 10s
 
+  ingest-worker:
+    <<: *worker
+    command: ["worker", "ingest"]
+
+  # Scale out with `docker compose up --scale caption-worker=N`; each replica pulls from the same queue.
+  caption-worker:
+    <<: *worker
+    command: ["worker", "caption"]
+    deploy:
+      replicas: 2
 
   systemtest:
     build:
@@ -41,3 +112,6 @@ services:
         condition: service_healthy
     restart: "no"
     profiles: [test]
+
+volumes:
+  pgdata:

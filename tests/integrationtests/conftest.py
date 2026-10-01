@@ -4,15 +4,18 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.fakes import FakeJobQueue, FakeJobStore
 from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_captioner
-from vlmscene.bl.captioner import Captioner
+from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
 
 
-class FakeCaptioner(Captioner):
+class FakeCaptioner:
     """Stub captioner — returns a canned caption instantly, no model download."""
 
     model_name = "fake-model"
+
+    def load(self) -> None:
+        pass
 
     def caption(self, image_path: str) -> str:
         return "a fake scene description"
@@ -22,17 +25,34 @@ class FakeCaptioner(Captioner):
 
 
 @pytest.fixture(scope="session")
-def client() -> Iterator[TestClient]:
-    app.dependency_overrides[get_captioner] = lambda: FakeCaptioner()
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.pop(get_captioner, None)
+def job_queue() -> FakeJobQueue:
+    return FakeJobQueue()
 
 
 @pytest.fixture(scope="session")
-async def async_client() -> AsyncGenerator[httpx.AsyncClient]:
+def job_store() -> FakeJobStore:
+    return FakeJobStore()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _override_dependencies(job_queue: FakeJobQueue, job_store: FakeJobStore) -> Iterator[None]:
+    """No test in this layer may reach a real model, broker or database."""
     app.dependency_overrides[get_captioner] = lambda: FakeCaptioner()
+    app.dependency_overrides[get_job_queue] = lambda: job_queue
+    app.dependency_overrides[get_job_store] = lambda: job_store
+    yield
+    for dependency in (get_captioner, get_job_queue, get_job_store):
+        app.dependency_overrides.pop(dependency, None)
+
+
+@pytest.fixture(scope="session")
+def client(_override_dependencies: None) -> Iterator[TestClient]:
+    with TestClient(app) as c:
+        yield c
+
+
+@pytest.fixture(scope="session")
+async def async_client(_override_dependencies: None) -> AsyncGenerator[httpx.AsyncClient]:
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
-    app.dependency_overrides.pop(get_captioner, None)

@@ -27,6 +27,9 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - `vlmscene/api/` — Optional deployment mode: a small FastAPI service exposing the same `Captioner` as a `/describe` endpoint for single-image, on-demand captioning (see `docs/architecture.md` for when to use this vs. the CLI).
 - `vlmscene/api/middleware.py` — `RequestIDMiddleware`: injects `X-Request-ID` into every request and binds it to all log lines via `logger.contextualize(request_id=...)`.
+- `vlmscene/bl/job_queue.py`, `job_store.py`, `workers.py` — optional distributed mode: `JobQueue` (Celery over RabbitMQ) and `JobStore` (Postgres) Protocols + adapters, and `IngestWorker`/`CaptionWorker` handlers that reuse `pipeline.describe_keyframe`; `vlmscene/tasks.py` wraps the handlers as Celery tasks. Adapters never connect in their constructors. See `docs/distributed.md`.
+- `vlmscene/api/routers/jobs.py` — `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`.
+- CLI: `worker ingest|caption` (Celery workers) and `db init` (creates tables).
 
 - `vlmscene/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `VLM_SCENE_DESCRIPTION_`.
 - `vlmscene/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.

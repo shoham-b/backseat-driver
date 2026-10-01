@@ -34,7 +34,7 @@ test:
 
 # System tests via Docker Compose — builds images, runs system + smoke tests against containerised API
 test-compose:
-    docker compose --profile test up --build --abort-on-container-exit --exit-code-from systemtest
+    docker compose --profile test run --build --rm systemtest
     docker compose --profile test down
 
 # Smoke tests against a running service (set API_URL to override target)
@@ -56,6 +56,14 @@ dev:
 # Production-mode server
 serve:
     uv run granian --interface asgi --host 0.0.0.0 --port 8080 vlmscene.api.app:app
+
+# Distributed mode: API + RabbitMQ + Postgres + ingest/caption workers
+up:
+    docker compose up --build
+
+# Stop the distributed stack
+down:
+    docker compose down
 
 
 
