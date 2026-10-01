@@ -30,7 +30,7 @@ vlm = [
     # Pinned below 5.0: the "image-to-text" unconditional-captioning pipeline task
     # was folded into the chat-style "image-text-to-text" task in transformers 5,
     # which requires a text prompt and no longer fits plain scene captioning.
-    "transformers>=4.44,<6",
+    "transformers>=4.44,<5",
     "pillow>=10.4",
 ]
 
@@ -56,8 +56,7 @@ cli = [
 # Everything the HTTP API needs at runtime (single-image captioning only —
 # no nuscenes-devkit, since the API never reads the dataset).
 api = [
-    "fastapi>=0.115",
-    "granian>=1.7",
+    "fastapi[standard]>=0.115",
     "python-multipart>=0.0.12",
     { include-group = "core" },
     { include-group = "vlm" },
