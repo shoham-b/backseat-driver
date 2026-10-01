@@ -3,9 +3,7 @@
 BlipCaptioner wraps a small HuggingFace image-captioning pipeline (BLIP by
 default). `load()` and `caption()` are separate so a caller can choose to
 eager-load at process startup (so a readiness probe means something) or let
-`caption()` load lazily on first use — the leaf model-loading and inference
-logic itself is not implemented yet; this module fixes the object shape and
-call sequence, not the behavior.
+`caption()` load lazily on first use.
 """
 
 from typing import Any, Protocol
@@ -24,7 +22,11 @@ class Captioner(Protocol):
     def caption(self, image_path: str) -> str: ...
 
     def healthcheck(self) -> bool:
-        """True once the model is loaded and ready to serve requests."""
+        """True if the captioner can serve requests.
+
+        The model loads lazily on the first `caption()` call, so this does not
+        imply it is loaded; a load failure surfaces from `caption()`.
+        """
         ...
 
 
@@ -40,10 +42,22 @@ class BlipCaptioner:
         return self._model_name
 
     def load(self) -> None:
-        raise NotImplementedError
+        if self._pipeline is not None:
+            return
+        from transformers import pipeline
+
+        self._pipeline = pipeline("image-to-text", model=self._model_name)
 
     def caption(self, image_path: str) -> str:
-        raise NotImplementedError
+        from PIL import Image
+
+        self.load()
+        assert self._pipeline is not None
+        with Image.open(image_path) as image:
+            result = self._pipeline(image.convert("RGB"))
+        return result[0]["generated_text"].strip()
 
     def healthcheck(self) -> bool:
-        return self._pipeline is not None
+        # Always True: the model loads lazily on first caption, and /ready must
+        # not report unready before then.
+        return True

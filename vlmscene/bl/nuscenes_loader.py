@@ -14,10 +14,8 @@ Usage::
 
 from typing import TYPE_CHECKING, Any, Protocol
 
+from vlmscene.bl.errors import NotFoundError
 from vlmscene.models import SceneKeyframe
-
-# NotFoundError (bl.errors) belongs in _keyframe_for_scene once implemented —
-# raised when scene[self._camera_channel] is missing from the sample's data.
 
 if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes
@@ -50,8 +48,23 @@ class NuScenesSceneLoader:
         return [self._keyframe_for_scene(nusc, scene) for scene in nusc.scene]
 
     def _keyframe_for_scene(self, nusc: "NuScenes", scene: dict[str, Any]) -> SceneKeyframe:
-        raise NotImplementedError
+        sample = self._middle_sample(nusc, scene)
+        sample_data_token = sample["data"].get(self._camera_channel)
+        if sample_data_token is None:
+            raise NotFoundError(f"Scene {scene['name']!r} has no {self._camera_channel} data in its middle sample")
+        return SceneKeyframe(
+            scene_token=scene["token"],
+            scene_name=scene["name"],
+            camera_channel=self._camera_channel,
+            image_path=nusc.get_sample_data_path(sample_data_token),
+        )
 
     @staticmethod
     def _middle_sample(nusc: "NuScenes", scene: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError
+        samples: list[dict[str, Any]] = []
+        token = scene["first_sample_token"]
+        while token:
+            sample = nusc.get("sample", token)
+            samples.append(sample)
+            token = sample["next"]
+        return samples[len(samples) // 2]
