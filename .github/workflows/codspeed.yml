@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --group dev
-      - uses: CodSpeedHQ/action@v4
+      - uses: CodSpeedHQ/action@v5
         with:
-          mode: instrumentation
+          mode: simulation
           run: uv run --with pytest-codspeed pytest tests/benchmarks --codspeed
