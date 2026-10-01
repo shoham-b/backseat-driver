@@ -27,8 +27,9 @@ jobs:
       - uses: github/codeql-action/analyze@v3
         with:
           upload: false
+          output: results
       - name: Upload SARIF as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: codeql-results
-          path: ${{ github.workspace }}/../results/*.sarif
+          path: ${{ github.workspace }}/results/*.sarif
