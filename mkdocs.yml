@@ -1,7 +1,7 @@
 site_name: "VLM Scene Description"
 site_description: "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
 site_author: "Shoham Baris"
-repo_url: "https://github.com/shoham-b/vlm_scene_description"
+repo_url: "https://github.com/shoham-b/backseat-driver"
 
 theme:
   name: material

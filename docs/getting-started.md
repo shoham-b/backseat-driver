@@ -77,7 +77,7 @@ Open `http://127.0.0.1:8080/docs` for interactive Swagger UI.
 
 ```bash
 git clone <repo-url>
-cd vlm_scene_description
+cd backseat-driver
 uv sync --group dev         # install all deps including dev tools
 uv run pre-commit install   # register git hooks (ruff + ty on every commit)
 cp .env.example .env        # create local config (gitignored)
