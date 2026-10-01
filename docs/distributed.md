@@ -21,7 +21,7 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 
 | Service | Command | Role |
 |---|---|---|
-| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
+| `api` | `granian … backseat_driver.api.app:app` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
 | `ingest-worker` | `backseat-driver worker ingest` | Reads the dataset, fans out one caption task per scene |
 | `caption-worker` | `backseat-driver worker caption` | Captions one keyframe and stores the result; scale horizontally |
 | `db-init` | `backseat-driver db init` | One-shot: creates the tables |

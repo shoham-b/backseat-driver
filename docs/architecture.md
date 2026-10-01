@@ -7,7 +7,7 @@
 | Language & packaging | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv`'s dependency-groups (`core`/`vlm`/`nuscenes`/`cli`/`api`/`dev`/`docs`) let the CLI and API images install only what they each need |
 | Task runner | [Justfile](../Justfile) | `just run`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
 | CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`backseat-driver run`) |
-| HTTP API | [FastAPI](https://fastapi.tiangolo.com/) (`fastapi dev` / `fastapi run`) | Optional on-demand deployment shape; served by the FastAPI CLI (uvicorn) |
+| HTTP API | [FastAPI](https://fastapi.tiangolo.com/) + [Granian](https://github.com/emmett-framework/granian) | Optional on-demand deployment shape; Granian as the production ASGI server |
 | Domain models & config | [Pydantic](https://docs.pydantic.dev/) / [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | `SceneKeyframe`/`SceneDescription` schemas; env-var-backed `Settings` |
 | Logging | [Loguru](https://github.com/Delgan/loguru) | Structured logs, colored locally / JSON in production |
 | VLM backend | [transformers](https://huggingface.co/docs/transformers) `image-to-text` pipeline, BLIP (`Salesforce/blip-image-captioning-base`), CPU-only [torch](https://pytorch.org/), [Pillow](https://python-pillow.org/) | Small captioning model, no GPU required — pinned `transformers<5` since the plain captioning pipeline was folded into a chat-style task in v5 |

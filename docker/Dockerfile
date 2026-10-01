@@ -55,4 +55,4 @@ COPY --from=build-api /app/backseat_driver /app/backseat_driver
 
 ENV PATH=/app/.venv/bin:$PATH
 EXPOSE 8080
-CMD ["fastapi", "run", "backseat_driver/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["granian", "--interface", "asgi", "--host", "0.0.0.0", "--port", "8080", "backseat_driver.api.app:app"]
