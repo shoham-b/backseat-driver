@@ -42,7 +42,8 @@ Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and
 | `--dataroot` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | `CAM_FRONT` | Camera channel used as the representative frame |
-| `--model` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
+| `--model` | per backend | HuggingFace model, Ollama model (default `llava`) or Claude model (default `claude-haiku-4-5-20251001`) |
 | `--output` | `output/scene_descriptions.json` | Where to write the JSON results |
 | `--max-scenes` | (all) | Only process the first N scenes — handy for a quick smoke run |
 
@@ -92,7 +93,12 @@ All settings are prefixed with `VLM_SCENE_DESCRIPTION_`. Copy `.env.example` to 
 | `VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
 | `VLM_SCENE_DESCRIPTION_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
 | `VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
+| `VLM_SCENE_DESCRIPTION_VLM_BACKEND` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `VLM_SCENE_DESCRIPTION_OLLAMA_MODEL_NAME` | `llava` | Ollama model, when backend is `ollama` |
+| `VLM_SCENE_DESCRIPTION_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
+| `VLM_SCENE_DESCRIPTION_ANTHROPIC_MODEL_NAME` | `claude-haiku-4-5-20251001` | Claude model, when backend is `anthropic` |
+| `VLM_SCENE_DESCRIPTION_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
 | `VLM_SCENE_DESCRIPTION_OUTPUT_PATH` | `output/scene_descriptions.json` | Pipeline output path |
 | `VLM_SCENE_DESCRIPTION_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
 | `VLM_SCENE_DESCRIPTION_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |

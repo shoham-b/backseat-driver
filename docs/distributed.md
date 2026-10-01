@@ -1,6 +1,6 @@
 # Distributed mode
 
-The batch CLI is the primary deliverable: one process, one flow — `SceneLoader` → `Captioner` → JSON. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The queue workers call the same `SceneLoader` and `Captioner` Protocols and the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs.
+The batch CLI is the primary deliverable: one process, one flow — `SceneLoader` → `Captioner` → JSON. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The queue workers call the same `SceneLoader` and `Captioner` abstract classs and the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs.
 
 ```
 Client ──REST──▶ API ──(1) create job──▶ Postgres
@@ -12,7 +12,7 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
                                  ▼
                           RabbitMQ [vlmscene.caption]
                                  ▼
-                     caption-worker × N (BlipCaptioner, model loaded once)
+                     caption-worker × N (HuggingFaceCaptioner, model loaded once)
                                  ▼
                       Postgres (scene_descriptions)  ◀── GET /jobs/{id}
 ```

@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
+from vlmscene.adapters.celery_job_queue import CeleryJobQueue
+from vlmscene.adapters.factory import build_captioner
+from vlmscene.adapters.postgres_job_store import PostgresJobStore
 from vlmscene.api.errors import APIError
 from vlmscene.api.exception_handlers import (
     api_error_handler,
@@ -14,10 +17,7 @@ from vlmscene.api.middleware import RequestIDMiddleware
 from vlmscene.api.routers.describe import router as describe_router
 from vlmscene.api.routers.health import router as health_router
 from vlmscene.api.routers.jobs import router as jobs_router
-from vlmscene.bl.captioner import BlipCaptioner
 from vlmscene.bl.errors import DomainError
-from vlmscene.bl.job_queue import CeleryJobQueue
-from vlmscene.bl.job_store import PostgresJobStore
 from vlmscene.config import get_settings
 from vlmscene.logger import LogFormat, setup_logging
 
@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_logging(LogFormat(settings.log_format), service="api")
 
     app.state.settings = settings
-    app.state.captioner = BlipCaptioner(model_name=settings.vlm_model_name)
+    app.state.captioner = build_captioner(settings)
     # Neither client connects until first use, so startup never blocks on the broker or database;
     # /ready reports whether they are reachable.
     app.state.job_queue = CeleryJobQueue(settings.rabbitmq_url)

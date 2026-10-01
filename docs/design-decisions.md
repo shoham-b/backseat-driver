@@ -6,12 +6,12 @@ The read → process → write shape is fixed by the assignment. Nearly all the 
 
 ## Implementation status
 
-The object model, method signatures, and calls between objects are implemented and type-check (`just typecheck`); the leaf logic behind each external dependency (`nuscenes-devkit` traversal in `NuScenesSceneLoader._keyframe_for_scene`/`_middle_sample`, the HF pipeline load/inference in `BlipCaptioner.load`/`caption`, the file write in `write_json`) raises `NotImplementedError` pending a follow-up pass. `tests/unittests/test_pipeline.py` passes today (it only exercises the wiring, via fakes); `test_captioner.py`, `test_nuscenes_loader.py`, and `test_writer.py` fail on the stubs by design — they're the acceptance spec for that follow-up pass, not a regression.
+The object model, method signatures, and calls between objects are implemented and type-check (`just typecheck`); the leaf logic behind each external dependency (`nuscenes-devkit` traversal in `NuScenesSceneLoader._keyframe_for_scene`/`_middle_sample`, the HF pipeline load/inference in `HuggingFaceCaptioner.load`/`caption`, the file write in `write_json`) raises `NotImplementedError` pending a follow-up pass. `tests/unittests/test_pipeline.py` passes today (it only exercises the wiring, via fakes); `test_huggingface_captioner.py`, `test_nuscenes_scene_loader.py`, and `test_writer.py` fail on the stubs by design — they're the acceptance spec for that follow-up pass, not a regression.
 
 Two signature changes landed in this pass, both consequences of the review in "Missing corners" below:
 
-- **`Captioner` gained `model_name` (property) and `load()`.** `ScenePipeline` and `api/routers/describe.py` previously each had their own way of getting at the model name (a constructor arg on the former, a `getattr(..., "unknown")` fallback on the latter) — both now just read `captioner.model_name`. `load()` exists so a caller can eager-load the model instead of paying that cost inside the first `caption()` call, but **nothing calls it yet** — wiring it into `api/app.py`'s `lifespan()` was deferred because that function runs unconditionally at app startup, including under `TestClient`, and `BlipCaptioner.load()` is currently a stub that raises. Wiring it in before the leaf logic is filled in would break every integration/smoke/system test that boots the app, not just the two unit-test files that are supposed to fail right now. Do this in the same pass that fills in `BlipCaptioner.load()`.
-- **`api/routers/describe.py` now calls `captioner.caption()` via `run_in_threadpool`.** `caption()` is synchronous and CPU-bound; calling it directly inside an `async def` route blocks the whole event loop for the request's duration. This was safe to fix now because it only changes how the API layer calls the (already-Protocol'd) captioner, not what the captioner does.
+- **`Captioner` gained `model_name` (property) and `load()`.** `ScenePipeline` and `api/routers/describe.py` previously each had their own way of getting at the model name (a constructor arg on the former, a `getattr(..., "unknown")` fallback on the latter) — both now just read `captioner.model_name`. `load()` exists so a caller can eager-load the model instead of paying that cost inside the first `caption()` call, but **nothing calls it yet** — wiring it into `api/app.py`'s `lifespan()` was deferred because that function runs unconditionally at app startup, including under `TestClient`, and `HuggingFaceCaptioner.load()` is currently a stub that raises. Wiring it in before the leaf logic is filled in would break every integration/smoke/system test that boots the app, not just the two unit-test files that are supposed to fail right now. Do this in the same pass that fills in `HuggingFaceCaptioner.load()`.
+- **`api/routers/describe.py` now calls `captioner.caption()` via `run_in_threadpool`.** `caption()` is synchronous and CPU-bound; calling it directly inside an `async def` route blocks the whole event loop for the request's duration. This was safe to fix now because it only changes how the API layer calls the (already-abstract class'd) captioner, not what the captioner does.
 
 ## Settled by convergence
 
@@ -19,7 +19,7 @@ These three came up independently from two different sources (this design conver
 
 | Decision | Choice | Why |
 |---|---|---|
-| VLM backend seam | `Captioner` as a `Protocol`, `BlipCaptioner` as the concrete implementation (Strategy) | The one thing stated up front as likely to change (local BLIP → hosted API VLM later) and the one thing slow enough to be worth faking in tests |
+| VLM backend seam | `Captioner` as an abstract class, `HuggingFaceCaptioner` as the concrete implementation (Strategy) | The one thing stated up front as likely to change (local BLIP → hosted API VLM later) and the one thing slow enough to be worth faking in tests |
 | Dataset access seam | `NuScenesSceneLoader` wraps `nuscenes-devkit` behind `SceneLoader` (Adapter) | Isolates the rest of the codebase from the devkit's dict/token-graph API; a devkit version bump only touches this one file |
 | Wiring | Constructor injection — `ScenePipeline(loader, captioner, model_name)`, concrete instances built at the CLI entry point, not inside the pipeline | Makes `ScenePipeline` importable and unit-testable without ever importing `nuscenes-devkit` or `transformers` |
 
@@ -29,17 +29,17 @@ These three came up independently from two different sources (this design conver
 
 **Options:** `load_keyframes() -> list[SceneKeyframe]` (current) vs. `Iterator[SceneKeyframe]`.
 
-**Decision: keep the list.** The object being held in memory is `SceneKeyframe` — four short strings, not image bytes; the actual image is opened lazily, one at a time, inside `BlipCaptioner.caption()`. For v1.0-mini (10 scenes) or even the full ~850-scene dataset, the list is kilobytes. A generator is the right instinct for a dataset large enough that even enumerating *metadata* is expensive (e.g., paging through a remote catalog) — that's not this dataset.
+**Decision: keep the list.** The object being held in memory is `SceneKeyframe` — four short strings, not image bytes; the actual image is opened lazily, one at a time, inside `HuggingFaceCaptioner.caption()`. For v1.0-mini (10 scenes) or even the full ~850-scene dataset, the list is kilobytes. A generator is the right instinct for a dataset large enough that even enumerating *metadata* is expensive (e.g., paging through a remote catalog) — that's not this dataset.
 
 **Revisit if:** the loader starts reading image bytes eagerly, or the scene catalog itself becomes large enough that building the full list up front is measurably slow.
 
 ### 2. Should the writer be a plain function or a `Sink` interface?
 
-**Options:** `write_json(descriptions, path)` (current) vs. a `Sink` Protocol with `JsonSink`/other implementations, injected into the pipeline like the loader and captioner.
+**Options:** `write_json(descriptions, path)` (current) vs. a `Sink` abstract class with `JsonSink`/other implementations, injected into the pipeline like the loader and captioner.
 
-**Decision: keep it a function.** Promoting a seam to an interface is worth it when something either varies or needs to be faked in a test to avoid a slow/external dependency. Neither is true here: there's one output format, and testing pure JSON serialization needs no fake — it's called directly against a temp path. Making it a third injected Protocol would add a matching interface for a case with no actual variation yet, which is the thing we've been deliberately avoiding throughout this design.
+**Decision: keep it a function.** Promoting a seam to an interface is worth it when something either varies or needs to be faked in a test to avoid a slow/external dependency. Neither is true here: there's one output format, and testing pure JSON serialization needs no fake — it's called directly against a temp path. Making it a third injected abstract class would add a matching interface for a case with no actual variation yet, which is the thing we've been deliberately avoiding throughout this design.
 
-**Revisit if:** a second output format (CSV, a DB row, a message queue) is actually needed — promoting a function to a Protocol at that point is a small, low-risk refactor.
+**Revisit if:** a second output format (CSV, a DB row, a message queue) is actually needed — promoting a function to an abstract class at that point is a small, low-risk refactor.
 
 ### 3. Output format: single JSON array or JSON Lines?
 
@@ -59,9 +59,9 @@ These three came up independently from two different sources (this design conver
 
 ### 5. Process step: local model vs. hosted VLM
 
-**Options:** local BLIP via `transformers` (current) vs. a hosted VLM (Claude/GPT-4V-class) behind the same `Captioner` Protocol.
+**Options:** local BLIP via `transformers` (current) vs. a hosted VLM (Claude/GPT-4V-class) behind the same `Captioner` abstract class.
 
-**Decision: local BLIP.** The assignment explicitly says "no need for large models or GPU inference... a small/basic VLM is fine," and a container that needs a live API key and network egress at runtime is a materially different deployment story than one that's fully self-contained. The `Captioner` Protocol already makes a hosted backend a same-shaped addition later — a new class, no changes to `ScenePipeline`.
+**Decision: local BLIP.** The assignment explicitly says "no need for large models or GPU inference... a small/basic VLM is fine," and a container that needs a live API key and network egress at runtime is a materially different deployment story than one that's fully self-contained. The `Captioner` abstract class already makes a hosted backend a same-shaped addition later — a new class, no changes to `ScenePipeline`.
 
 **Revisit if:** description quality becomes the actual bottleneck rather than pipeline structure — that's a model-swap, not an architecture change, by design.
 

@@ -1,6 +1,6 @@
 """Handlers for the two queue workers.
 
-Plain classes over Protocols, like `ScenePipeline`, so they are unit-testable with
+Plain classes over abstract ports, like `ScenePipeline`, so they are unit-testable with
 fakes. They know nothing about Celery: `vlmscene.tasks` wraps `handle` in a task. A
 handler returns only once its work is durably recorded, which is what lets the task be
 acked afterwards (at-least-once delivery), and every step is safe to run twice.
@@ -11,8 +11,8 @@ from loguru import logger
 from vlmscene.bl.captioner import Captioner
 from vlmscene.bl.job_queue import JobQueue
 from vlmscene.bl.job_store import JobStore
-from vlmscene.bl.nuscenes_loader import SceneLoader
 from vlmscene.bl.pipeline import describe_keyframe
+from vlmscene.bl.scene_loader import SceneLoader
 from vlmscene.models import CaptionTask, IngestTask
 
 

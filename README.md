@@ -19,10 +19,10 @@ generic scaffold.
 
 ## What it does
 
-1. **Loads a scene** — [`bl/nuscenes_loader.py`](vlmscene/bl/nuscenes_loader.py) reads the
+1. **Loads a scene** — [`adapters/nuscenes_scene_loader.py`](vlmscene/adapters/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`bl/captioner.py`](vlmscene/bl/captioner.py) passes that image through
+2. **Runs a VLM** — [`adapters/huggingface_captioner.py`](vlmscene/adapters/huggingface_captioner.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
 3. **Outputs the results** — [`bl/writer.py`](vlmscene/bl/writer.py) writes one JSON object
@@ -42,7 +42,7 @@ generic scaffold.
    ]
    ```
 
-All three steps are Protocol-based ([`SceneLoader`](vlmscene/bl/nuscenes_loader.py),
+All three steps are built on abstract ports ([`SceneLoader`](vlmscene/bl/scene_loader.py),
 [`Captioner`](vlmscene/bl/captioner.py)) and composed in
 [`bl/pipeline.py`](vlmscene/bl/pipeline.py), so the orchestration logic never imports
 nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
@@ -99,8 +99,8 @@ Full setup instructions (including the optional HTTP API) are in
 Four layers, matching the "structure it as if this was a production project" ask — see
 [docs/development.md](docs/development.md#tests) for commands:
 
-- **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `bl/nuscenes_loader.py` and
-  `bl/captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
+- **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `adapters/nuscenes_scene_loader.py` and
+  `adapters/huggingface_captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
   can monkeypatch them out (fake `NuScenes` class, fake `transformers.pipeline`) and run in milliseconds.
   Covers the middle-frame selection logic, missing-camera error handling, pipeline orchestration
   (including `--max-scenes` and empty-dataset edge cases), and the JSON writer.

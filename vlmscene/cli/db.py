@@ -13,7 +13,7 @@ def init() -> None:
 
     from loguru import logger
 
-    from vlmscene.bl.job_store import PostgresJobStore
+    from vlmscene.adapters.postgres_job_store import PostgresJobStore
 
     PostgresJobStore(settings.database_url).ensure_schema()
     logger.info("database schema ready")

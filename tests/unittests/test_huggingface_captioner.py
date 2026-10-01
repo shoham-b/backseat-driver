@@ -5,17 +5,17 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from vlmscene.bl.captioner import BlipCaptioner
+from vlmscene.adapters.huggingface_captioner import HuggingFaceCaptioner
 
 
 def test_model_name_returns_configured_name() -> None:
-    captioner = BlipCaptioner(model_name="some/model")
+    captioner = HuggingFaceCaptioner(model_name="some/model")
 
     assert captioner.model_name == "some/model"
 
 
 def test_healthcheck_returns_true() -> None:
-    captioner = BlipCaptioner()
+    captioner = HuggingFaceCaptioner()
 
     assert captioner.healthcheck() is True
 
@@ -41,7 +41,7 @@ def fake_transformers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 def test_caption_returns_stripped_generated_text(tmp_path: Path, fake_transformers: list[str]) -> None:
     image_path = tmp_path / "scene.png"
     Image.new("RGB", (4, 4), color="red").save(image_path)
-    captioner = BlipCaptioner(model_name="fake/model")
+    captioner = HuggingFaceCaptioner(model_name="fake/model")
 
     description = captioner.caption(str(image_path))
 
@@ -51,7 +51,7 @@ def test_caption_returns_stripped_generated_text(tmp_path: Path, fake_transforme
 def test_caption_loads_pipeline_once_and_caches(tmp_path: Path, fake_transformers: list[str]) -> None:
     image_path = tmp_path / "scene.png"
     Image.new("RGB", (4, 4), color="red").save(image_path)
-    captioner = BlipCaptioner(model_name="fake/model")
+    captioner = HuggingFaceCaptioner(model_name="fake/model")
 
     captioner.caption(str(image_path))
     captioner.caption(str(image_path))
