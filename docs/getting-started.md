@@ -14,7 +14,7 @@ data/sets/nuscenes/
 ```
 
 `data/` is gitignored. The default dataroot is `data/sets/nuscenes` — override with `--dataroot` or
-`VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` if you keep it elsewhere.
+`BACKSEAT_DRIVER_NUSCENES_DATAROOT` if you keep it elsewhere.
 
 ## 2. Run the pipeline
 
@@ -22,7 +22,7 @@ data/sets/nuscenes/
 
 ```bash
 uv sync --group dev
-uv run vlm-scene-description run
+uv run backseat-driver run
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
@@ -35,7 +35,7 @@ Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and
 `output/scene_descriptions.json`. The first run downloads the VLM weights
 (`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
 
-**Useful options** (`uv run vlm-scene-description run --help` for the full list):
+**Useful options** (`uv run backseat-driver run --help` for the full list):
 
 | Option | Default | Description |
 |---|---|---|
@@ -86,21 +86,21 @@ cp .env.example .env        # create local config (gitignored)
 
 ## Configuration
 
-All settings are prefixed with `VLM_SCENE_DESCRIPTION_`. Copy `.env.example` to `.env` and override as needed:
+All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env` and override as needed:
 
 | Variable | Default | Description |
 |---|---|---|
-| `VLM_SCENE_DESCRIPTION_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
-| `VLM_SCENE_DESCRIPTION_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
-| `VLM_SCENE_DESCRIPTION_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
-| `VLM_SCENE_DESCRIPTION_VLM_BACKEND` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
-| `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
-| `VLM_SCENE_DESCRIPTION_OLLAMA_MODEL_NAME` | `llava` | Ollama model, when backend is `ollama` |
-| `VLM_SCENE_DESCRIPTION_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
-| `VLM_SCENE_DESCRIPTION_ANTHROPIC_MODEL_NAME` | `claude-haiku-4-5-20251001` | Claude model, when backend is `anthropic` |
-| `VLM_SCENE_DESCRIPTION_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
-| `VLM_SCENE_DESCRIPTION_OUTPUT_PATH` | `output/scene_descriptions.json` | Pipeline output path |
-| `VLM_SCENE_DESCRIPTION_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
-| `VLM_SCENE_DESCRIPTION_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
+| `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
+| `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
+| `BACKSEAT_DRIVER_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
+| `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
+| `BACKSEAT_DRIVER_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
+| `BACKSEAT_DRIVER_OLLAMA_MODEL_NAME` | `llava` | Ollama model, when backend is `ollama` |
+| `BACKSEAT_DRIVER_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
+| `BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME` | `claude-haiku-4-5-20251001` | Claude model, when backend is `anthropic` |
+| `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
+| `BACKSEAT_DRIVER_OUTPUT_PATH` | `output/scene_descriptions.json` | Pipeline output path |
+| `BACKSEAT_DRIVER_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
+| `BACKSEAT_DRIVER_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 
-See [`vlmscene/config.py`](../vlmscene/config.py) for the full settings class.
+See [`backseat_driver/config.py`](../backseat_driver/config.py) for the full settings class.

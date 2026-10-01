@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from vlmscene.config import Settings
+from backseat_driver.config import Settings
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

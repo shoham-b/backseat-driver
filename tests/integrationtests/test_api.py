@@ -6,11 +6,11 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.api.app import app
+from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
+from backseat_driver.bl.captioner import Captioner
 from tests.fakes import FakeJobQueue, FakeJobStore
-from vlmscene.adapters.huggingface_captioner import HuggingFaceCaptioner
-from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_captioner, get_job_queue, get_job_store
-from vlmscene.bl.captioner import Captioner
 
 
 class _UnhealthyCaptioner(HuggingFaceCaptioner):

@@ -6,9 +6,9 @@ from collections.abc import Iterator
 import pytest
 import schemathesis
 
+from backseat_driver.api.app import app
+from backseat_driver.api.dependencies import get_captioner
 from tests.fakes import FakeCaptioner
-from vlmscene.api.app import app
-from vlmscene.api.dependencies import get_captioner
 
 # /metrics is added by prometheus_fastapi_instrumentator and returns text/plain,
 # which is outside the OpenAPI spec — exclude it from schema conformance checks.

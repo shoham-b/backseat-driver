@@ -73,6 +73,181 @@ wheels = [
 ]
 
 [[package]]
+name = "backseat-driver"
+version = "0.1.0"
+source = { editable = "." }
+
+[package.dev-dependencies]
+api = [
+    { name = "celery" },
+    { name = "fastapi" },
+    { name = "granian" },
+    { name = "loguru" },
+    { name = "pillow" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pydantic-settings" },
+    { name = "python-multipart" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "transformers" },
+    { name = "typer" },
+]
+cli = [
+    { name = "celery" },
+    { name = "loguru" },
+    { name = "nuscenes-devkit" },
+    { name = "pillow" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pydantic-settings" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "transformers" },
+    { name = "typer" },
+]
+core = [
+    { name = "loguru" },
+    { name = "pydantic-settings" },
+    { name = "typer" },
+]
+dev = [
+    { name = "celery" },
+    { name = "coverage" },
+    { name = "fastapi" },
+    { name = "granian" },
+    { name = "httpx" },
+    { name = "hypothesis" },
+    { name = "loguru" },
+    { name = "nuscenes-devkit" },
+    { name = "pillow" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+    { name = "pydantic-settings" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "python-multipart" },
+    { name = "ruff" },
+    { name = "schemathesis" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "transformers" },
+    { name = "ty" },
+    { name = "typer" },
+]
+docs = [
+    { name = "mkdocs" },
+    { name = "mkdocs-material" },
+    { name = "mkdocstrings", extra = ["python"] },
+]
+jobs = [
+    { name = "celery" },
+    { name = "psycopg", extra = ["binary"] },
+    { name = "psycopg-pool" },
+]
+nuscenes = [
+    { name = "nuscenes-devkit" },
+]
+systemtest = [
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "pydantic-settings" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "typer" },
+]
+vlm = [
+    { name = "pillow" },
+    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
+    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
+    { name = "transformers" },
+]
+
+[package.metadata]
+
+[package.metadata.requires-dev]
+api = [
+    { name = "celery", specifier = ">=5.6.3" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "granian", specifier = ">=1.7" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg-pool", specifier = ">=3.2" },
+    { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.44,<6" },
+    { name = "typer", specifier = ">=0.12" },
+]
+cli = [
+    { name = "celery", specifier = ">=5.6.3" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "nuscenes-devkit", specifier = ">=1.1.11" },
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg-pool", specifier = ">=3.2" },
+    { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.44,<6" },
+    { name = "typer", specifier = ">=0.12" },
+]
+core = [
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "typer", specifier = ">=0.12" },
+]
+dev = [
+    { name = "celery", specifier = ">=5.6.3" },
+    { name = "coverage", extras = ["toml"], specifier = ">=7" },
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "granian", specifier = ">=1.7" },
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "hypothesis", specifier = ">=6" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "nuscenes-devkit", specifier = ">=1.1.11" },
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg-pool", specifier = ">=3.2" },
+    { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-asyncio", specifier = ">=0.25" },
+    { name = "pytest-cov", specifier = ">=6" },
+    { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "ruff", specifier = ">=0.11" },
+    { name = "schemathesis", specifier = ">=3.0" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.44,<6" },
+    { name = "ty", specifier = ">=0.0.1" },
+    { name = "typer", specifier = ">=0.12" },
+]
+docs = [
+    { name = "mkdocs", specifier = ">=1.6" },
+    { name = "mkdocs-material", specifier = ">=9" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.27" },
+]
+jobs = [
+    { name = "celery", specifier = ">=5.6.3" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg-pool", specifier = ">=3.2" },
+]
+nuscenes = [{ name = "nuscenes-devkit", specifier = ">=1.1.11" }]
+systemtest = [
+    { name = "httpx", specifier = ">=0.28" },
+    { name = "loguru", specifier = ">=0.7" },
+    { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "pytest", specifier = ">=8" },
+    { name = "pytest-asyncio", specifier = ">=0.25" },
+    { name = "typer", specifier = ">=0.12" },
+]
+vlm = [
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
+    { name = "transformers", specifier = ">=4.44,<6" },
+]
+
+[[package]]
 name = "billiard"
 version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2645,181 +2820,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/bd/e4/d07b5f29d283596b9727dd5275ccbceb63c44a1a82aa9e4bfd20426762ac/vine-5.1.0.tar.gz", hash = "sha256:8b62e981d35c41049211cf62a0a1242d8c1ee9bd15bb196ce38aefd6799e61e0", size = 48980, upload-time = "2023-11-05T08:46:53.857Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/ff/7c0c86c43b3cbb927e0ccc0255cb4057ceba4799cd44ae95174ce8e8b5b2/vine-5.1.0-py3-none-any.whl", hash = "sha256:40fdf3c48b2cfe1c38a49e9ae2da6fda88e4794c810050a728bd7413811fb1dc", size = 9636, upload-time = "2023-11-05T08:46:51.205Z" },
-]
-
-[[package]]
-name = "vlm-scene-description"
-version = "0.1.0"
-source = { editable = "." }
-
-[package.dev-dependencies]
-api = [
-    { name = "celery" },
-    { name = "fastapi" },
-    { name = "granian" },
-    { name = "loguru" },
-    { name = "pillow" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pydantic-settings" },
-    { name = "python-multipart" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
-    { name = "transformers" },
-    { name = "typer" },
-]
-cli = [
-    { name = "celery" },
-    { name = "loguru" },
-    { name = "nuscenes-devkit" },
-    { name = "pillow" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pydantic-settings" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
-    { name = "transformers" },
-    { name = "typer" },
-]
-core = [
-    { name = "loguru" },
-    { name = "pydantic-settings" },
-    { name = "typer" },
-]
-dev = [
-    { name = "celery" },
-    { name = "coverage" },
-    { name = "fastapi" },
-    { name = "granian" },
-    { name = "httpx" },
-    { name = "hypothesis" },
-    { name = "loguru" },
-    { name = "nuscenes-devkit" },
-    { name = "pillow" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-    { name = "pydantic-settings" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "python-multipart" },
-    { name = "ruff" },
-    { name = "schemathesis" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
-    { name = "transformers" },
-    { name = "ty" },
-    { name = "typer" },
-]
-docs = [
-    { name = "mkdocs" },
-    { name = "mkdocs-material" },
-    { name = "mkdocstrings", extra = ["python"] },
-]
-jobs = [
-    { name = "celery" },
-    { name = "psycopg", extra = ["binary"] },
-    { name = "psycopg-pool" },
-]
-nuscenes = [
-    { name = "nuscenes-devkit" },
-]
-systemtest = [
-    { name = "httpx" },
-    { name = "loguru" },
-    { name = "pydantic-settings" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "typer" },
-]
-vlm = [
-    { name = "pillow" },
-    { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
-    { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
-    { name = "transformers" },
-]
-
-[package.metadata]
-
-[package.metadata.requires-dev]
-api = [
-    { name = "celery", specifier = ">=5.6.3" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "granian", specifier = ">=1.7" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "pillow", specifier = ">=10.4" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "psycopg-pool", specifier = ">=3.2" },
-    { name = "pydantic-settings", specifier = ">=2.9" },
-    { name = "python-multipart", specifier = ">=0.0.12" },
-    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = ">=4.44,<5" },
-    { name = "typer", specifier = ">=0.12" },
-]
-cli = [
-    { name = "celery", specifier = ">=5.6.3" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "nuscenes-devkit", specifier = ">=1.1.11" },
-    { name = "pillow", specifier = ">=10.4" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "psycopg-pool", specifier = ">=3.2" },
-    { name = "pydantic-settings", specifier = ">=2.9" },
-    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = ">=4.44,<5" },
-    { name = "typer", specifier = ">=0.12" },
-]
-core = [
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "pydantic-settings", specifier = ">=2.9" },
-    { name = "typer", specifier = ">=0.12" },
-]
-dev = [
-    { name = "celery", specifier = ">=5.6.3" },
-    { name = "coverage", extras = ["toml"], specifier = ">=7" },
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "granian", specifier = ">=1.7" },
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "hypothesis", specifier = ">=6" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "nuscenes-devkit", specifier = ">=1.1.11" },
-    { name = "pillow", specifier = ">=10.4" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "psycopg-pool", specifier = ">=3.2" },
-    { name = "pydantic-settings", specifier = ">=2.9" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-asyncio", specifier = ">=0.25" },
-    { name = "pytest-cov", specifier = ">=6" },
-    { name = "python-multipart", specifier = ">=0.0.12" },
-    { name = "ruff", specifier = ">=0.11" },
-    { name = "schemathesis", specifier = ">=3.0" },
-    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = ">=4.44,<5" },
-    { name = "ty", specifier = ">=0.0.1" },
-    { name = "typer", specifier = ">=0.12" },
-]
-docs = [
-    { name = "mkdocs", specifier = ">=1.6" },
-    { name = "mkdocs-material", specifier = ">=9" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.27" },
-]
-jobs = [
-    { name = "celery", specifier = ">=5.6.3" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
-    { name = "psycopg-pool", specifier = ">=3.2" },
-]
-nuscenes = [{ name = "nuscenes-devkit", specifier = ">=1.1.11" }]
-systemtest = [
-    { name = "httpx", specifier = ">=0.28" },
-    { name = "loguru", specifier = ">=0.7" },
-    { name = "pydantic-settings", specifier = ">=2.9" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-asyncio", specifier = ">=0.25" },
-    { name = "typer", specifier = ">=0.12" },
-]
-vlm = [
-    { name = "pillow", specifier = ">=10.4" },
-    { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
-    { name = "transformers", specifier = ">=4.44,<5" },
 ]
 
 [[package]]

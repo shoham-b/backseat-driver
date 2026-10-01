@@ -1,7 +1,7 @@
 x-distributed-env: &distributed-env
-  VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
-  VLM_SCENE_DESCRIPTION_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-  VLM_SCENE_DESCRIPTION_DATABASE_URL: postgresql://vlmscene:vlmscene@postgres:5432/vlmscene
+  BACKSEAT_DRIVER_LOG_FORMAT: json
+  BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  BACKSEAT_DRIVER_DATABASE_URL: postgresql://backseat_driver:backseat_driver@postgres:5432/backseat_driver
 
 x-worker: &worker
   build:
@@ -28,7 +28,7 @@ services:
       - ./data:/app/data:ro
       - ./output:/app/output
     environment:
-      VLM_SCENE_DESCRIPTION_LOG_FORMAT: json
+      BACKSEAT_DRIVER_LOG_FORMAT: json
     profiles: [cli]
 
   rabbitmq:
@@ -44,13 +44,13 @@ services:
   postgres:
     image: postgres:17
     environment:
-      POSTGRES_USER: vlmscene
-      POSTGRES_PASSWORD: vlmscene
-      POSTGRES_DB: vlmscene
+      POSTGRES_USER: backseat_driver
+      POSTGRES_PASSWORD: backseat_driver
+      POSTGRES_DB: backseat_driver
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "vlmscene"]
+      test: ["CMD", "pg_isready", "-U", "backseat_driver"]
       interval: 5s
       timeout: 3s
       retries: 12

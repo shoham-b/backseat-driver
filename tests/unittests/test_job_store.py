@@ -2,8 +2,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from vlmscene.bl.job_store import derive_state
-from vlmscene.models import JobState
+from backseat_driver.bl.job_store import derive_state
+from backseat_driver.models import JobState
 
 
 def test_state_is_pending_until_expected_scenes_are_known() -> None:

@@ -1,4 +1,4 @@
-# VLM Scene Description
+# Backseat Driver
 
 Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model.
 

@@ -1,6 +1,6 @@
+from backseat_driver.bl.pipeline import ScenePipeline
+from backseat_driver.models import SceneKeyframe
 from tests.fakes import FakeCaptioner, FakeSceneLoader
-from vlmscene.bl.pipeline import ScenePipeline
-from vlmscene.models import SceneKeyframe
 
 
 def _keyframe(n: int) -> SceneKeyframe:

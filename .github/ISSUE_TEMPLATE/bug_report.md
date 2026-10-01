@@ -26,7 +26,7 @@ labels: bug
 
 - OS:
 - Python version:
-- VLM Scene Description version:
+- Backseat Driver version:
 
 ## Additional context
 

@@ -3,12 +3,12 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from vlmscene.bl.captioner import Captioner
-from vlmscene.bl.errors import NotFoundError
-from vlmscene.bl.job_queue import JobQueue
-from vlmscene.bl.job_store import JobStore, derive_state
-from vlmscene.bl.scene_loader import SceneLoader
-from vlmscene.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
+from backseat_driver.bl.captioner import Captioner
+from backseat_driver.bl.errors import NotFoundError
+from backseat_driver.bl.job_queue import JobQueue
+from backseat_driver.bl.job_store import JobStore, derive_state
+from backseat_driver.bl.scene_loader import SceneLoader
+from backseat_driver.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
 
 
 class FakeJobQueue(JobQueue):

@@ -1,4 +1,4 @@
-# VLM Scene Description
+# Backseat Driver
 
 ![Python Version](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)
 ![Tests Status](https://github.com/shoham-b/backseat-driver/actions/workflows/ci.yml/badge.svg)
@@ -19,13 +19,13 @@ generic scaffold.
 
 ## What it does
 
-1. **Loads a scene** — [`adapters/nuscenes_scene_loader.py`](vlmscene/adapters/nuscenes_scene_loader.py) reads the
+1. **Loads a scene** — [`adapters/nuscenes_scene_loader.py`](backseat_driver/adapters/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`adapters/huggingface_captioner.py`](vlmscene/adapters/huggingface_captioner.py) passes that image through
+2. **Runs a VLM** — [`adapters/huggingface_captioner.py`](backseat_driver/adapters/huggingface_captioner.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
-3. **Outputs the results** — [`bl/writer.py`](vlmscene/bl/writer.py) writes one JSON object
+3. **Outputs the results** — [`bl/writer.py`](backseat_driver/bl/writer.py) writes one JSON object
    per scene to `output/scene_descriptions.json`:
 
    ```json
@@ -42,9 +42,9 @@ generic scaffold.
    ]
    ```
 
-All three steps are built on abstract ports ([`SceneLoader`](vlmscene/bl/scene_loader.py),
-[`Captioner`](vlmscene/bl/captioner.py)) and composed in
-[`bl/pipeline.py`](vlmscene/bl/pipeline.py), so the orchestration logic never imports
+All three steps are built on abstract ports ([`SceneLoader`](backseat_driver/bl/scene_loader.py),
+[`Captioner`](backseat_driver/bl/captioner.py)) and composed in
+[`bl/pipeline.py`](backseat_driver/bl/pipeline.py), so the orchestration logic never imports
 nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
 
 ## Assumptions
@@ -56,13 +56,13 @@ Stated explicitly, per the assignment's request:
   selection policy are the only "scene → single image" choice this pipeline makes — swap `--camera` for
   another channel if front-camera isn't representative enough for your use case.
 - **"Small/basic VLM is fine"** is taken literally: `Salesforce/blip-image-captioning-base` (~990MB,
-  CPU-only) rather than a larger multimodal LLM. It's swappable via `--model` / `VLM_SCENE_DESCRIPTION_VLM_MODEL_NAME`
+  CPU-only) rather than a larger multimodal LLM. It's swappable via `--model` / `BACKSEAT_DRIVER_VLM_MODEL_NAME`
   to any HuggingFace `image-to-text` pipeline model.
 - **The dataset is not bundled.** nuScenes requires free registration and its license doesn't permit
   redistribution, so it's expected to be downloaded separately and mounted/volume-copied into
   `data/sets/nuscenes` (gitignored). See [Quickstart](#quickstart) below.
 - **Batch job, not a request/response service, is the primary shape.** The assignment describes a
-  pipeline over a *set* of scenes, so the CLI (`vlm-scene-description run`) producing one JSON file is the
+  pipeline over a *set* of scenes, so the CLI (`backseat-driver run`) producing one JSON file is the
   main deliverable. A small optional HTTP API (`/describe`) is included to concretely answer "how would
   you deploy this" for the on-demand case — see [docs/architecture.md#deployment](docs/architecture.md#deployment).
 - **No GPU, no batching/parallelism.** Scenes are captioned one at a time on CPU, matching "no need for
@@ -80,7 +80,7 @@ uv sync --group dev
 #    data/sets/nuscenes/{maps,samples,sweeps,v1.0-mini}
 
 # 3. Run the pipeline
-uv run vlm-scene-description run
+uv run backseat-driver run
 # → output/scene_descriptions.json
 ```
 
@@ -152,7 +152,7 @@ docker compose up api --build
 
 ## Configuration
 
-All settings are read from environment variables (or `.env`), prefixed `VLM_SCENE_DESCRIPTION_`. See
+All settings are read from environment variables (or `.env`), prefixed `BACKSEAT_DRIVER_`. See
 [.env.example](.env.example) and [docs/getting-started.md#configuration](docs/getting-started.md#configuration).
 
 ## License

@@ -10,9 +10,9 @@ from typing import Any
 import pytest
 from pydantic import SecretStr
 
-from vlmscene.adapters.anthropic_captioner import AnthropicCaptioner
-from vlmscene.adapters.factory import build_captioner
-from vlmscene.config import Settings, VlmBackend
+from backseat_driver.adapters.anthropic_captioner import AnthropicCaptioner
+from backseat_driver.adapters.factory import build_captioner
+from backseat_driver.config import Settings, VlmBackend
 
 
 class _FakeResponse(io.BytesIO):
