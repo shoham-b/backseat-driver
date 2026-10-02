@@ -35,7 +35,7 @@ Run `just --list` at any time to see all targets. The full table:
 | `just k8s-render` / `k8s-apply` / `k8s-delete` | Kubernetes manifests in `k8s/` |
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
-| `just test-system` | System tests (requires a running API: `just infra` + `just dev`, or `just up`) |
+| `just test-system` | System tests (requires a running API: `just dev` or `just up`) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
 | `just bench` | Performance benchmarks (pytest-codspeed) |

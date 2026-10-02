@@ -53,7 +53,7 @@ bench:
 test-smoke:
     uv run backseat-driver test smoke --verbose
 
-# System tests against a running API (`just infra` + `just dev`, or `just up`; API_URL overrides the target)
+# System tests against a running API (`just dev`, or `just up`; API_URL overrides the target)
 test-system:
     uv run pytest tests/systemtests -v
 
@@ -67,8 +67,8 @@ set dotenv-load
 api_host := env("BACKSEAT_DRIVER_API_HOST", "127.0.0.1")
 api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
 
-# Dev server with auto-reload (needs `just infra` for /ready to pass)
-dev:
+# Dev server with auto-reload; starts RabbitMQ + Postgres first so /ready passes (needs Docker)
+dev: infra
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
 # Production-mode server on the host; binds all interfaces (needs `just infra`)
