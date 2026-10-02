@@ -33,7 +33,7 @@ uv run backseat-driver run [OPTIONS]
 | `--camera` | `BACKSEAT_DRIVER_CAMERA_CHANNEL` | `CAM_FRONT` | Camera channel used as the representative frame |
 | `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` | `Salesforce/blip-image-captioning-base` / `llava` | Model for the chosen backend |
-| `--output` | `BACKSEAT_DRIVER_OUTPUT_PATH` | `output/scene_descriptions.json` | Where to write the JSON results |
+| `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
 | `--max-scenes` | — | (all scenes) | Only process the first N scenes |
 
 **Examples:**
@@ -41,6 +41,10 @@ uv run backseat-driver run [OPTIONS]
 ```bash
 # Full v1.0-mini run with defaults
 uv run backseat-driver run
+
+# Pick the backend and model; the output file is inferred
+uv run backseat-driver run --backend ollama --model llava:13b
+# -> output/ollama__llava-13b.json
 
 # Quick check against the first 2 scenes only
 uv run backseat-driver run --max-scenes 2
@@ -60,12 +64,12 @@ Each scene's output line during the run looks like:
 ## `report` and `ui`
 
 Compare how several models described the same scenes. Takes the JSON files written by `run` (one per
-model) and writes a single self-contained HTML page (images embedded, no server needed).
+model; default: every `*.json` in the output directory) and writes a single self-contained HTML page (images embedded, no server needed).
 
 ```bash
-uv run backseat-driver run --backend huggingface --output output/blip.json
-uv run backseat-driver run --backend ollama --output output/llava.json
-uv run backseat-driver report output/blip.json output/llava.json --output output/report.html
+uv run backseat-driver run --backend huggingface
+uv run backseat-driver run --backend ollama --model llava
+uv run backseat-driver report        # every output/*.json -> output/report.html
 ```
 
 The page lets you filter by scene, model, and description text, shows every model's description

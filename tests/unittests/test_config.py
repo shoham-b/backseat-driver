@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from backseat_driver.config import Settings, get_settings
+from backseat_driver.config import Settings, VlmBackend, get_settings
 
 
 def test_defaults() -> None:
@@ -14,7 +14,7 @@ def test_defaults() -> None:
     assert s.nuscenes_version == "v1.0-mini"
     assert s.camera_channel == "CAM_FRONT"
     assert s.vlm_model_name == "Salesforce/blip-image-captioning-base"
-    assert s.output_path == "output/scene_descriptions.json"
+    assert s.output_dir == "output"
 
 
 def test_nuscenes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -55,3 +55,31 @@ def test_api_url_includes_port(port: int) -> None:
 def test_api_url_includes_host(host: str) -> None:
     s = Settings(api_host=host)
     assert host in s.api_url
+
+
+def test_default_output_path_is_inferred_from_backend_and_configured_model() -> None:
+    s = Settings()
+
+    assert s.output_path_for() == "output/huggingface__Salesforce-blip-image-captioning-base.json"
+
+
+def test_output_path_follows_selected_backend_and_model() -> None:
+    s = Settings(output_dir="results")
+
+    assert s.output_path_for(VlmBackend.OLLAMA, "llava:13b") == "results/ollama__llava-13b.json"
+    assert s.output_path_for(VlmBackend.ANTHROPIC) == "results/anthropic__claude-haiku-4-5-20251001.json"
+
+
+def test_model_name_for_prefers_explicit_override() -> None:
+    s = Settings()
+
+    assert s.model_name_for(VlmBackend.OLLAMA) == "llava"
+    assert s.model_name_for(VlmBackend.OLLAMA, "bakllava") == "bakllava"
+
+
+@given(model=st.text(min_size=1))
+def test_output_path_filename_is_always_safe(model: str) -> None:
+    path = Settings().output_path_for(VlmBackend.OLLAMA, model)
+
+    assert path.startswith("output/ollama__")
+    assert "/" not in path.removeprefix("output/")

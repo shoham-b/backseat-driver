@@ -2,9 +2,9 @@
 
 Usage::
 
-    backseat_driver run --backend huggingface --output output/blip.json
-    backseat_driver run --backend anthropic --output output/claude.json
-    backseat_driver report output/blip.json output/claude.json --output output/report.html
+    backseat_driver run --backend huggingface
+    backseat_driver run --backend anthropic --model claude-haiku-4-5-20251001
+    backseat_driver report          # every output/*.json -> output/report.html
 """
 
 import functools
@@ -23,12 +23,19 @@ from backseat_driver.models import SceneDescription
 
 @app.command()
 def report(
-    results: Annotated[list[Path], typer.Argument(help="JSON files written by `run`, one per model")],
-    output: Annotated[Path, typer.Option(help="Where to write the self-contained HTML report")] = Path(
-        "output/report.html"
-    ),
+    results: Annotated[
+        list[Path] | None,
+        typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option(help="Where to write the HTML report (default: <output dir>/report.html)")
+    ] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
+    from backseat_driver.config import get_settings
+
+    output = output or Path(get_settings().output_dir) / "report.html"
+    results = results or _default_results()
     count = _write_report(results, output)
     typer.secho(f"Wrote report for {count} description(s) to {output}", fg=typer.colors.GREEN)
 
@@ -37,19 +44,14 @@ def report(
 def ui(
     results: Annotated[
         list[Path] | None,
-        typer.Argument(help="JSON files written by `run`; default: every *.json beside the configured output path"),
+        typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
     ] = None,
     host: Annotated[str, typer.Option(help="Interface to serve on")] = "127.0.0.1",
     port: Annotated[int, typer.Option(help="Port to serve on")] = 8081,
     open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the page in a browser")] = True,
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
-    from backseat_driver.config import get_settings
-
-    if not results:
-        results = sorted(Path(get_settings().output_path).parent.glob("*.json"))
-        if not results:
-            raise typer.BadParameter("no result files found; pass some or run `backseat-driver run` first")
+    results = results or _default_results()
 
     with tempfile.TemporaryDirectory() as tmp:
         count = _write_report(results, Path(tmp) / "index.html")
@@ -63,6 +65,15 @@ def ui(
                 server.serve_forever()
             except KeyboardInterrupt:
                 typer.echo("Stopped")
+
+
+def _default_results() -> list[Path]:
+    from backseat_driver.config import get_settings
+
+    found = sorted(Path(get_settings().output_dir).glob("*.json"))
+    if not found:
+        raise typer.BadParameter("no result files found; pass some or run `backseat-driver run` first")
+    return found
 
 
 def _write_report(results: list[Path], output: Path) -> int:

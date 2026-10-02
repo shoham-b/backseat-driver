@@ -32,7 +32,7 @@ docker compose --profile cli run --rm cli
 ```
 
 Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and write
-`output/scene_descriptions.json`. The first run downloads the VLM weights
+`output/<backend>__<model>.json` (inferred from the backend and model). The first run downloads the VLM weights
 (`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
 
 **Useful options** (`uv run backseat-driver run --help` for the full list):
@@ -44,7 +44,7 @@ Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and
 | `--camera` | `CAM_FRONT` | Camera channel used as the representative frame |
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `--model` | per backend | HuggingFace model, Ollama model (default `llava`) or Claude model (default `claude-haiku-4-5-20251001`) |
-| `--output` | `output/scene_descriptions.json` | Where to write the JSON results |
+| `--output` | `output/<backend>__<model>.json` | Where to write the JSON results (inferred from the backend and model) |
 | `--max-scenes` | (all) | Only process the first N scenes — handy for a quick smoke run |
 
 ## 3. (Optional) Run the HTTP API
@@ -99,7 +99,7 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 | `BACKSEAT_DRIVER_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
 | `BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME` | `claude-haiku-4-5-20251001` | Claude model, when backend is `anthropic` |
 | `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
-| `BACKSEAT_DRIVER_OUTPUT_PATH` | `output/scene_descriptions.json` | Pipeline output path |
+| `BACKSEAT_DRIVER_OUTPUT_DIR` | `output` | Directory for result files and the report |
 | `BACKSEAT_DRIVER_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
 | `BACKSEAT_DRIVER_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 

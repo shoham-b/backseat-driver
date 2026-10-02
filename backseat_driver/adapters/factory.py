@@ -13,15 +13,16 @@ def build_captioner(settings: Settings, backend: VlmBackend | None = None, model
     `model_name` overrides the backend's configured model.
     """
     backend = backend or settings.vlm_backend
+    model_name = settings.model_name_for(backend, model_name)
     if backend is VlmBackend.HUGGINGFACE:
-        return HuggingFaceCaptioner(model_name=model_name or settings.vlm_model_name)
+        return HuggingFaceCaptioner(model_name=model_name)
     if backend is VlmBackend.OLLAMA:
-        return OllamaCaptioner(model_name=model_name or settings.ollama_model_name, base_url=settings.ollama_url)
+        return OllamaCaptioner(model_name=model_name, base_url=settings.ollama_url)
     if backend is VlmBackend.ANTHROPIC:
         if settings.anthropic_api_key is None:
             raise ValueError("BACKSEAT_DRIVER_ANTHROPIC_API_KEY must be set to use the anthropic backend")
         return AnthropicCaptioner(
             api_key=settings.anthropic_api_key.get_secret_value(),
-            model_name=model_name or settings.anthropic_model_name,
+            model_name=model_name,
         )
     raise ValueError(f"Unknown captioner backend {backend!r}")

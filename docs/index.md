@@ -13,7 +13,7 @@ uv run pre-commit install
 just run
 ```
 
-Results are written to `output/scene_descriptions.json` by default.
+Results are written to `output/<backend>__<model>.json` by default, so runs of different models sit side by side and never overwrite each other.
 
 See [Getting Started](getting-started.md) for dataset setup, Docker usage, and the optional HTTP API, or run `just --list` to see all available dev tasks.
 

@@ -1,3 +1,4 @@
+import re
 from enum import StrEnum
 from functools import lru_cache
 from typing import Literal
@@ -40,8 +41,28 @@ class Settings(BaseSettings):
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     database_url: str = "postgresql+psycopg://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
 
-    # Pipeline output
-    output_path: str = "output/scene_descriptions.json"
+    # Pipeline output: `run` writes <output_dir>/<backend>__<model>.json unless told otherwise
+    output_dir: str = "output"
+
+    def model_name_for(self, backend: VlmBackend | None = None, model_name: str | None = None) -> str:
+        """The model that `backend` (default: the configured one) runs; `model_name` overrides the configured one."""
+        backend = backend or self.vlm_backend
+        if model_name:
+            return model_name
+        if backend is VlmBackend.HUGGINGFACE:
+            return self.vlm_model_name
+        if backend is VlmBackend.OLLAMA:
+            return self.ollama_model_name
+        if backend is VlmBackend.ANTHROPIC:
+            return self.anthropic_model_name
+        raise ValueError(f"Unknown captioner backend {backend!r}")
+
+    def output_path_for(self, backend: VlmBackend | None = None, model_name: str | None = None) -> str:
+        """Default result file for a backend/model pair, so runs of different models never overwrite each other."""
+        backend = backend or self.vlm_backend
+        # Model names contain "/" and ":" (e.g. "Salesforce/blip-...", "llava:13b"), which are unsafe in filenames.
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", self.model_name_for(backend, model_name)).strip("-")
+        return f"{self.output_dir}/{backend.value}__{slug}.json"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
