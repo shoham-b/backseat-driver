@@ -12,6 +12,6 @@ async def api_client(api_url: str) -> AsyncGenerator[httpx.AsyncClient]:
             response.raise_for_status()
         except Exception as exc:
             pytest.fail(
-                f"Service at {api_url} is not reachable — start the API first (`just infra` + `just dev`, or `just up`): {exc}"
+                f"Service at {api_url} is not reachable — start it (`just infra` + `just dev`, or `just up`): {exc}"
             )
         yield client
