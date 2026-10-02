@@ -53,6 +53,10 @@ bench:
 test-smoke:
     uv run backseat-driver test smoke --verbose
 
+# Selenium tests of the model-comparison UI (headless Chrome; CHROME_BIN / CHROMEDRIVER override the browser)
+test-ui:
+    uv run pytest tests/uitests -v
+
 # Full system tests — auto-starts service locally
 test-system:
     uv run pytest tests/systemtests -v

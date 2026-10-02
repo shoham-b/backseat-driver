@@ -36,6 +36,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`.
 - `tests/smoketests/` — Black-box HTTP tests against a running service.
 - `tests/systemtests/` — Full Docker Compose end-to-end tests.
+- `tests/uitests/` — Selenium tests that drive the model-comparison UI (the real `ui` server) in headless Chrome. Run with `just test-ui`; set `CHROME_BIN`/`CHROMEDRIVER` to use a specific browser.
 
 ---
 
@@ -78,7 +79,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
   1. `tests/unittests/` — pure logic, no network, no filesystem.
   2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`.
   3. `tests/smoketests/` — live HTTP; requires a running service (set `API_URL` to override target).
-  4. `tests/systemtests/` — Docker Compose, runs everything containerised.
+  4. `tests/uitests/` — Selenium + headless Chrome against the real `ui` server.
+  5. `tests/systemtests/` — Docker Compose, runs everything containerised.
 - **AAA structure**: Every test must follow Arrange → Act → Assert with a blank line between each phase. Name the sections with a comment only when the block is non-obvious; otherwise the blank lines are enough.
   ```python
   def test_something():

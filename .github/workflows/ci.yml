@@ -64,6 +64,21 @@ jobs:
           name: junit-xml
           path: junit.xml
 
+  test-ui:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --group dev
+      # Chrome and chromedriver come with the ubuntu-latest image; Selenium Manager locates them.
+      - run: uv run pytest tests/uitests -v
+
   test-compose:
     runs-on: ubuntu-latest
     permissions:
