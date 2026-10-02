@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: backseat-driver-config
 data:
+  # The default (monolith) would run /jobs inside the API pods; the cluster runs the separate workers.
+  BACKSEAT_DRIVER_MODE: distributed
   BACKSEAT_DRIVER_LOG_FORMAT: json
   BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
   BACKSEAT_DRIVER_NUSCENES_DATAROOT: /app/data/sets/nuscenes

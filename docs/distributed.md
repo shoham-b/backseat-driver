@@ -17,6 +17,19 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
                       Postgres (scene_descriptions)  ◀── GET /jobs/{id}
 ```
 
+## Monolith vs. distributed
+
+`BACKSEAT_DRIVER_MODE` picks how the API runs `/jobs`; `jobs.factory.build_job_backend` wires the matching `JobQueue` and `JobStore`.
+
+| Mode | Queue / store | Used by |
+|---|---|---|
+| `monolith` (default) | `InProcessJobQueue` / `InMemoryJobStore` — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are lost on restart |
+| `distributed` | `CeleryJobQueue` (RabbitMQ) / `PostgresJobStore` | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
+
+To debug the distributed path locally, run `just dev-distributed` (starts RabbitMQ + Postgres in Docker and the API on the host with `BACKSEAT_DRIVER_MODE=distributed`), then `just worker-ingest` and `just worker-caption` in other terminals.
+
+The API's HTTP surface is identical in both modes; only where the work runs differs.
+
 ## Services
 
 | Service | Command | Role |
@@ -26,6 +39,8 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 | `caption-worker` | `backseat-driver worker caption` | Captions one keyframe and stores the result; scale horizontally |
 | `db-init` | `backseat-driver db init` | One-shot: creates the tables |
 | `rabbitmq`, `postgres` | | Broker and job store |
+
+Each service has its own `docker/Dockerfile` target and dependency group: `api`, `ingest-worker` (nuscenes-devkit, no torch), `caption-worker` (torch, no nuscenes-devkit), and `cli` (everything, also used by `db-init`). Build one with `docker build -f docker/Dockerfile --target caption-worker .`.
 
 Run it with `just up` (and `docker compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data`, mounted read-only into both workers.
 
@@ -40,10 +55,10 @@ Run it with `just up` (and `docker compose up --scale caption-worker=4` to add w
 
 ## Scaling
 
-Caption workers run the solo pool (the model loads once per process and CUDA is never forked), so scale by adding processes or containers. They are stateless consumers of one queue, so throughput scales with replica count. On Kubernetes, scale them with KEDA on queue depth and let GPU node pools scale from zero. The base manifests are in `deploy/k8s`; the KEDA scaler is not.
+Caption workers run the solo pool (the model loads once per process and CUDA is never forked), so scale by adding processes or containers. They are stateless consumers of one queue, so throughput scales with replica count. On Kubernetes they can autoscale on queue depth with KEDA (see [Deployment](deployment.md#autoscaling-and-the-local-kind-cluster)).
 
 ## Not done yet
 
-- An in-memory `JobQueue`/`JobStore` so the CLI could run these same worker classes in one process.
 - A `failed` job state, and a dead-letter queue for tasks that exhaust their retries.
-- Object storage instead of a shared volume; KEDA autoscaling.
+- Object storage instead of a shared volume; GPU node pools.
+- Autoscaling the API (needs metrics-server).

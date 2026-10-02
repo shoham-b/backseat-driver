@@ -53,10 +53,11 @@ The same captioning logic is also exposed as a small on-demand service — see
 [Architecture → Deployment](architecture.md#deployment) for why this exists alongside the CLI.
 
 ```bash
+just dev            # on the host, monolith mode: /jobs runs inside the API, nothing else needed
+# or the full distributed stack (API + RabbitMQ + Postgres + workers):
 just up
-# or on the host, with RabbitMQ + Postgres in Docker (the API's /ready checks them):
-just infra   # optional: /ready and /jobs need them; /describe does not
-just dev
+# or debug the host API against RabbitMQ + Postgres in Docker:
+just dev-distributed
 ```
 
 ```bash

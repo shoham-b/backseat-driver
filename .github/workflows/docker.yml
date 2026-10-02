@@ -50,3 +50,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build and push ingest worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: ingest-worker
+          push: true
+          tags: ghcr.io/shoham-b/backseat-driver-ingest-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push caption worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: caption-worker
+          push: true
+          tags: ghcr.io/shoham-b/backseat-driver-caption-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+

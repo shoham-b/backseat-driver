@@ -16,3 +16,7 @@ images:
     newTag: latest
   - name: ghcr.io/shoham-b/backseat-driver-cli
     newTag: latest
+  - name: ghcr.io/shoham-b/backseat-driver-ingest-worker
+    newTag: latest
+  - name: ghcr.io/shoham-b/backseat-driver-caption-worker
+    newTag: latest

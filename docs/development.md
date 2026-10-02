@@ -26,17 +26,19 @@ Run `just --list` at any time to see all targets. The full table:
 | Command | Description |
 |---|---|
 | `just run [ARGS]` | Run the scene-description pipeline (`backseat-driver run`) |
-| `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
-| `just serve` | API production-mode server on the host, binds `0.0.0.0` |
-| `just infra` / `just infra-down` | RabbitMQ + Postgres in Docker for the host-run API and workers (`/ready` needs them) |
+| `just dev` | API dev server with hot reload (`fastapi dev`) in monolith mode: `/jobs` runs in-process, no infra needed |
+| `just dev-distributed` | Same, but distributed mode against RabbitMQ + Postgres in Docker (starts them); pair with `just worker-*` |
+| `just serve` | API production-mode server on the host, binds `0.0.0.0` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) |
+| `just infra` / `just infra-down` | RabbitMQ + Postgres in Docker for the host-run API and workers |
 | `just worker-ingest` / `just worker-caption` | Queue workers on the host |
 | `just docker-run [ARGS]` | The pipeline in the `cli` container |
 | `just up` / `just up-dev` / `just down` | Full distributed stack in Docker Compose (`up-dev` hot-reloads the API) |
 | `just k8s-render` / `k8s-validate` / `k8s-apply` / `k8s-delete` | Kubernetes manifests in `deploy/k8s` |
+| `just k8s-up` / `k8s-status` / `k8s-down` | Local kind cluster with KEDA queue-depth autoscaling (`deploy/kind`) |
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
 | `just test-ui` | Selenium tests of the model-comparison UI (needs Chrome) |
-| `just test-system` | System tests (requires a running API with infra: `just infra` + `just dev`, or `just up`) |
+| `just test-system` | System tests (requires a running API: `just dev`, `just dev-distributed` (+ workers) or `just up`) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
 | `just bench` | Performance benchmarks (pytest-codspeed) |

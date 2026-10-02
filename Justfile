@@ -71,11 +71,15 @@ set dotenv-load
 api_host := env("BACKSEAT_DRIVER_API_HOST", "127.0.0.1")
 api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
 
-# Local debugging server with auto-reload; no Docker. /describe works as-is; /ready and /jobs need RabbitMQ + Postgres (`just infra`)
+# Local dev server with auto-reload; no Docker. Monolith mode: /describe and /jobs all work in this one process, with no broker, database or workers (job state is lost on restart)
 dev:
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
-# Production-mode server, all interfaces; expects RabbitMQ + Postgres to exist already (as in Kubernetes; locally `just infra`)
+# Same server as `dev`, but in distributed mode: /jobs goes through RabbitMQ + Postgres (`just infra`) to host workers (`just worker-ingest`, `just worker-caption`)
+dev-distributed: infra
+    BACKSEAT_DRIVER_MODE=distributed uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
+
+# Production-mode server, all interfaces. Monolith unless BACKSEAT_DRIVER_MODE=distributed (Kubernetes sets it; locally `just infra` first)
 serve:
     uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port {{api_port}}
 
@@ -124,6 +128,34 @@ k8s-validate:
 # Deploy to the current kubectl context (see docs/deployment.md first: dataset volume, credentials)
 k8s-apply:
     kubectl apply -k deploy/k8s
+
+keda_version := "2.18.1"
+kind_cluster := "backseat-driver"
+# Pinned to the kind context so a stale current-context can never point these at another cluster.
+kubectl := "kubectl --context kind-" + kind_cluster
+
+# Local Kubernetes (kind): builds the images, loads them, installs KEDA and deploys with queue-depth autoscaling. API on :8080
+k8s-up:
+    mkdir -p data
+    kind get clusters | grep -qx {{kind_cluster}} || kind create cluster --config deploy/kind/cluster.yaml
+    for target in api ingest-worker caption-worker cli; do \
+        docker build -f docker/Dockerfile --target $target -t backseat-driver-$target:local . || exit 1; \
+        kind load docker-image --name {{kind_cluster}} backseat-driver-$target:local || exit 1; \
+    done
+    {{kubectl}} apply --server-side -f https://github.com/kedacore/keda/releases/download/v{{keda_version}}/keda-{{keda_version}}.yaml
+    {{kubectl}} wait -n keda --for=condition=Available deployment --all --timeout=180s
+    {{kubectl}} apply -k deploy/kind
+    # A reloaded image keeps its tag, so running pods must be restarted to pick it up.
+    {{kubectl}} -n backseat-driver rollout restart deploy/api deploy/ingest-worker deploy/caption-worker
+    {{kubectl}} -n backseat-driver rollout status deploy/api --timeout=300s
+
+# Watch the autoscaler and worker replicas on the kind cluster
+k8s-status:
+    {{kubectl}} -n backseat-driver get scaledobject,hpa,deploy,pods
+
+# Delete the local kind cluster and everything in it
+k8s-down:
+    kind delete cluster --name {{kind_cluster}}
 
 # Remove everything k8s-apply created (the PVCs go with it)
 k8s-delete:

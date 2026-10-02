@@ -1,0 +1,13 @@
+# Single-node local cluster. Create it from the repo root (`just k8s-up` does): ./data is resolved against the cwd.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: backseat-driver
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: ./data
+        containerPath: /data
+        readOnly: true
+    extraPortMappings:
+      - containerPort: 30080 # the API's NodePort
+        hostPort: 8080

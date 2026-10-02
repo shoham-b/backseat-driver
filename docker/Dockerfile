@@ -33,7 +33,30 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-api \
     uv sync --frozen --group api
 
-# ── Stage 4: CLI runtime — the pipeline itself ─────────────────────────────────
+# ── Stages 4-5: worker dependencies, one per service ──────────────────────────
+FROM build-tools AS build-ingest-worker
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-ingest \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --group ingest-worker
+COPY backseat_driver/ backseat_driver/
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-ingest \
+    uv sync --frozen --group ingest-worker
+
+FROM build-tools AS build-caption-worker
+WORKDIR /app
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-caption \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --frozen --no-install-project --group caption-worker
+COPY backseat_driver/ backseat_driver/
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-caption \
+    uv sync --frozen --group caption-worker
+
+# ── Stage 6: CLI runtime — the pipeline itself ─────────────────────────────────
 # nuscenes-devkit pulls in opencv-python, which needs libGL/libglib at runtime
 # even though this pipeline never renders anything.
 FROM python:${PYTHON_VERSION}-slim AS cli
@@ -53,7 +76,38 @@ ENV PATH=/app/.venv/bin:$PATH \
 ENTRYPOINT ["backseat-driver"]
 CMD ["run"]
 
-# ── Stage 5: API runtime ───────────────────────────────────────────────────────
+# ── Stage 7: ingest worker runtime — reads the dataset, fans out caption tasks ──
+# Same libGL/libglib need as the CLI (nuscenes-devkit -> opencv); no torch.
+FROM python:${PYTHON_VERSION}-slim AS ingest-worker
+RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY --from=build-ingest-worker /app/.venv /app/.venv
+COPY --from=build-ingest-worker /app/backseat_driver /app/backseat_driver
+
+# Non-root, like the cli and api images; HF_HOME is where the model weights are cached.
+RUN useradd --system --uid 10001 --create-home app
+USER 10001
+ENV PATH=/app/.venv/bin:$PATH \
+    HF_HOME=/home/app/.cache/huggingface
+ENTRYPOINT ["backseat-driver"]
+CMD ["worker", "ingest"]
+
+# ── Stage 8: caption worker runtime — runs the VLM; no nuscenes-devkit ─────────
+FROM python:${PYTHON_VERSION}-slim AS caption-worker
+WORKDIR /app
+COPY --from=build-caption-worker /app/.venv /app/.venv
+COPY --from=build-caption-worker /app/backseat_driver /app/backseat_driver
+
+# Non-root, like the cli and api images; HF_HOME is where the model weights are cached.
+RUN useradd --system --uid 10001 --create-home app
+USER 10001
+ENV PATH=/app/.venv/bin:$PATH \
+    HF_HOME=/home/app/.cache/huggingface
+ENTRYPOINT ["backseat-driver"]
+CMD ["worker", "caption"]
+
+# ── Stage 9: API runtime ───────────────────────────────────────────────────────
 FROM python:${PYTHON_VERSION}-slim AS api
 WORKDIR /app
 COPY --from=build-api /app/.venv /app/.venv

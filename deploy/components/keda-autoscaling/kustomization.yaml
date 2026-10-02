@@ -1,0 +1,15 @@
+# Queue-depth autoscaling for the workers. Optional, and kept out of the base because it needs KEDA
+# (https://keda.sh) installed in the cluster. Use it from an overlay: `components: [../components/keda-autoscaling]`.
+# The overlay must also provide the `rabbitmq-management` Secret (key `host`, the management API URL with credentials).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - autoscaling.yaml
+patches:
+  # KEDA owns the replica count; a fixed one here would be reset on every `kubectl apply`.
+  - target: {kind: Deployment, name: ingest-worker}
+    patch: |-
+      - {op: remove, path: /spec/replicas}
+  - target: {kind: Deployment, name: caption-worker}
+    patch: |-
+      - {op: remove, path: /spec/replicas}

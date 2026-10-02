@@ -12,6 +12,8 @@ from backseat_driver.captioning.backend_captioner import BackendCaptioner
 from backseat_driver.config import get_settings
 from backseat_driver.jobs import celery_job_queue, storage
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
+from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
+from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
 from backseat_driver.jobs.postgres_job_store import PostgresJobStore
 from backseat_driver.models import JobState
 from tests.fakes import FakeJobQueue, FakeJobStore
@@ -147,6 +149,7 @@ def test_lifespan_wires_the_real_adapters_without_connecting(monkeypatch: pytest
     # No dependency overrides: this is what a deployed process builds. None of them may connect at startup.
     monkeypatch.setattr(app, "dependency_overrides", {})
     monkeypatch.setenv("BACKSEAT_DRIVER_VLM_BACKEND", "huggingface")
+    monkeypatch.setenv("BACKSEAT_DRIVER_MODE", "distributed")
     get_settings.cache_clear()
     create_engine = mock.Mock()
     make_app = mock.Mock()
@@ -164,3 +167,23 @@ def test_lifespan_wires_the_real_adapters_without_connecting(monkeypatch: pytest
     assert health.status_code == HTTPStatus.OK
     create_engine.assert_not_called()
     make_app.assert_not_called()
+
+
+def test_lifespan_defaults_to_the_monolith_with_no_infrastructure(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(app, "dependency_overrides", {})
+    monkeypatch.setenv("BACKSEAT_DRIVER_VLM_BACKEND", "huggingface")
+    monkeypatch.delenv("BACKSEAT_DRIVER_MODE", raising=False)
+    get_settings.cache_clear()
+    create_engine = mock.Mock()
+    monkeypatch.setattr(storage, "create_engine", create_engine)
+
+    with TestClient(app) as client:
+        state = client.app.state
+        job_id = client.post("/jobs").json()["job_id"]
+        job = client.get(f"/jobs/{job_id}")
+    get_settings.cache_clear()
+
+    assert isinstance(state.job_queue, InProcessJobQueue)
+    assert isinstance(state.job_store, InMemoryJobStore)
+    assert job.status_code == HTTPStatus.OK
+    create_engine.assert_not_called()

@@ -13,6 +13,11 @@ class VlmBackend(StrEnum):
     ANTHROPIC = "anthropic"
 
 
+class RunMode(StrEnum):
+    MONOLITH = "monolith"  # jobs run on a thread inside the API process; no broker or database
+    DISTRIBUTED = "distributed"  # jobs go through RabbitMQ to the ingest/caption workers, state in Postgres
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -43,7 +48,11 @@ class Settings(BaseSettings):
     anthropic_model_name: str = "claude-haiku-4-5-20251001"
     anthropic_api_key: SecretStr | None = None
 
-    # Distributed mode (API + queue workers); unused by the batch CLI
+    # How the API runs `/jobs`. Monolith by default so local dev needs nothing else running; docker compose
+    # sets `distributed`.
+    mode: RunMode = RunMode.MONOLITH
+
+    # Distributed mode only (API + queue workers)
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     database_url: str = "postgresql+psycopg://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
 

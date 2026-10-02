@@ -1,0 +1,48 @@
+# Workers scale on queue depth, which measures pending work directly: the caption worker handles one
+# message at a time (solo pool), so CPU says little about how far behind it is. `messages` counts
+# ready + unacked, so in-flight captions still hold their replica.
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-management
+spec:
+  secretTargetRef:
+    - {parameter: host, name: rabbitmq-management, key: host}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: caption-worker
+spec:
+  scaleTargetRef:
+    name: caption-worker
+  minReplicaCount: 1 # a replica loads the model on start; scaling to zero would add that delay to the first job
+  maxReplicaCount: 8
+  cooldownPeriod: 120
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: http
+        queueName: backseat_driver.caption
+        mode: QueueLength
+        value: "4" # one replica per 4 waiting scenes
+      authenticationRef: {name: rabbitmq-management}
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: ingest-worker
+spec:
+  scaleTargetRef:
+    name: ingest-worker
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  cooldownPeriod: 120
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: http
+        queueName: backseat_driver.ingest
+        mode: QueueLength
+        value: "2" # one replica per 2 waiting jobs
+      authenticationRef: {name: rabbitmq-management}

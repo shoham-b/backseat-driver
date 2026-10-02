@@ -1,4 +1,6 @@
+# Compose runs the full system; outside compose (`just dev`) the API defaults to monolith mode.
 x-distributed-env: &distributed-env
+  BACKSEAT_DRIVER_MODE: distributed
   BACKSEAT_DRIVER_LOG_FORMAT: json
   BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
   BACKSEAT_DRIVER_DATABASE_URL: postgresql+psycopg://backseat_driver:backseat_driver@postgres:5432/backseat_driver
@@ -20,10 +22,6 @@ x-host-gateway: &host-gateway
   - "host.docker.internal:host-gateway"
 
 x-worker: &worker
-  build:
-    context: .
-    dockerfile: docker/Dockerfile
-    target: cli
   volumes:
     - ./data:/app/data:ro
     - hf-cache:/home/app/.cache/huggingface
@@ -134,14 +132,21 @@ services:
       retries: 5
       start_period: 10s
 
+  # Each service builds its own image target, so the ingest worker has no torch and the caption worker no nuscenes-devkit.
   ingest-worker:
     <<: *worker
-    command: ["worker", "ingest"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ingest-worker
 
   # Scale out with `docker compose up --scale caption-worker=N`; each replica pulls from the same queue.
   caption-worker:
     <<: *worker
-    command: ["worker", "caption"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: caption-worker
     deploy:
       replicas: 2
 

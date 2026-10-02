@@ -18,8 +18,7 @@ from backseat_driver.api.routers.jobs import router as jobs_router
 from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import get_settings
 from backseat_driver.errors import DomainError
-from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.logger import LogFormat, setup_logging
 
 
@@ -30,12 +29,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     app.state.settings = settings
     app.state.captioner = build_captioner(settings)
-    # Neither client connects until first use, so startup never blocks on the broker or database;
-    # /ready reports whether they are reachable.
-    app.state.job_queue = CeleryJobQueue(settings.rabbitmq_url)
-    app.state.job_store = PostgresJobStore(settings.database_url)
+    # In distributed mode neither client connects until first use, so startup never blocks on the broker
+    # or database; /ready reports whether they are reachable.
+    app.state.job_queue, app.state.job_store = build_job_backend(settings, app.state.captioner)
 
-    logger.bind(api_url=settings.api_url).info("startup complete")
+    logger.bind(api_url=settings.api_url, mode=settings.mode).info("startup complete")
     yield
 
     logger.info("shutdown")
