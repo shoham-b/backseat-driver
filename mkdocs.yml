@@ -27,6 +27,7 @@ nav:
   - Running It: running.md
   - Architecture: architecture.md
   - Distributed Mode: distributed.md
+  - Deployment: deployment.md
   - Design Decisions: design-decisions.md
   - Development: development.md
   - CLI Reference: cli.md

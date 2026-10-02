@@ -1,0 +1,22 @@
+# nuScenes cannot be redistributed, so the dataset is not in the image: populate this volume with
+# data/sets/nuscenes (see docs/deployment.md). All consumers mount it read-only.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nuscenes-data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Result JSON files written by `backseat-driver run`; the ui Deployment serves its report.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: results
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

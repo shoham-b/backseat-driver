@@ -11,6 +11,7 @@ There are several ways to run the project. They all run the same code and read t
 | Run the API like production, on the host | `just serve` (starts infra first) | same | Docker |
 | Run the queue workers on the host | `just worker-ingest` / `just worker-caption` (start infra first) | same | Docker, dataset |
 | The whole distributed stack | `just up` (`just up-dev` hot-reloads the API) | Docker Compose | Docker, dataset |
+| The model-comparison UI | `just ui` (host) or `docker compose --profile ui up ui` | host / Docker | results in `output/` |
 | The same stack in a cluster | `just k8s-apply` | Kubernetes | cluster, dataset volume |
 
 `just --list` shows every recipe; the per-recipe comments say what each needs.
@@ -27,7 +28,7 @@ compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ 
                            (/describe is synchronous; /jobs and /ready need RabbitMQ and Postgres)
 ```
 
-- **One image, two targets.** `docker/Dockerfile` builds `cli` (the pipeline, `db init` and the workers; entrypoint `backseat-driver`) and `api` (`fastapi run`). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api}`, which the Kubernetes manifests pull.
+- **One image, two targets.** `docker/Dockerfile` builds `cli` (the pipeline, `db init` and the workers; entrypoint `backseat-driver`) and `api` (`fastapi run`). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api}`, which the Kubernetes manifests pull. Both run as the non-root user `app` (uid 10001).
 - **`/ready` needs infrastructure.** The API checks RabbitMQ and Postgres, so an API started without them reports not-ready and the smoke/system tests fail. `just infra` (run for you by `just serve` and `just worker-*`, but not by `just dev`) starts both in Docker, publishes them on `127.0.0.1:5672` / `5432` (the defaults in `.env.example`) and creates the schema.
 - **Containers don't read `.env`.** Its `localhost` URLs would be wrong inside a container. Compose instead interpolates the captioner settings (`BACKSEAT_DRIVER_VLM_BACKEND`, model names, `ANTHROPIC_API_KEY`, …) from your shell or `.env`, so `BACKSEAT_DRIVER_VLM_BACKEND=ollama just up` and a `.env` entry behave the same. Broker and database URLs always point at the compose services.
 - **Ollama on the host.** Containers reach it at `host.docker.internal:11434`; override with `BACKSEAT_DRIVER_COMPOSE_OLLAMA_URL`.
@@ -45,20 +46,10 @@ just test-compose                # builds, starts the stack, runs system + smoke
 
 ## Kubernetes
 
-`k8s/` is a kustomize base (namespace `backseat-driver`) with the same topology as compose: Postgres and RabbitMQ StatefulSets, a `db-init` Job, the `api` Deployment and Service, `ingest-worker` and `caption-worker` Deployments, and a suspended `pipeline` CronJob for the batch run.
-
-Before the first `just k8s-apply`:
-
-1. **Dataset volume.** `nuscenes-data` (in `workers.yaml`) is a `ReadWriteMany` claim. Provision storage for it, copy `v1.0-mini` into `data/sets/nuscenes` on it, or edit the claim to point at what you already have.
-2. **Secrets.** `config.yaml` ships the same demo credentials as compose. Replace them, and add `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` if you use the `anthropic` backend.
-3. **Backend.** Change `BACKSEAT_DRIVER_VLM_BACKEND` and friends in the ConfigMap.
+`deploy/k8s` is a kustomize base with the same topology as compose, plus the report UI. [Deployment](deployment.md) lists the objects, the dataset and credentials you must supply, and the release checklist.
 
 ```bash
-just k8s-render                                   # inspect first
-just k8s-apply
-kubectl -n backseat-driver port-forward svc/api 8080:8080
-API_URL=http://127.0.0.1:8080 just test-smoke
-kubectl -n backseat-driver create job --from=cronjob/pipeline pipeline-manual   # the batch run
+just k8s-render     # inspect
+just k8s-validate   # check the rendered YAML against the Kubernetes schemas
+just k8s-apply      # kubectl apply -k deploy/k8s
 ```
-
-Not covered yet: ingress, autoscaling (KEDA on queue depth, see [Distributed mode](distributed.md)), and a managed Postgres/RabbitMQ.

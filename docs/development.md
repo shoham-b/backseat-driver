@@ -32,9 +32,10 @@ Run `just --list` at any time to see all targets. The full table:
 | `just worker-ingest` / `just worker-caption` | Queue workers on the host |
 | `just docker-run [ARGS]` | The pipeline in the `cli` container |
 | `just up` / `just up-dev` / `just down` | Full distributed stack in Docker Compose (`up-dev` hot-reloads the API) |
-| `just k8s-render` / `k8s-apply` / `k8s-delete` | Kubernetes manifests in `k8s/` |
+| `just k8s-render` / `k8s-validate` / `k8s-apply` / `k8s-delete` | Kubernetes manifests in `deploy/k8s` |
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
+| `just test-ui` | Selenium tests of the model-comparison UI (needs Chrome) |
 | `just test-system` | System tests (requires a running API with infra: `just infra` + `just dev`, or `just up`) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
@@ -68,6 +69,7 @@ There are four test layers, from fastest to slowest:
 | Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are monkeypatched, no dataset or model download |
 | Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
 | Smoke | `tests/smoketests/` | running API (set `API_URL` to override) |
+| UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
 | System | `tests/systemtests/` | Docker Compose |
 
 ### Unit tests
@@ -76,9 +78,9 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_captioner.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_backend.py` import nuscenes-devkit and
 transformers lazily inside methods specifically so these tests can monkeypatch them out — see
-`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_captioner.py`.
+`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_backend.py`.
 
 ### Integration tests
 
@@ -89,7 +91,7 @@ uv run pytest tests/integrationtests -v
 ```
 
 FastAPI runs in-process via `httpx.ASGITransport` — no port binding, no subprocess, and the real
-`HuggingFaceCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
+`BackendCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
 
 ### Smoke tests
 
@@ -141,7 +143,7 @@ and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --cods
 backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── captioning/     # Captioner port + HuggingFace/Ollama/Anthropic backends and build_captioner
+├── captioning/     # Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel, build_captioner
 ├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
 ├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
 ├── errors.py       # DomainError hierarchy
@@ -153,6 +155,7 @@ tests/
 ├── unittests/
 ├── integrationtests/
 ├── smoketests/
+├── uitests/
 └── systemtests/
 ```
 

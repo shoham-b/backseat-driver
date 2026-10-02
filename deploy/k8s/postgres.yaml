@@ -1,0 +1,45 @@
+# Single-replica Postgres for evaluation; use a managed database in production and point
+# BACKSEAT_DRIVER_DATABASE_URL at it.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels: {app: postgres}
+  template:
+    metadata:
+      labels: {app: postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17
+          ports: [{containerPort: 5432, name: pg}]
+          env:
+            - {name: POSTGRES_USER, value: backseat_driver}
+            - {name: POSTGRES_DB, value: backseat_driver}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+            - name: POSTGRES_PASSWORD
+              valueFrom: {secretKeyRef: {name: backseat-driver-secrets, key: POSTGRES_PASSWORD}}
+          readinessProbe:
+            exec: {command: [pg_isready, -U, backseat_driver]}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 5Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: {app: postgres}
+  ports: [{port: 5432, name: pg}]

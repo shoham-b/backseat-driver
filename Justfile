@@ -53,6 +53,10 @@ bench:
 test-smoke:
     uv run backseat-driver test smoke --verbose
 
+# Selenium tests of the model-comparison UI (headless Chrome; CHROME_BIN / CHROMEDRIVER override the browser)
+test-ui:
+    uv run pytest tests/uitests -v
+
 # System tests against a running API (`just infra` + `just dev`, or `just up`; API_URL overrides the target)
 test-system:
     uv run pytest tests/systemtests -v
@@ -108,17 +112,22 @@ up-dev:
 down:
     docker compose down
 
-# Render the Kubernetes manifests without applying them
+# Render the Kubernetes manifests (needs kubectl)
 k8s-render:
-    kubectl kustomize k8s
+    kubectl kustomize deploy/k8s
 
-# Deploy to the current kubectl context (see docs/running.md first: dataset volume, secret)
+# Validate the rendered manifests against the Kubernetes schemas (no cluster needed)
+k8s-validate:
+    kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
+    uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
+
+# Deploy to the current kubectl context (see docs/deployment.md first: dataset volume, credentials)
 k8s-apply:
-    kubectl apply -k k8s
+    kubectl apply -k deploy/k8s
 
 # Remove everything k8s-apply created (the PVCs go with it)
 k8s-delete:
-    kubectl delete -k k8s
+    kubectl delete -k deploy/k8s
 
 # Build HTML docs
 docs:

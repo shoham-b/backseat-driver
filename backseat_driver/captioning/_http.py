@@ -1,15 +1,9 @@
-"""Minimal JSON-over-HTTP helper shared by the network-backed captioner adapters."""
+"""Minimal JSON-over-HTTP helper shared by the network-backed caption backends."""
 
 import json
 import urllib.error
 import urllib.request
 from typing import Any
-
-# Prompt shared by the prompt-capable backends so their output is comparable.
-DETAILED_SCENE_PROMPT = (
-    "Describe this driving scene from the vehicle's front camera in detail: the road layout, "
-    "traffic and pedestrians, weather and lighting, and any hazards."
-)
 
 
 def post_json(

@@ -23,7 +23,7 @@ generic scaffold.
 1. **Loads a scene** — [`scenes/nuscenes_scene_loader.py`](backseat_driver/scenes/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`captioning/huggingface_captioner.py`](backseat_driver/captioning/huggingface_captioner.py) passes that image through
+2. **Runs a VLM** — [`captioning/huggingface_backend.py`](backseat_driver/captioning/huggingface_backend.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
 3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
@@ -101,7 +101,7 @@ Four layers, matching the "structure it as if this was a production project" ask
 [docs/development.md](docs/development.md#tests) for commands:
 
 - **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `scenes/nuscenes_scene_loader.py` and
-  `captioning/huggingface_captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
+  `captioning/huggingface_backend.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
   can monkeypatch them out (fake `NuScenes` class, fake `transformers.pipeline`) and run in milliseconds.
   Covers the middle-frame selection logic, missing-camera error handling, pipeline orchestration
   (including `--max-scenes` and empty-dataset edge cases), and the JSON writer.
@@ -125,7 +125,8 @@ fast manual smoke check once you have the data locally.
 See **[docs/architecture.md#deployment](docs/architecture.md#deployment)** for the full discussion. Short
 version: `docker/Dockerfile` has two targets — `cli` (the pipeline, meant to run as a scheduled batch
 job / CronJob) and `api` (the same captioning logic behind `/describe`, for on-demand use). Both are built
-and pushed to `ghcr.io` in [`.github/workflows/docker.yml`](.github/workflows/docker.yml).
+and pushed to `ghcr.io` in [`.github/workflows/docker.yml`](.github/workflows/docker.yml). Kubernetes manifests
+live in [`deploy/k8s`](deploy/k8s) (`kubectl apply -k deploy/k8s`); see **[docs/deployment.md](docs/deployment.md)**.
 
 ## Development
 
@@ -146,7 +147,10 @@ codebase conventions.
 ```bash
 just docker-run   # the pipeline (primary deliverable)
 just up           # API + RabbitMQ + Postgres + queue workers
-just k8s-apply    # the same stack on Kubernetes (k8s/)
+just k8s-apply    # the same stack on Kubernetes (deploy/k8s)
+
+# Model-comparison UI over ./output (http://localhost:8081)
+docker compose --profile ui up ui --build
 
 See [docs/running.md](docs/running.md) for how these, `just dev` and the CLI fit together.
 ```

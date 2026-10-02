@@ -28,6 +28,7 @@ This project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formattin
 - **Integration tests** live in `tests/integrationtests/` and test the full app in-process.
 - **System tests** in `tests/systemtests/` spin up the real service.
 - **Smoke tests** in `tests/smoketests/` run against a deployed environment.
+- **Benchmarks** in `tests/benchmarks/` time our own overhead with a faked model (`just bench`); CI reports them via CodSpeed. Build test data in fixtures, since the benchmark marker times the whole test body.
 
 Coverage must stay above 80% (`just test` will tell you if it drops).
 

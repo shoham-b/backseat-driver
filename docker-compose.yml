@@ -26,7 +26,7 @@ x-worker: &worker
     target: cli
   volumes:
     - ./data:/app/data:ro
-    - hf-cache:/root/.cache/huggingface
+    - hf-cache:/home/app/.cache/huggingface
   extra_hosts: *host-gateway
   environment:
     <<: [*distributed-env, *vlm-env]
@@ -42,15 +42,34 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: cli
+    # The image runs as uid 10001, which can't write to a bind-mounted ./output that docker created as root.
+    # Set LOCAL_UID/LOCAL_GID (e.g. `LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)`) to own the results as yourself.
+    user: "${LOCAL_UID:-0}:${LOCAL_GID:-0}"
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
-      - hf-cache:/root/.cache/huggingface
+      - hf-cache:/home/app/.cache/huggingface
     extra_hosts: *host-gateway
     environment:
       <<: *vlm-env
       BACKSEAT_DRIVER_LOG_FORMAT: json
     profiles: [cli]
+
+  # Model-comparison report over the result files in ./output: http://localhost:8081
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: cli
+    command: ["ui", "--no-open"]
+    environment:
+      BACKSEAT_DRIVER_UI_HOST: 0.0.0.0
+    volumes:
+      - ./data:/app/data:ro
+      - ./output:/app/output:ro
+    ports:
+      - "8081:8081"
+    profiles: [ui]
 
   rabbitmq:
     image: rabbitmq:4-management
