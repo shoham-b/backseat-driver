@@ -28,7 +28,7 @@ uv run backseat-driver run
 **Docker (no local Python needed beyond Docker itself):**
 
 ```bash
-docker compose --profile cli run --rm cli
+just docker-run
 ```
 
 Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and write
@@ -53,8 +53,9 @@ The same captioning logic is also exposed as a small on-demand service — see
 [Architecture → Deployment](architecture.md#deployment) for why this exists alongside the CLI.
 
 ```bash
-docker compose up api
-# or locally:
+just up
+# or on the host, with RabbitMQ + Postgres in Docker (the API's /ready checks them):
+just infra   # optional: /ready and /jobs need them; /describe does not
 just dev
 ```
 

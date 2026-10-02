@@ -1,0 +1,67 @@
+# Running it
+
+There are several ways to run the project. They all run the same code and read the same `BACKSEAT_DRIVER_*` settings; they differ in *where* the pieces run.
+
+## The three modes
+
+| Mode | What runs where | Commands |
+|---|---|---|
+| **1. Dev: local** | Everything on your machine, no Docker. `/describe` and the batch pipeline work as-is; `/ready` and `/jobs` need RabbitMQ + Postgres, which only the optional `just infra` provides. | `just dev`, `just run` |
+| **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
+| **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just serve` is the API's command outside a container |
+
+The batch pipeline (`backseat-driver run`) works in all three: on the host (`just run`), in a container (`just docker-run`), or as a Kubernetes Job.
+
+## Every way to run it
+
+| I want to… | Command | Runs on | Needs |
+|---|---|---|---|
+| Describe the dataset once | `just run` (= `uv run backseat-driver run`) | host | dataset in `data/` |
+| …in a container instead | `just docker-run` (= `docker compose --profile cli run --rm cli run`) | Docker | dataset in `data/` |
+| Debug the API locally | `just dev` (`fastapi dev`, no Docker) | host | nothing for `/describe`; RabbitMQ + Postgres for `/ready` and `/jobs` |
+| …with `/ready` and `/jobs` working | `just infra`, then `just dev` | API on host, RabbitMQ + Postgres in Docker | Docker |
+| Run the API in production mode | `just serve` (expects RabbitMQ + Postgres to exist; locally run `just infra` first) | host | RabbitMQ + Postgres |
+| Run the queue workers on the host | `just worker-ingest` / `just worker-caption` (start infra first) | same | Docker, dataset |
+| The whole distributed stack | `just up` (`just up-dev` hot-reloads the API) | Docker Compose | Docker, dataset |
+| The model-comparison UI | `just ui` (host) or `docker compose --profile ui up ui` | host / Docker | results in `output/` |
+| The same stack in a cluster | `just k8s-apply` | Kubernetes | cluster, dataset volume |
+
+`just --list` shows every recipe; the per-recipe comments say what each needs.
+
+## How the pieces relate
+
+```
+just run ─────────────┐
+just docker-run ──────┼─▶ backseat-driver run          (batch: loader → captioner → output/*.json)
+k8s CronJob `pipeline`┘
+
+just dev / just serve ─┐
+compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ ingest / caption workers ──▶ Postgres
+                           (/describe is synchronous; /jobs and /ready need RabbitMQ and Postgres)
+```
+
+- **One image, two targets.** `docker/Dockerfile` builds `cli` (the pipeline, `db init` and the workers; entrypoint `backseat-driver`) and `api` (`fastapi run`). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api}`, which the Kubernetes manifests pull. Both run as the non-root user `app` (uid 10001).
+- **`/ready` needs infrastructure.** The API checks RabbitMQ and Postgres, so an API started without them reports not-ready and the smoke/system tests fail. `just infra` (local only; run for you by `just worker-*`, but not by `just dev` or `just serve`, and never needed in Kubernetes) starts both in Docker, publishes them on `127.0.0.1:5672` / `5432` (the defaults in `.env.example`) and creates the schema.
+- **Containers don't read `.env`.** Its `localhost` URLs would be wrong inside a container. Compose instead interpolates the captioner settings (`BACKSEAT_DRIVER_VLM_BACKEND`, model names, `ANTHROPIC_API_KEY`, …) from your shell or `.env`, so `BACKSEAT_DRIVER_VLM_BACKEND=ollama just up` and a `.env` entry behave the same. Broker and database URLs always point at the compose services.
+- **Ollama on the host.** Containers reach it at `host.docker.internal:11434`; override with `BACKSEAT_DRIVER_COMPOSE_OLLAMA_URL`.
+- **Model weights are cached** in the `hf-cache` volume, so repeat runs don't re-download them.
+- **The dataset is never baked into an image.** Compose bind-mounts `./data` read-only; Kubernetes mounts the `nuscenes-data` claim. Queue messages carry image *paths*, so every worker must see the same files at the same path.
+
+## Docker Compose
+
+```bash
+just docker-run --max-scenes 2   # one-off pipeline run, writes ./output
+just up                          # api :8080, rabbitmq UI :15672, postgres, db-init, ingest-worker, 2 × caption-worker
+docker compose up --scale caption-worker=4
+just test-compose                # builds, starts the stack, runs system + smoke tests, tears down
+```
+
+## Kubernetes
+
+`deploy/k8s` is a kustomize base with the same topology as compose, plus the report UI. [Deployment](deployment.md) lists the objects, the dataset and credentials you must supply, and the release checklist.
+
+```bash
+just k8s-render     # inspect
+just k8s-validate   # check the rendered YAML against the Kubernetes schemas
+just k8s-apply      # kubectl apply -k deploy/k8s
+```

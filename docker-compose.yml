@@ -3,6 +3,22 @@ x-distributed-env: &distributed-env
   BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
   BACKSEAT_DRIVER_DATABASE_URL: postgresql+psycopg://backseat_driver:backseat_driver@postgres:5432/backseat_driver
 
+# Captioner settings, interpolated from the shell or .env so the container paths use the same backend as `just run`.
+# The .env file itself is not passed through: its localhost URLs are wrong inside a container.
+x-vlm-env: &vlm-env
+  BACKSEAT_DRIVER_VLM_BACKEND: ${BACKSEAT_DRIVER_VLM_BACKEND:-huggingface}
+  BACKSEAT_DRIVER_VLM_MODEL_NAME: ${BACKSEAT_DRIVER_VLM_MODEL_NAME:-Salesforce/blip-image-captioning-base}
+  BACKSEAT_DRIVER_OLLAMA_MODEL_NAME: ${BACKSEAT_DRIVER_OLLAMA_MODEL_NAME:-llava}
+  # An Ollama server on the host is not "localhost" from inside a container.
+  BACKSEAT_DRIVER_OLLAMA_URL: ${BACKSEAT_DRIVER_COMPOSE_OLLAMA_URL:-http://host.docker.internal:11434}
+  BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME: ${BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME:-claude-haiku-4-5-20251001}
+  BACKSEAT_DRIVER_ANTHROPIC_API_KEY: ${BACKSEAT_DRIVER_ANTHROPIC_API_KEY:-}
+  BACKSEAT_DRIVER_NUSCENES_VERSION: ${BACKSEAT_DRIVER_NUSCENES_VERSION:-v1.0-mini}
+  BACKSEAT_DRIVER_CAMERA_CHANNEL: ${BACKSEAT_DRIVER_CAMERA_CHANNEL:-CAM_FRONT}
+
+x-host-gateway: &host-gateway
+  - "host.docker.internal:host-gateway"
+
 x-worker: &worker
   build:
     context: .
@@ -10,8 +26,10 @@ x-worker: &worker
     target: cli
   volumes:
     - ./data:/app/data:ro
+    - hf-cache:/home/app/.cache/huggingface
+  extra_hosts: *host-gateway
   environment:
-    <<: *distributed-env
+    <<: [*distributed-env, *vlm-env]
   depends_on:
     rabbitmq:
       condition: service_healthy
@@ -30,7 +48,10 @@ services:
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output
+      - hf-cache:/home/app/.cache/huggingface
+    extra_hosts: *host-gateway
     environment:
+      <<: *vlm-env
       BACKSEAT_DRIVER_LOG_FORMAT: json
     profiles: [cli]
 
@@ -53,7 +74,8 @@ services:
   rabbitmq:
     image: rabbitmq:4-management
     ports:
-      - "15672:15672" # management UI (guest/guest)
+      - "127.0.0.1:5672:5672" # AMQP, for the API / workers running on the host (`just dev`, `just worker-*`)
+      - "127.0.0.1:15672:15672" # management UI (guest/guest)
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
@@ -66,6 +88,8 @@ services:
       POSTGRES_USER: backseat_driver
       POSTGRES_PASSWORD: backseat_driver
       POSTGRES_DB: backseat_driver
+    ports:
+      - "127.0.0.1:5432:5432" # for the API / workers running on the host
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -95,8 +119,9 @@ services:
       target: api
     ports:
       - "8080:8080"
+    extra_hosts: *host-gateway
     environment:
-      <<: *distributed-env
+      <<: [*distributed-env, *vlm-env]
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -134,3 +159,4 @@ services:
 
 volumes:
   pgdata:
+  hf-cache:

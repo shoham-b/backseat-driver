@@ -27,7 +27,7 @@ The pipeline logic in `scenes/` is shared by two independent entry points:
 | Component | Entry point | Description |
 |---|---|---|
 | **CLI** (primary) | `uv run backseat-driver run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
-| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080` | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
+| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `/ready` needs `just infra` | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
 
 ### Object model
 
@@ -165,7 +165,7 @@ Set the format via `BACKSEAT_DRIVER_LOG_FORMAT=colored|json` or in `.env`.
 
 The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
-1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
+1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` (example `Job`: `deploy/k8s/examples/run-job.yaml`) / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
 2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `Captioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
 Both images share `captioning/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

@@ -57,7 +57,7 @@ test-smoke:
 test-ui:
     uv run pytest tests/uitests -v
 
-# Full system tests — auto-starts service locally
+# System tests against a running API (`just infra` + `just dev`, or `just up`; API_URL overrides the target)
 test-system:
     uv run pytest tests/systemtests -v
 
@@ -65,17 +65,48 @@ test-system:
 test-all:
     uv run pytest tests/unittests tests/integrationtests tests/systemtests -v --cov
 
-# Dev server with auto-reload
+# Same variables the app reads, so the host-run API listens where `test-smoke` and .env expect it.
+set dotenv-load
+
+api_host := env("BACKSEAT_DRIVER_API_HOST", "127.0.0.1")
+api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
+
+# Local debugging server with auto-reload; no Docker. /describe works as-is; /ready and /jobs need RabbitMQ + Postgres (`just infra`)
 dev:
-    uv run fastapi dev backseat_driver/api/app.py
+    uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
-# Production-mode server
+# Production-mode server, all interfaces; expects RabbitMQ + Postgres to exist already (as in Kubernetes; locally `just infra`)
 serve:
-    uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port 8080
+    uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port {{api_port}}
 
-# Distributed mode: API + RabbitMQ + Postgres + ingest/caption workers
+# LOCAL ONLY: RabbitMQ + Postgres in Docker on localhost, schema created (production gets these from Kubernetes)
+infra:
+    docker compose up -d --wait rabbitmq postgres
+    uv run backseat-driver db init
+
+# Stop the stack and the infra started by `just infra`
+infra-down:
+    docker compose down
+
+# Host-run queue workers for local work (production runs them in Kubernetes); start the local infra first (needs Docker)
+worker-ingest: infra
+    uv run backseat-driver worker ingest
+
+# ...and the caption worker (loads the model before consuming)
+worker-caption: infra
+    uv run backseat-driver worker caption
+
+# The pipeline in the cli container (same as `just run`, but containerised): `just docker-run --max-scenes 2`
+docker-run *ARGS:
+    docker compose --profile cli run --build --rm cli run {{ARGS}}
+
+# Distributed mode, all in Docker: API + RabbitMQ + Postgres + ingest/caption workers
 up:
     docker compose up --build
+
+# Same as `up`, with the API hot-reloading from ./backseat_driver
+up-dev:
+    docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up --build
 
 # Stop the distributed stack
 down:
@@ -90,7 +121,13 @@ k8s-validate:
     kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
     uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
 
+# Deploy to the current kubectl context (see docs/deployment.md first: dataset volume, credentials)
+k8s-apply:
+    kubectl apply -k deploy/k8s
 
+# Remove everything k8s-apply created (the PVCs go with it)
+k8s-delete:
+    kubectl delete -k deploy/k8s
 
 # Build HTML docs
 docs:
@@ -107,10 +144,6 @@ hooks:
 # Run pre-commit on all files
 check:
     uv run pre-commit run --all-files
-
-
-
-
 
 # Remove build artifacts and cache
 clean:

@@ -103,6 +103,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: docker compose --profile cli --profile ui --profile test config --quiet
+      - run: docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml config --quiet
       - run: kubectl kustomize deploy/k8s > rendered.yaml
       - run: uvx kubernetes-validate rendered.yaml
       - run: uvx kubernetes-validate deploy/k8s/examples/run-job.yaml

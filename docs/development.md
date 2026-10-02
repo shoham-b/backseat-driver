@@ -27,11 +27,16 @@ Run `just --list` at any time to see all targets. The full table:
 |---|---|
 | `just run [ARGS]` | Run the scene-description pipeline (`backseat-driver run`) |
 | `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
-| `just serve` | API production-mode server, binds `0.0.0.0:8080` |
+| `just serve` | API production-mode server on the host, binds `0.0.0.0` |
+| `just infra` / `just infra-down` | RabbitMQ + Postgres in Docker for the host-run API and workers (`/ready` needs them) |
+| `just worker-ingest` / `just worker-caption` | Queue workers on the host |
+| `just docker-run [ARGS]` | The pipeline in the `cli` container |
+| `just up` / `just up-dev` / `just down` | Full distributed stack in Docker Compose (`up-dev` hot-reloads the API) |
+| `just k8s-render` / `k8s-validate` / `k8s-apply` / `k8s-delete` | Kubernetes manifests in `deploy/k8s` |
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
 | `just test-ui` | Selenium tests of the model-comparison UI (needs Chrome) |
-| `just test-system` | System tests (requires the API to be running locally) |
+| `just test-system` | System tests (requires a running API with infra: `just infra` + `just dev`, or `just up`) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
 | `just bench` | Performance benchmarks (pytest-codspeed) |
@@ -107,14 +112,14 @@ uv run backseat-driver test smoke --api-url http://staging:8080
 just test-compose
 ```
 
-Builds the `api` image, starts it, runs `tests/systemtests/` and `tests/smoketests/` inside the
+Builds the images, starts the stack (API, RabbitMQ, Postgres), runs `tests/systemtests/` and `tests/smoketests/` inside the
 `systemtest` container, then tears everything down. Both `systemtest` and the `cli` service have
 `profiles` set (`test` / `cli`) so neither starts with a plain `docker compose up`.
 
 ### Coverage
 
 ```bash
-just test   # includes --cov; must stay above 80% (enforced in CI)
+just test   # includes --cov; enforced in CI via `fail_under` in `pyproject.toml`
 ```
 
 Coverage is measured over `backseat_driver` excluding `cli/`.
@@ -173,12 +178,12 @@ into `ScenePipeline` — nothing else needs to change.
 ## Docker
 
 ```bash
-docker compose --profile cli run --rm cli   # run the pipeline
-docker compose up api                       # optional HTTP API
-docker compose --profile test up            # system tests
+just docker-run          # run the pipeline in the cli container
+just up                  # API + RabbitMQ + Postgres + workers
+just test-compose        # system tests
 ```
 
-Images are defined in `docker/Dockerfile` with named build targets: `cli` (default/primary) and `api`.
+Images are defined in `docker/Dockerfile` with named build targets: `cli` (default/primary) and `api`. See [Running it](running.md) for how every way of running the project fits together.
 
 ## Pre-commit hooks
 

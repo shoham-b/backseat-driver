@@ -27,7 +27,7 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 | `db-init` | `backseat-driver db init` | One-shot: creates the tables |
 | `rabbitmq`, `postgres` | | Broker and job store |
 
-Run it with `just up` (and `docker compose up --scale caption-worker=4` to add workers). The dataset must be in `./data`, mounted read-only into both workers.
+Run it with `just up` (and `docker compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data`, mounted read-only into both workers.
 
 ## Design choices
 
@@ -40,10 +40,10 @@ Run it with `just up` (and `docker compose up --scale caption-worker=4` to add w
 
 ## Scaling
 
-Caption workers run the solo pool (the model loads once per process and CUDA is never forked), so scale by adding processes or containers. They are stateless consumers of one queue, so throughput scales with replica count. On Kubernetes, scale them with KEDA on queue depth and let GPU node pools scale from zero. That manifest work is not in this repo yet.
+Caption workers run the solo pool (the model loads once per process and CUDA is never forked), so scale by adding processes or containers. They are stateless consumers of one queue, so throughput scales with replica count. On Kubernetes, scale them with KEDA on queue depth and let GPU node pools scale from zero. The base manifests are in `deploy/k8s`; the KEDA scaler is not.
 
 ## Not done yet
 
 - An in-memory `JobQueue`/`JobStore` so the CLI could run these same worker classes in one process.
 - A `failed` job state, and a dead-letter queue for tasks that exhaust their retries.
-- Object storage instead of a shared volume; Kubernetes/KEDA manifests.
+- Object storage instead of a shared volume; KEDA autoscaling.

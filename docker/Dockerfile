@@ -44,7 +44,9 @@ COPY --from=build-cli /app/.venv /app/.venv
 COPY --from=build-cli /app/backseat_driver /app/backseat_driver
 
 # Non-root so the image runs under Kubernetes' runAsNonRoot; HF_HOME is where the model weights are cached.
-RUN useradd --system --uid 10001 --create-home app
+# The cache dir exists up front so a fresh named volume mounted on it (compose's hf-cache) inherits app ownership.
+RUN useradd --system --uid 10001 --create-home app \
+    && install -d -o app -g app /home/app/.cache/huggingface
 USER 10001
 ENV PATH=/app/.venv/bin:$PATH \
     HF_HOME=/home/app/.cache/huggingface

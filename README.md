@@ -88,7 +88,7 @@ uv run backseat-driver run
 Or fully containerized, no local Python required:
 
 ```bash
-docker compose --profile cli run --rm cli
+just docker-run
 ```
 
 Full setup instructions (including the optional HTTP API) are in
@@ -112,7 +112,7 @@ Four layers, matching the "structure it as if this was a production project" ask
 - **System** (`tests/systemtests/`) — full Docker Compose stack.
 
 ```bash
-just test          # unit + integration, with coverage (min 80%, enforced in CI)
+just test          # unit + integration, with coverage (coverage floor enforced in CI)
 just test-compose  # full system test via Docker Compose
 ```
 
@@ -145,14 +145,14 @@ codebase conventions.
 ## Docker
 
 ```bash
-# Run the pipeline (primary deliverable)
-docker compose --profile cli run --rm cli
+just docker-run   # the pipeline (primary deliverable)
+just up           # API + RabbitMQ + Postgres + queue workers
+just k8s-apply    # the same stack on Kubernetes (deploy/k8s)
 
 # Model-comparison UI over ./output (http://localhost:8081)
 docker compose --profile ui up ui --build
 
-# Optional HTTP API
-docker compose up api --build
+See [docs/running.md](docs/running.md) for how these, `just dev` and the CLI fit together.
 ```
 
 ## Configuration
