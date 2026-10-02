@@ -1,0 +1,63 @@
+# Both workers run the CLI image. Scale caption-worker with `kubectl scale`; replicas share one queue.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ingest-worker}
+  template:
+    metadata:
+      labels: {app: ingest-worker}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: worker
+          image: ghcr.io/shoham-b/backseat-driver-cli
+          imagePullPolicy: IfNotPresent
+          args: [worker, ingest]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 100m, memory: 512Mi}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caption-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: caption-worker}
+  template:
+    metadata:
+      labels: {app: caption-worker}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: worker
+          image: ghcr.io/shoham-b/backseat-driver-cli
+          imagePullPolicy: IfNotPresent
+          args: [worker, caption]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+            - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 500m, memory: 2Gi}
+            limits: {memory: 4Gi}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
+        - {name: hf-cache, emptyDir: {}}

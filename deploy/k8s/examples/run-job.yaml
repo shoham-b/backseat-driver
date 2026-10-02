@@ -1,0 +1,36 @@
+# One-off batch run of the pipeline (`backseat-driver run`) writing result JSON to the `results` volume that the
+# ui Deployment serves. Apply after the base: kubectl apply -f deploy/k8s/examples/run-job.yaml
+# Change the args to pick another backend or model; the API key for the anthropic backend comes from the Secret.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: run-huggingface
+  namespace: backseat-driver
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext: {runAsNonRoot: true, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: run
+          image: ghcr.io/shoham-b/backseat-driver-cli:latest
+          imagePullPolicy: IfNotPresent
+          args: [run, --backend, huggingface]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+            - {name: results, mountPath: /app/output}
+            - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: "1", memory: 2Gi}
+            limits: {memory: 4Gi}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
+        - name: results
+          persistentVolumeClaim: {claimName: results}
+        - {name: hf-cache, emptyDir: {}}

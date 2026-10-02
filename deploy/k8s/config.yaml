@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backseat-driver-config
+data:
+  BACKSEAT_DRIVER_LOG_FORMAT: json
+  BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  BACKSEAT_DRIVER_NUSCENES_DATAROOT: /app/data/sets/nuscenes
+  BACKSEAT_DRIVER_OUTPUT_DIR: /app/output
+  BACKSEAT_DRIVER_VLM_BACKEND: huggingface
+---
+# Development credentials only — replace this Secret (and the RabbitMQ URL above) before exposing the cluster.
+# For the anthropic backend, add BACKSEAT_DRIVER_ANTHROPIC_API_KEY here and set VLM_BACKEND=anthropic above.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: backseat-driver-secrets
+type: Opaque
+stringData:
+  BACKSEAT_DRIVER_DATABASE_URL: postgresql+psycopg://backseat_driver:backseat_driver@postgres:5432/backseat_driver
+  POSTGRES_PASSWORD: backseat_driver

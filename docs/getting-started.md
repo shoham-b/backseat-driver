@@ -101,6 +101,7 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 | `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
 | `BACKSEAT_DRIVER_OUTPUT_DIR` | `output` | Directory for result files and the report |
 | `BACKSEAT_DRIVER_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
+| `BACKSEAT_DRIVER_UI_HOST` / `_UI_PORT` | `127.0.0.1` / `8081` | Bind address of `backseat-driver ui` (`--host`/`--port` override); containers set the host to `0.0.0.0` |
 | `BACKSEAT_DRIVER_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 
 See [`backseat_driver/config.py`](../backseat_driver/config.py) for the full settings class.

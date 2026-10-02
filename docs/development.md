@@ -30,6 +30,7 @@ Run `just --list` at any time to see all targets. The full table:
 | `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
+| `just test-ui` | Selenium tests of the model-comparison UI (needs Chrome) |
 | `just test-system` | System tests (requires the API to be running locally) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
@@ -63,6 +64,7 @@ There are four test layers, from fastest to slowest:
 | Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are monkeypatched, no dataset or model download |
 | Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
 | Smoke | `tests/smoketests/` | running API (set `API_URL` to override) |
+| UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
 | System | `tests/systemtests/` | Docker Compose |
 
 ### Unit tests
@@ -148,6 +150,7 @@ tests/
 ├── unittests/
 ├── integrationtests/
 ├── smoketests/
+├── uitests/
 └── systemtests/
 ```
 

@@ -1,0 +1,47 @@
+# Model-comparison report (`backseat-driver ui`) over the result files in the `results` volume. It exits at startup
+# when no result file exists yet, so Kubernetes restarts it until `backseat-driver run` has written one.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ui}
+  template:
+    metadata:
+      labels: {app: ui}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: ui
+          image: ghcr.io/shoham-b/backseat-driver-cli
+          imagePullPolicy: IfNotPresent
+          args: [ui, --no-open]
+          ports: [{containerPort: 8081, name: http}]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+          env:
+            - {name: BACKSEAT_DRIVER_UI_HOST, value: 0.0.0.0}  # reachable through the Service, not just loopback
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: results, mountPath: /app/output, readOnly: true}
+            - {name: data, mountPath: /app/data, readOnly: true}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+      volumes:
+        - name: results
+          persistentVolumeClaim: {claimName: results, readOnly: true}
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+spec:
+  selector: {app: ui}
+  ports: [{port: 80, targetPort: http, name: http}]

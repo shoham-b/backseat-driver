@@ -53,6 +53,10 @@ bench:
 test-smoke:
     uv run backseat-driver test smoke --verbose
 
+# Selenium tests of the model-comparison UI (headless Chrome; CHROME_BIN / CHROMEDRIVER override the browser)
+test-ui:
+    uv run pytest tests/uitests -v
+
 # Full system tests — auto-starts service locally
 test-system:
     uv run pytest tests/systemtests -v
@@ -76,6 +80,15 @@ up:
 # Stop the distributed stack
 down:
     docker compose down
+
+# Render the Kubernetes manifests (needs kubectl)
+k8s-render:
+    kubectl kustomize deploy/k8s
+
+# Validate the rendered manifests against the Kubernetes schemas (no cluster needed)
+k8s-validate:
+    kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
+    uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
 
 
 

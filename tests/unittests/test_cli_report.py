@@ -105,3 +105,32 @@ def test_ui_no_open_leaves_the_browser_alone(output_dir: Path) -> None:
 
     assert result.exit_code == 0, result.output
     open_browser.assert_not_called()
+
+
+def test_ui_takes_host_and_port_from_the_settings_when_no_flags_are_given(
+    output_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_HOST", "0.0.0.0")
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9123")
+    server = mock.MagicMock()
+    server.__enter__.return_value = server
+    server.serve_forever.side_effect = KeyboardInterrupt
+
+    with mock.patch.object(report_cli.http.server, "ThreadingHTTPServer", return_value=server) as server_cls:
+        result = runner.invoke(app, ["ui", "--no-open"])
+
+    assert result.exit_code == 0, result.output
+    assert server_cls.call_args.args[0] == ("0.0.0.0", 9123)
+    assert "http://0.0.0.0:9123/" in result.output
+
+
+def test_ui_flags_override_the_settings(output_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9123")
+    server = mock.MagicMock()
+    server.__enter__.return_value = server
+    server.serve_forever.side_effect = KeyboardInterrupt
+
+    with mock.patch.object(report_cli.http.server, "ThreadingHTTPServer", return_value=server) as server_cls:
+        runner.invoke(app, ["ui", "--no-open", "--host", "10.0.0.5", "--port", "7000"])
+
+    assert server_cls.call_args.args[0] == ("10.0.0.5", 7000)
