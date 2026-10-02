@@ -14,19 +14,19 @@ dataset, describes each one with a vision-language model, and writes the results
 for the "Scene Description via VLM" take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf)).
 
 Scaffolded from [python-project-template](https://github.com/shoham-b/python-project-template)
-(layered `models/` → `bl/` → `cli/`+`api/`, containerized, CI, typed, tested at four levels) and then
+(`models/` → capability packages (`captioning/`, `scenes/`, `jobs/`) → `cli/`+`api/`, containerized, CI, typed, tested at four levels) and then
 adapted to this domain — see [docs/development.md](docs/development.md) for what was stripped from the
 generic scaffold.
 
 ## What it does
 
-1. **Loads a scene** — [`adapters/nuscenes_scene_loader.py`](backseat_driver/adapters/nuscenes_scene_loader.py) reads the
+1. **Loads a scene** — [`scenes/nuscenes_scene_loader.py`](backseat_driver/scenes/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`adapters/huggingface_captioner.py`](backseat_driver/adapters/huggingface_captioner.py) passes that image through
+2. **Runs a VLM** — [`captioning/huggingface_captioner.py`](backseat_driver/captioning/huggingface_captioner.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
-3. **Outputs the results** — [`bl/writer.py`](backseat_driver/bl/writer.py) writes one JSON object
+3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
    per scene to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
 
    ```json
@@ -43,9 +43,9 @@ generic scaffold.
    ]
    ```
 
-All three steps are built on abstract ports ([`SceneLoader`](backseat_driver/bl/scene_loader.py),
-[`Captioner`](backseat_driver/bl/captioner.py)) and composed in
-[`bl/pipeline.py`](backseat_driver/bl/pipeline.py), so the orchestration logic never imports
+All three steps are built on abstract ports ([`SceneLoader`](backseat_driver/scenes/scene_loader.py),
+[`Captioner`](backseat_driver/captioning/captioner.py)) and composed in
+[`scenes/pipeline.py`](backseat_driver/scenes/pipeline.py), so the orchestration logic never imports
 nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
 
 ## Assumptions
@@ -100,8 +100,8 @@ Full setup instructions (including the optional HTTP API) are in
 Four layers, matching the "structure it as if this was a production project" ask — see
 [docs/development.md](docs/development.md#tests) for commands:
 
-- **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `adapters/nuscenes_scene_loader.py` and
-  `adapters/huggingface_captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
+- **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `scenes/nuscenes_scene_loader.py` and
+  `captioning/huggingface_captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
   can monkeypatch them out (fake `NuScenes` class, fake `transformers.pipeline`) and run in milliseconds.
   Covers the middle-frame selection logic, missing-camera error handling, pipeline orchestration
   (including `--max-scenes` and empty-dataset edge cases), and the JSON writer.

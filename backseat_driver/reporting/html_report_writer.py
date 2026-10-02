@@ -8,8 +8,8 @@ import json
 import mimetypes
 from pathlib import Path
 
-from backseat_driver.adapters.report_template import TEMPLATE
-from backseat_driver.bl.report import Report
+from backseat_driver.reporting.report import Report
+from backseat_driver.reporting.report_template import TEMPLATE
 
 
 def write_html(report: Report, path: str) -> None:

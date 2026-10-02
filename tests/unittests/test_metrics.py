@@ -2,7 +2,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from backseat_driver.bl.metrics import content_words, score
+from backseat_driver.reporting.metrics import content_words, score
 
 
 def test_content_words_drops_stopwords_and_folds_plurals() -> None:

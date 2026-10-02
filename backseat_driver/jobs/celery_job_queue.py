@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from backseat_driver.bl.job_queue import JobQueue
+from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.models import CaptionTask, IngestTask
 
 if TYPE_CHECKING:

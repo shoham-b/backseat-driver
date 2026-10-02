@@ -8,12 +8,12 @@ acked afterwards (at-least-once delivery), and every step is safe to run twice.
 
 from loguru import logger
 
-from backseat_driver.bl.captioner import Captioner
-from backseat_driver.bl.job_queue import JobQueue
-from backseat_driver.bl.job_store import JobStore
-from backseat_driver.bl.pipeline import describe_keyframe
-from backseat_driver.bl.scene_loader import SceneLoader
+from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.jobs.job_queue import JobQueue
+from backseat_driver.jobs.job_store import JobStore
 from backseat_driver.models import CaptionTask, IngestTask
+from backseat_driver.scenes.pipeline import describe_keyframe
+from backseat_driver.scenes.scene_loader import SceneLoader
 
 
 class IngestWorker:

@@ -38,10 +38,10 @@ def run(
     settings = get_settings()
     setup_logging(LogFormat(settings.log_format), service="cli")
 
-    from backseat_driver.adapters.factory import build_captioner
-    from backseat_driver.adapters.nuscenes_scene_loader import NuScenesSceneLoader
-    from backseat_driver.bl.pipeline import ScenePipeline
-    from backseat_driver.bl.writer import write_json
+    from backseat_driver.captioning.factory import build_captioner
+    from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
+    from backseat_driver.scenes.pipeline import ScenePipeline
+    from backseat_driver.scenes.writer import write_json
 
     dataroot = dataroot or settings.nuscenes_dataroot
     version = version or settings.nuscenes_version

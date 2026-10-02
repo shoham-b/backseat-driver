@@ -77,8 +77,8 @@ def _default_results() -> list[Path]:
 
 
 def _write_report(results: list[Path], output: Path) -> int:
-    from backseat_driver.adapters.html_report_writer import write_html
-    from backseat_driver.bl.report import build_report
+    from backseat_driver.reporting.html_report_writer import write_html
+    from backseat_driver.reporting.report import build_report
 
     descriptions = [
         SceneDescription.model_validate(item)

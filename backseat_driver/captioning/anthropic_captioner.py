@@ -6,15 +6,21 @@ key and network access at runtime, and each caption is a billed request.
 """
 
 import base64
-import mimetypes
 import urllib.request
 from pathlib import Path
 
-from backseat_driver.adapters._http import DETAILED_SCENE_PROMPT, post_json
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning._http import DETAILED_SCENE_PROMPT, post_json
+from backseat_driver.captioning.captioner import Captioner
 
 _API_VERSION = "2023-06-01"
-_SUPPORTED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+# A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).
+_MEDIA_TYPES_BY_SUFFIX = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
 
 
 class AnthropicCaptioner(Captioner):
@@ -47,9 +53,9 @@ class AnthropicCaptioner(Captioner):
         return
 
     def caption(self, image_path: str) -> str:
-        media_type, _ = mimetypes.guess_type(image_path)
-        if media_type not in _SUPPORTED_MEDIA_TYPES:
-            raise ValueError(f"Unsupported image type {media_type!r} for {image_path!r}; expected jpeg/png/gif/webp")
+        media_type = _MEDIA_TYPES_BY_SUFFIX.get(Path(image_path).suffix.lower())
+        if media_type is None:
+            raise ValueError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
         image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
         payload = {
             "model": self._model_name,

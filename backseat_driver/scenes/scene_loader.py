@@ -1,4 +1,4 @@
-"""Port for reading scenes from a dataset. Concrete loaders live in `backseat_driver.adapters`."""
+"""Port for reading scenes from a dataset. The nuScenes loader lives next to it."""
 
 from abc import ABC, abstractmethod
 

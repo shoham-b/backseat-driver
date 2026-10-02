@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.adapters.html_report_writer import write_html
-from backseat_driver.bl.report import build_report
 from backseat_driver.models import SceneDescription
+from backseat_driver.reporting.html_report_writer import write_html
+from backseat_driver.reporting.report import build_report
 
 
 def _desc(scene: int, model: str, text: str, reference: str | None = "parked truck") -> SceneDescription:

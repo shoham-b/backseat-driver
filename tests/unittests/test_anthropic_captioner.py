@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 from pydantic import SecretStr
 
-from backseat_driver.adapters.anthropic_captioner import AnthropicCaptioner
-from backseat_driver.adapters.factory import build_captioner
+from backseat_driver.captioning.anthropic_captioner import AnthropicCaptioner
+from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, VlmBackend
 
 

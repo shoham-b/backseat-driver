@@ -9,8 +9,8 @@ from statistics import fmean
 
 from pydantic import BaseModel
 
-from backseat_driver.bl import metrics
 from backseat_driver.models import SceneDescription
+from backseat_driver.reporting import metrics
 
 _TOKEN_OR_GAP = re.compile(r"[A-Za-z]+|[^A-Za-z]+")
 

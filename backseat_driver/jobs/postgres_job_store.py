@@ -1,10 +1,10 @@
-"""Postgres adapter for the `JobStore` port: maps persistence rows (`db/`) to domain models."""
+"""Postgres adapter for the `JobStore` port: maps persistence rows (`orm.py`/`storage.py`) to domain models."""
 
 from uuid import UUID
 
-from backseat_driver.bl.errors import NotFoundError
-from backseat_driver.bl.job_store import JobStore, derive_state
-from backseat_driver.db.storage import JobStorage
+from backseat_driver.errors import NotFoundError
+from backseat_driver.jobs.job_store import JobStore, derive_state
+from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import Job, SceneDescription
 
 
@@ -23,7 +23,8 @@ class PostgresJobStore(JobStore):
             raise NotFoundError(f"job {job_id} not found")
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        self._storage.insert_description(job_id, description.model_dump())
+        # The nuScenes reference label is only used by the CLI report; the table has no column for it.
+        self._storage.insert_description(job_id, description.model_dump(exclude={"reference_description"}))
 
     def get_job(self, job_id: UUID) -> Job:
         found = self._storage.fetch_job(job_id)
