@@ -13,12 +13,19 @@ db_app = typer.Typer(help="Database setup (distributed mode)", no_args_is_help=T
 app.add_typer(db_app, name="db")
 
 
-@app.callback()
-def _root(
-    version: bool = typer.Option(False, "--version", "-V", help="Show version and exit"),
-) -> None:
-    if version:
+def _print_version(value: bool) -> None:
+    if value:
         from backseat_driver import __version__
 
         typer.echo(f"backseat-driver {__version__}")
         raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    # Eager, so the flag is handled while parsing: otherwise click reports "Missing command" before the callback runs.
+    version: bool = typer.Option(
+        False, "--version", "-V", callback=_print_version, is_eager=True, help="Show version and exit"
+    ),
+) -> None:
+    pass

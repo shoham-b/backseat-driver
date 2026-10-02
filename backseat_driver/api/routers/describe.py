@@ -5,8 +5,9 @@ pipeline as a small inference service, instead of (or alongside) running the
 CLI as a scheduled batch job.
 """
 
+import re
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
@@ -16,6 +17,8 @@ from pydantic import BaseModel
 from backseat_driver.api.dependencies import get_captioner
 from backseat_driver.bl.captioner import Captioner
 from backseat_driver.bl.errors import UnprocessableError
+
+_PLAIN_SUFFIX = re.compile(r"\.[a-z0-9]{1,8}")
 
 router = APIRouter(tags=["describe"])
 
@@ -36,7 +39,10 @@ async def describe(
         raise UnprocessableError("uploaded file is empty")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir) / (image.filename or "upload")
+        # The filename is client-controlled, so it never becomes part of the path: only a plain extension survives,
+        # because the captioners sniff the image type from it.
+        suffix = PurePosixPath((image.filename or "").replace("\\", "/")).suffix.lower()
+        tmp_path = Path(tmp_dir) / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
         tmp_path.write_bytes(contents)
         try:
             # Inference is synchronous/CPU-bound — off the event loop so one
