@@ -116,7 +116,7 @@ just test-compose
 
 Builds the images, starts the stack (API, RabbitMQ, Postgres), runs `tests/systemtests/` and `tests/smoketests/` inside the
 `systemtest` container, then tears everything down. Both `systemtest` and the `cli` service have
-`profiles` set (`test` / `cli`) so neither starts with a plain `docker compose up`.
+`profiles` set (`test` / `cli`) so neither starts with a plain `just compose up`.
 
 ### Coverage
 

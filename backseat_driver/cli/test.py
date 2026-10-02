@@ -26,7 +26,7 @@ def smoke(
     Defaults to http://localhost:8080. Start the service first:
 
         just infra && just dev   # local (the API's /ready checks RabbitMQ + Postgres)
-        docker compose up # containerised
+        just compose up # containerised
     """
     try:
         import pytest

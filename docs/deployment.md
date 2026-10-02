@@ -21,9 +21,9 @@ Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount
 
 | Goal | Command |
 |---|---|
-| Batch run → `./output/*.json` | `docker compose --profile cli run --rm cli` |
-| Model-comparison UI on <http://localhost:8081> | `docker compose --profile ui up ui` |
-| API + RabbitMQ + Postgres + workers | `docker compose up --build` (API on <http://localhost:8080>) |
+| Batch run → `./output/*.json` | `just compose --profile cli run --rm cli` |
+| Model-comparison UI on <http://localhost:8081> | `just compose --profile ui up ui` |
+| API + RabbitMQ + Postgres + workers | `just compose up --build` (API on <http://localhost:8080>) |
 | Containerised system + smoke tests | `just test-compose` |
 
 The dataset is read from `./data` and results are written to `./output`. Because the image is non-root, a bind-mounted
@@ -99,9 +99,9 @@ Run through this before tagging a release; each step lists what "good" looks lik
 2. `just test-compose` — system + smoke tests pass against the containerised stack.
 3. **Batch + UI**: `just test-ui` (Selenium), then `just run --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
    scores, working filters, no browser-console errors and no horizontal scrolling at phone width.
-4. **Distributed stack**: `docker compose up --build`, then `curl localhost:8080/ready` → 200;
+4. **Distributed stack**: `just compose up --build`, then `curl localhost:8080/ready` → 200;
    `POST /jobs` → 202; `GET /jobs/{id}` reaches `completed`; `GET /jobs/{id}/descriptions` has one entry per scene.
-   `docker compose logs ingest-worker` shows the task being received (worker failures must be visible there).
+   `just compose logs ingest-worker` shows the task being received (worker failures must be visible there).
 5. **Containers**: `docker run --rm <image> id` reports uid 10001; the API also starts with `--read-only --tmpfs /tmp
    --cap-drop ALL`.
 6. **Kubernetes**: `kubectl kustomize deploy/k8s | kubectl apply --dry-run=server -f -` accepts every object (CI also

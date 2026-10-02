@@ -1,5 +1,5 @@
 # Development overrides — API hot-reload against a live source mount.
-# Usage: just up-dev   (= docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up --build)
+# Usage: just up-dev   (= just compose -f docker/docker-compose.dev.yml up --build)
 services:
   api:
     build:

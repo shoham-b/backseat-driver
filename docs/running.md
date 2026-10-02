@@ -17,13 +17,13 @@ The batch pipeline (`backseat-driver run`) works in all three: on the host (`jus
 | I want to… | Command | Runs on | Needs |
 |---|---|---|---|
 | Describe the dataset once | `just run` (= `uv run backseat-driver run`) | host | dataset in `data/` |
-| …in a container instead | `just docker-run` (= `docker compose --profile cli run --rm cli run`) | Docker | dataset in `data/` |
+| …in a container instead | `just docker-run` (= `just compose --profile cli run --rm cli run`) | Docker | dataset in `data/` |
 | Debug the API locally | `just dev` (`fastapi dev`, monolith: `/describe`, `/ready` and `/jobs` all work in-process, no Docker) | host | dataset in `data/` for `/jobs` |
 | …against real RabbitMQ + Postgres | `just dev-distributed`, plus `just worker-ingest` / `just worker-caption` | API and workers on host, RabbitMQ + Postgres in Docker | Docker, dataset |
 | Run the API in production mode | `just serve` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) | host | nothing, or RabbitMQ + Postgres in distributed mode |
 | Run the queue workers on the host | `just worker-ingest` / `just worker-caption` (start infra first) | same | Docker, dataset |
 | The whole distributed stack | `just up` (`just up-dev` hot-reloads the API) | Docker Compose | Docker, dataset |
-| The model-comparison UI | `just ui` (host) or `docker compose --profile ui up ui` | host / Docker | results in `output/` |
+| The model-comparison UI | `just ui` (host) or `just compose --profile ui up ui` | host / Docker | results in `output/` |
 | The same stack in a cluster | `just k8s-apply` | Kubernetes | cluster, dataset volume |
 | ...on a local kind cluster, autoscaling | `just k8s-up` | kind | Docker, kind, dataset in `data/` |
 
@@ -54,7 +54,7 @@ compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ 
 ```bash
 just docker-run --max-scenes 2   # one-off pipeline run, writes ./output
 just up                          # api :8080, rabbitmq UI :15672, postgres, db-init, ingest-worker, 2 × caption-worker
-docker compose up --scale caption-worker=4
+just compose up --scale caption-worker=4
 just test-compose                # builds, starts the stack, runs system + smoke tests, tears down
 ```
 

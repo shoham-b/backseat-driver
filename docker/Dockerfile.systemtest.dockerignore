@@ -1,0 +1,10 @@
+# Allowlist: this image only needs the package and the two test dirs it COPYs.
+*
+!backseat_driver/
+!pyproject.toml
+!uv.lock
+!tests/conftest.py
+!tests/systemtests/
+!tests/smoketests/
+__pycache__/
+*.py[cod]

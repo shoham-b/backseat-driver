@@ -175,7 +175,7 @@ def test_dockerfile_does_not_float_on_the_latest_uv() -> None:
 
 
 def test_compose_ui_service_serves_on_all_interfaces() -> None:
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    compose = yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())
 
     ui = compose["services"]["ui"]
 
@@ -186,7 +186,7 @@ def test_compose_ui_service_serves_on_all_interfaces() -> None:
 
 
 def test_compose_cli_user_is_overridable_so_bind_mounted_output_is_writable() -> None:
-    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    compose = yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())
 
     assert "LOCAL_UID" in compose["services"]["cli"]["user"]
 

@@ -32,3 +32,10 @@ nav:
   - Development: development.md
   - CLI Reference: cli.md
   - API Reference: api.md
+
+# Config lives in docs/, so the pages are this directory itself and the site is built into the repo root.
+docs_dir: .
+site_dir: ../site
+exclude_docs: |
+  mkdocs.yml
+  *.pdf
