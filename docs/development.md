@@ -29,6 +29,7 @@ Run `just --list` at any time to see all targets. The full table:
 | `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
 | `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
+| `just bench` | CodSpeed benchmarks (`tests/benchmarks/`) |
 | `just test-smoke` | Smoke tests against a running API |
 | `just test-system` | System tests (requires the API to be running locally) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
