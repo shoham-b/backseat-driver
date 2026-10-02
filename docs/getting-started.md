@@ -55,7 +55,8 @@ The same captioning logic is also exposed as a small on-demand service — see
 ```bash
 just up
 # or on the host, with RabbitMQ + Postgres in Docker (the API's /ready checks them):
-just dev   # starts RabbitMQ + Postgres first
+just infra   # optional: /ready and /jobs need them; /describe does not
+just dev
 ```
 
 ```bash

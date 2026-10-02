@@ -27,7 +27,7 @@ The pipeline logic in `scenes/` is shared by two independent entry points:
 | Component | Entry point | Description |
 |---|---|---|
 | **CLI** (primary) | `uv run backseat-driver run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
-| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `just dev` starts the infra `/ready` checks | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
+| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `/ready` needs `just infra` | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
 
 ### Object model
 
