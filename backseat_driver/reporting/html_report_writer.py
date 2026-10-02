@@ -12,11 +12,15 @@ from backseat_driver.reporting.report import Report
 from backseat_driver.reporting.report_template import TEMPLATE
 
 
-def write_html(report: Report, path: str) -> None:
-    """Write `report` to `path`. Raises FileNotFoundError if a scene image is missing."""
+def write_html(report: Report, path: str, api_url: str | None = None) -> None:
+    """Write `report` to `path`. Raises FileNotFoundError if a scene image is missing.
+
+    With `api_url`, the page gets a "try it live" card that uploads an image to that API's `/describe`.
+    """
     payload = report.model_dump(mode="json")
     for scene in payload["scenes"]:
         scene["image"] = _data_uri(Path(scene["image_path"]))
+    payload["api_url"] = api_url
     # "</" would end the surrounding <script> tag early.
     data = json.dumps(payload).replace("</", "<\\/")
     output = Path(path)

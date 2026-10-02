@@ -49,6 +49,9 @@ def ui(
     host: Annotated[str | None, typer.Option(help="Interface to serve on [default: BACKSEAT_DRIVER_UI_HOST]")] = None,
     port: Annotated[int | None, typer.Option(help="Port to serve on [default: BACKSEAT_DRIVER_UI_PORT]")] = None,
     open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the page in a browser")] = True,
+    api_url: Annotated[
+        str | None, typer.Option(help="API serving /describe for the live-inference card (default: the configured API)")
+    ] = None,
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
     from backseat_driver.config import get_settings
@@ -57,9 +60,10 @@ def ui(
     host = host or settings.ui_host
     port = port or settings.ui_port
     results = results or _default_results()
+    api_url = api_url or settings.api_url
 
     with tempfile.TemporaryDirectory() as tmp:
-        count = _write_report(results, Path(tmp) / "index.html")
+        count = _write_report(results, Path(tmp) / "index.html", api_url)
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=tmp)
         url = f"http://{host}:{port}/"
         typer.secho(f"Serving {count} description(s) from {len(results)} file(s) at {url} (Ctrl+C to stop)", fg="green")
@@ -81,7 +85,7 @@ def _default_results() -> list[Path]:
     return found
 
 
-def _write_report(results: list[Path], output: Path) -> int:
+def _write_report(results: list[Path], output: Path, api_url: str | None = None) -> int:
     from backseat_driver.reporting.html_report_writer import write_html
     from backseat_driver.reporting.report import build_report
 
@@ -90,5 +94,5 @@ def _write_report(results: list[Path], output: Path) -> int:
         for path in results
         for item in json.loads(path.read_text(encoding="utf-8"))
     ]
-    write_html(build_report(descriptions), str(output))
+    write_html(build_report(descriptions), str(output), api_url)
     return len(descriptions)
