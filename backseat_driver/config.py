@@ -22,6 +22,8 @@ class Settings(BaseSettings):
 
     api_host: str = "127.0.0.1"
     api_port: int = 8080
+    # Origins allowed to call the API from a browser; the default is the page served by `ui`.
+    cors_origins: list[str] = ["http://127.0.0.1:8081", "http://localhost:8081"]
     log_format: Literal["colored", "json"] = "colored"
 
     # Model-comparison UI (`backseat-driver ui`)

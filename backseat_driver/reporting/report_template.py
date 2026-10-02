@@ -50,6 +50,10 @@ TEMPLATE = r"""<!doctype html>
   .metric { font-size: 13px; color: var(--muted); }
   .f1 { font-weight: 700; }
   mark { background: var(--match); color: inherit; border-radius: 3px; padding: 0 1px; }
+  #live-preview { max-width: 340px; width: 100%; border-radius: 8px; margin-top: 12px; }
+  #live-result.error { color: var(--bad); }
+  button { font: inherit; padding: 6px 14px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: wait; }
   .empty { color: var(--muted); text-align: center; padding: 32px; }
   .note { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
   @media (max-width: 700px) { .scene { grid-template-columns: 1fr; } main, header { padding-left: 16px; padding-right: 16px; } }
@@ -72,6 +76,16 @@ TEMPLATE = r"""<!doctype html>
     <p class="note">Scored against the nuScenes scene label by content-word overlap (stopwords removed, plurals folded).
       <b>Precision</b>: share of the model's words found in the label. <b>Recall</b>: share of the label's words the model mentioned.
       Synonyms don't match, and verbose models are naturally low on precision — compare models with it in mind.</p>
+  </section>
+  <section class="card" id="live" hidden>
+    <h2>Try it live</h2>
+    <p class="sub">Upload a picture to get a description from the running API's model.</p>
+    <form id="live-form" class="filters">
+      <input id="live-file" type="file" accept="image/*" required>
+      <button id="live-submit" type="submit">Describe</button>
+    </form>
+    <img id="live-preview" alt="Uploaded picture" hidden>
+    <p id="live-result" class="note"></p>
   </section>
   <div id="scenes"></div>
 </main>
@@ -163,6 +177,32 @@ function render() {
   }
 }
 render();
+
+if (report.api_url) {
+  el("live").hidden = false;
+  el("live-form").addEventListener("submit", async ev => {
+    ev.preventDefault();
+    const file = el("live-file").files[0], result = el("live-result"), button = el("live-submit");
+    const preview = el("live-preview");
+    URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+    result.className = "note"; result.textContent = "Describing…"; button.disabled = true;
+    try {
+      const body = new FormData();
+      body.append("image", file);
+      const res = await fetch(`${report.api_url}/describe`, { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error?.message ?? `HTTP ${res.status}`);
+      result.textContent = `${json.model_name}: ${json.description}`;
+    } catch (err) {
+      result.className = "note error";
+      result.textContent = `Describe failed (${report.api_url}/describe): ${err.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
 </script>
 </body>
 </html>

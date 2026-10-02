@@ -92,6 +92,35 @@ def test_ui_serves_the_report_and_opens_the_browser(output_dir: Path) -> None:
     assert "Stopped" in result.output
 
 
+def test_ui_points_the_live_card_at_the_configured_api(output_dir: Path) -> None:
+    server = mock.MagicMock()
+    server.__enter__.return_value = server
+    server.serve_forever.side_effect = KeyboardInterrupt
+
+    with (
+        mock.patch.object(report_cli.http.server, "ThreadingHTTPServer", return_value=server),
+        mock.patch.object(report_cli, "_write_report", return_value=2) as write_report,
+    ):
+        result = runner.invoke(app, ["ui", "--no-open", "--api-url", "http://api:9"])
+
+    assert result.exit_code == 0, result.output
+    assert write_report.call_args.args[2] == "http://api:9"
+
+
+def test_ui_defaults_the_live_card_to_the_settings_api_url(output_dir: Path) -> None:
+    server = mock.MagicMock()
+    server.__enter__.return_value = server
+    server.serve_forever.side_effect = KeyboardInterrupt
+
+    with (
+        mock.patch.object(report_cli.http.server, "ThreadingHTTPServer", return_value=server),
+        mock.patch.object(report_cli, "_write_report", return_value=2) as write_report,
+    ):
+        runner.invoke(app, ["ui", "--no-open"])
+
+    assert write_report.call_args.args[2] == "http://127.0.0.1:8080"
+
+
 def test_ui_no_open_leaves_the_browser_alone(output_dir: Path) -> None:
     server = mock.MagicMock()
     server.__enter__.return_value = server

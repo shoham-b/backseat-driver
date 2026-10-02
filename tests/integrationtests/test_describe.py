@@ -174,5 +174,24 @@ def test_the_response_reports_the_model_that_produced_the_caption(monkeypatch: p
     assert body == {"description": "a rainy road", "model_name": "fake-model"}
 
 
+def test_the_ui_origin_may_call_describe_from_the_browser(client: TestClient) -> None:
+    response = client.options(
+        "/describe",
+        headers={"Origin": "http://127.0.0.1:8081", "Access-Control-Request-Method": "POST"},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:8081"
+
+
+def test_an_unknown_origin_is_not_granted_browser_access(client: TestClient) -> None:
+    response = client.options(
+        "/describe",
+        headers={"Origin": "http://evil.example", "Access-Control-Request-Method": "POST"},
+    )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
 def test_get_is_not_allowed_on_describe(client: TestClient) -> None:
     assert client.get("/describe").status_code == HTTPStatus.METHOD_NOT_ALLOWED

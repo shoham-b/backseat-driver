@@ -78,6 +78,18 @@ def test_write_html_embeds_data_and_image(tmp_path: Path) -> None:
     assert json.loads(html.split('type="application/json">')[1].split("</script>")[0])["models"][0]["model_name"] == "a"
 
 
+def test_write_html_embeds_the_api_url_only_when_given(tmp_path: Path) -> None:
+    image = tmp_path / "scene.jpg"
+    image.write_bytes(b"\xff\xd8fake")
+    report = build_report([_desc(1, "a", "truck").model_copy(update={"image_path": str(image)})])
+
+    write_html(report, str(tmp_path / "live.html"), "http://api:1")
+    write_html(report, str(tmp_path / "static.html"), None)
+
+    assert '"api_url": "http://api:1"' in (tmp_path / "live.html").read_text(encoding="utf-8")
+    assert '"api_url": null' in (tmp_path / "static.html").read_text(encoding="utf-8")
+
+
 def test_write_html_fails_fast_on_missing_image(tmp_path: Path) -> None:
     report = build_report([_desc(1, "a", "truck")])
 
