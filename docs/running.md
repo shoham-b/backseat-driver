@@ -2,6 +2,18 @@
 
 There are several ways to run the project. They all run the same code and read the same `BACKSEAT_DRIVER_*` settings; they differ in *where* the pieces run.
 
+## The three modes
+
+| Mode | What runs where | Commands |
+|---|---|---|
+| **1. Dev: local** | Everything on your machine, no Docker. `/describe` and the batch pipeline work as-is; `/ready` and `/jobs` need RabbitMQ + Postgres, which only the optional `just infra` provides. | `just dev`, `just run` |
+| **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
+| **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just serve` is the API's command outside a container |
+
+The batch pipeline (`backseat-driver run`) works in all three: on the host (`just run`), in a container (`just docker-run`), or as a Kubernetes Job.
+
+## Every way to run it
+
 | I want to… | Command | Runs on | Needs |
 |---|---|---|---|
 | Describe the dataset once | `just run` (= `uv run backseat-driver run`) | host | dataset in `data/` |
