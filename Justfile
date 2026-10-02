@@ -75,11 +75,11 @@ api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
 dev:
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
-# Production-mode server on the host; binds all interfaces. Starts the infra first (needs Docker)
-serve: infra
+# Production-mode server, all interfaces; expects RabbitMQ + Postgres to exist already (as in Kubernetes; locally `just infra`)
+serve:
     uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port {{api_port}}
 
-# RabbitMQ + Postgres in Docker (published on localhost) with the schema created, for host-run API/workers
+# LOCAL ONLY: RabbitMQ + Postgres in Docker on localhost, schema created (production gets these from Kubernetes)
 infra:
     docker compose up -d --wait rabbitmq postgres
     uv run backseat-driver db init
@@ -88,7 +88,7 @@ infra:
 infra-down:
     docker compose down
 
-# Host-run queue workers (distributed mode); start the infra first (needs Docker)
+# Host-run queue workers for local work (production runs them in Kubernetes); start the local infra first (needs Docker)
 worker-ingest: infra
     uv run backseat-driver worker ingest
 
