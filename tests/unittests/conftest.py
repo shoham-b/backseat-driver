@@ -5,8 +5,8 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 
-from backseat_driver.db import storage
-from backseat_driver.db.storage import JobStorage
+from backseat_driver.jobs import storage
+from backseat_driver.jobs.storage import JobStorage
 
 
 @pytest.fixture

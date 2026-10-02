@@ -4,9 +4,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from loguru import logger
 
-from backseat_driver.adapters.celery_job_queue import CeleryJobQueue
-from backseat_driver.adapters.factory import build_captioner
-from backseat_driver.adapters.postgres_job_store import PostgresJobStore
 from backseat_driver.api.errors import APIError
 from backseat_driver.api.exception_handlers import (
     api_error_handler,
@@ -17,8 +14,11 @@ from backseat_driver.api.middleware import RequestIDMiddleware
 from backseat_driver.api.routers.describe import router as describe_router
 from backseat_driver.api.routers.health import router as health_router
 from backseat_driver.api.routers.jobs import router as jobs_router
-from backseat_driver.bl.errors import DomainError
+from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import get_settings
+from backseat_driver.errors import DomainError
+from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
+from backseat_driver.jobs.postgres_job_store import PostgresJobStore
 from backseat_driver.logger import LogFormat, setup_logging
 
 

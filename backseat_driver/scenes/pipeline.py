@@ -10,9 +10,9 @@ and never imports nuscenes-devkit, transformers, or torch directly.
 
 from loguru import logger
 
-from backseat_driver.bl.captioner import Captioner
-from backseat_driver.bl.scene_loader import SceneLoader
+from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.models import SceneDescription, SceneKeyframe
+from backseat_driver.scenes.scene_loader import SceneLoader
 
 
 def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner) -> SceneDescription:

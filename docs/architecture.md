@@ -22,7 +22,7 @@
 
 ### Entry points
 
-The pipeline logic in `bl/` is shared by two independent entry points:
+The pipeline logic in `scenes/` is shared by two independent entry points:
 
 | Component | Entry point | Description |
 |---|---|---|
@@ -53,7 +53,7 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are abstrac
                └─────────────┬────────────┘                          │
                              ▼                                       │
                     ┌────────────────────┐                           │
-                    │    ScenePipeline    │  bl/pipeline.py           │
+                    │    ScenePipeline    │  scenes/pipeline.py           │
                     │  Facade/orchestrator│  — constructor-injected   │
                     │  loader → captioner │     with both ports,  │
                     │  per scene           │     never imports         │
@@ -100,22 +100,27 @@ API path (on-demand, optional):
 ## Layer design
 
 ```
-models/            bl/                        cli/ | api/
-──────────         ───────────                ─────────────
-Domain models  →   Business logic         →    Entry points
-Pure Pydantic      No HTTP, no nuscenes/        cli/run.py drives the batch
-No dependencies    transformers imports at      pipeline; api/routers/describe.py
-                   module scope — only          drives the on-demand endpoint.
-                   inside methods (lazy)
+models/            captioning/ scenes/ jobs/       cli/ | api/
+──────────         ─────────────────────────       ─────────────
+Domain models  →   Capability packages        →    Entry points
+Pure Pydantic      Port (ABC) + its platform       cli/run.py drives the batch
+No dependencies    implementations + logic         pipeline; api/routers/describe.py
+                   side by side; SDKs only         drives the on-demand endpoint.
+                   imported lazily in methods
 ```
 
 Each layer only imports from layers to its left:
 
-- **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`). No imports from `api/`, `bl/`, or `cli/`.
-- **`bl/`** — business logic. `scene_loader.SceneLoader` and `captioner.Captioner` are abstract classes (as are `JobQueue` and `JobStore`) whose implementations live in `adapters/`; `pipeline.ScenePipeline` is built from them via constructor injection, so it never imports nuscenes-devkit, transformers, or torch — those stay behind lazy imports inside the concrete implementations, which keeps `ScenePipeline` fast and trivially testable with fakes.
-- **`api/`** — HTTP layer. Imports `bl` and `models`. Owns request validation, response serialization, and error mapping.
-- **`adapters/`** — concrete implementations of the `bl/` abstract classes, one per external platform (nuScenes devkit, HuggingFace, Ollama, Anthropic, Celery/RabbitMQ, Postgres). Imports `bl` and `models`; the only layer that imports platform SDKs.
-- **`cli/`** — Typer commands. Wires concrete `adapters/` implementations together and drives the pipeline or a test suite.
+- **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`, `Job`). No imports from any other package.
+- **`errors.py`** — the `DomainError` hierarchy, shared by every capability and mapped to HTTP codes by `api/`.
+- **Capability packages** — each one holds an abstract port *and* its concrete implementations, so everything about one concern lives in one place:
+  - **`captioning/`** — `Captioner` port; `HuggingFaceCaptioner`, `OllamaCaptioner`, `AnthropicCaptioner`; `build_captioner` picks one from config.
+  - **`scenes/`** — `SceneLoader` port; `NuScenesSceneLoader`; `ScenePipeline` (loader → captioner) and `write_json`.
+  - **`jobs/`** — `JobQueue` and `JobStore` ports; `CeleryJobQueue`, `PostgresJobStore` (with its SQLAlchemy `orm.py`/`storage.py`); `IngestWorker`/`CaptionWorker`.
+
+  Orchestration code (`ScenePipeline`, the workers) depends only on the ports via constructor injection and never imports nuscenes-devkit, transformers, torch, celery, or psycopg. Those stay inside the concrete implementation modules, behind lazy imports where heavy, which keeps the orchestration fast and testable with fakes. A concrete module is the only kind of file allowed to import a platform SDK.
+- **`api/`** — HTTP layer. Imports the ports and `models`. Owns request validation, response serialization, and error mapping.
+- **`cli/`** — Typer commands. Wires concrete implementations together and drives the pipeline or a test suite.
 
 ## API contracts
 
@@ -134,8 +139,10 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | Package | Responsibility |
 |---|---|
 | [`backseat_driver.models`](../backseat_driver/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
-| [`backseat_driver.bl`](../backseat_driver/bl/) | `SceneLoader`/`NuScenesSceneLoader`, `Captioner`, `JobQueue`, `JobStore` abstract ports, `ScenePipeline`, `write_json` |
-| [`backseat_driver.adapters`](../backseat_driver/adapters/) | Platform-specific `Captioner` implementations, kept out of `bl`: `HuggingFaceCaptioner` (BLIP, terse), `OllamaCaptioner` and `AnthropicCaptioner` (verbose, prompt-driven), chosen via `build_captioner` |
+| [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus its backends: `HuggingFaceCaptioner` (BLIP, terse), `OllamaCaptioner` and `AnthropicCaptioner` (verbose, prompt-driven), chosen via `build_captioner` |
+| [`backseat_driver.scenes`](../backseat_driver/scenes/) | `SceneLoader` port, `NuScenesSceneLoader`, `ScenePipeline`, `write_json` |
+| [`backseat_driver.jobs`](../backseat_driver/jobs/) | `JobQueue`/`JobStore` ports, Celery and Postgres implementations, `IngestWorker`/`CaptionWorker` |
+| [`backseat_driver.errors`](../backseat_driver/errors.py) | `DomainError` hierarchy |
 | [`backseat_driver.cli`](../backseat_driver/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
 | [`backseat_driver.api`](../backseat_driver/api/) | FastAPI app, routes, lifespan, exception handlers |
 | [`backseat_driver.config`](../backseat_driver/config.py) | `Settings` (pydantic-settings, env-var backed) |
@@ -161,4 +168,4 @@ The assignment's "how would you deploy this" question has two honest answers dep
 1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
 2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `HuggingFaceCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
-Both images share `bl/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.
+Both images share `captioning/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

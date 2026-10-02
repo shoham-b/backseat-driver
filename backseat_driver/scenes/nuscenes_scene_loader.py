@@ -14,9 +14,9 @@ Usage::
 
 from typing import TYPE_CHECKING, Any
 
-from backseat_driver.bl.errors import NotFoundError
-from backseat_driver.bl.scene_loader import SceneLoader
+from backseat_driver.errors import NotFoundError
 from backseat_driver.models import SceneKeyframe
+from backseat_driver.scenes.scene_loader import SceneLoader
 
 if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes

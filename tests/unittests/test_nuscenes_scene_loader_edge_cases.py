@@ -4,8 +4,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from backseat_driver.adapters.nuscenes_scene_loader import NuScenesSceneLoader
-from backseat_driver.bl.errors import NotFoundError
+from backseat_driver.errors import NotFoundError
+from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
 
 
 def _chain(scene: str, length: int, channel: str = "CAM_FRONT") -> dict[str, dict[str, Any]]:

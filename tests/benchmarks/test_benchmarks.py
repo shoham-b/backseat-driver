@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.bl.pipeline import ScenePipeline
-from backseat_driver.bl.writer import write_json
+from backseat_driver.scenes.pipeline import ScenePipeline
+from backseat_driver.scenes.writer import write_json
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
 
 pytest.importorskip("pytest_codspeed")

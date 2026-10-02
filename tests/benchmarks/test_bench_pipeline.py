@@ -10,10 +10,10 @@ from uuid import uuid4
 import pytest
 from pytest_codspeed import BenchmarkFixture
 
-from backseat_driver.bl.pipeline import ScenePipeline
-from backseat_driver.bl.workers import CaptionWorker, IngestWorker
-from backseat_driver.bl.writer import write_json
+from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
+from backseat_driver.scenes.pipeline import ScenePipeline
+from backseat_driver.scenes.writer import write_json
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
 
 SCENE_COUNTS = [10, 500]

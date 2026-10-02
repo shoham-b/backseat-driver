@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from backseat_driver.bl.writer import write_json
 from backseat_driver.models import SceneDescription
+from backseat_driver.scenes.writer import write_json
 
 
 def _description(n: int) -> SceneDescription:

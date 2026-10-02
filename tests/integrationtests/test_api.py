@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
 from backseat_driver.api.app import app
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
 from tests.fakes import FakeJobQueue, FakeJobStore
 
 

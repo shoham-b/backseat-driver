@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from backseat_driver.bl.workers import CaptionWorker, IngestWorker
+from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import CaptionTask, IngestTask, JobState
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
 

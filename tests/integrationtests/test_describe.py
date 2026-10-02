@@ -10,7 +10,7 @@ from PIL import Image
 from backseat_driver.api.app import app
 from backseat_driver.api.dependencies import get_captioner
 from backseat_driver.api.routers import describe as describe_module
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning.captioner import Captioner
 from tests.fakes import FakeCaptioner
 
 

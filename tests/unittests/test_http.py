@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.adapters._http import post_json
+from backseat_driver.captioning._http import post_json
 
 
 class _Response(io.BytesIO):

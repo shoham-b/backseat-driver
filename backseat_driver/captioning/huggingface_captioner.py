@@ -8,7 +8,7 @@ the HuggingFace hub works; the default is a small BLIP model. `load()` and
 
 from typing import Any
 
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning.captioner import Captioner
 
 
 class HuggingFaceCaptioner(Captioner):

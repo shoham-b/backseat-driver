@@ -1,6 +1,6 @@
 """Port for the distributed mode's work queue — how the API and the workers hand work to each other.
 
-The broker-backed implementation (Celery over RabbitMQ) lives in `backseat_driver.adapters`.
+The broker-backed implementation (Celery over RabbitMQ) lives next to it in `celery_job_queue.py`.
 """
 
 from abc import ABC, abstractmethod

@@ -5,15 +5,14 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from backseat_driver.adapters import celery_job_queue
-from backseat_driver.adapters.celery_job_queue import CeleryJobQueue
-from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
-from backseat_driver.adapters.postgres_job_store import PostgresJobStore
 from backseat_driver.api.app import app
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
+from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
 from backseat_driver.config import get_settings
-from backseat_driver.db import storage
+from backseat_driver.jobs import celery_job_queue, storage
+from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
+from backseat_driver.jobs.postgres_job_store import PostgresJobStore
 from backseat_driver.models import JobState
 from tests.fakes import FakeJobQueue, FakeJobStore
 

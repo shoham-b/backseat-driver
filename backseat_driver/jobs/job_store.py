@@ -1,5 +1,5 @@
 """Port for job state and results in the distributed mode.
-The Postgres implementation lives in `backseat_driver.adapters`.
+The Postgres implementation lives next to it in `postgres_job_store.py`.
 
 A job's state is derived from how many scenes it expects versus how many
 descriptions have been recorded, never stored. That removes the race a separate

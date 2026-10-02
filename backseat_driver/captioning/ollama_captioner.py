@@ -10,8 +10,8 @@ import base64
 import urllib.request
 from pathlib import Path
 
-from backseat_driver.adapters._http import DETAILED_SCENE_PROMPT, post_json
-from backseat_driver.bl.captioner import Captioner
+from backseat_driver.captioning._http import DETAILED_SCENE_PROMPT, post_json
+from backseat_driver.captioning.captioner import Captioner
 
 
 class OllamaCaptioner(Captioner):

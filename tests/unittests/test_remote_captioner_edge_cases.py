@@ -11,8 +11,8 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.adapters.anthropic_captioner import AnthropicCaptioner
-from backseat_driver.adapters.ollama_captioner import OllamaCaptioner
+from backseat_driver.captioning.anthropic_captioner import AnthropicCaptioner
+from backseat_driver.captioning.ollama_captioner import OllamaCaptioner
 
 
 class _FakeResponse(io.BytesIO):
