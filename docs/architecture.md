@@ -44,7 +44,7 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are abstrac
     │   SceneLoader      │   │    Captioner       │   │     write_json        │
     │   (abstract)         │   │    (abstract)       │   │   (plain function)    │
     │                     │   │                     │   │                       │
-    │ NuScenesSceneLoader │   │ HuggingFaceCaptioner │   │ list[SceneDescription]│
+    │ NuScenesSceneLoader │   │ BackendCaptioner     │   │ list[SceneDescription]│
     │ — Adapter over       │   │  — Strategy: the     │   │   → JSON file          │
     │ nuscenes-devkit,     │   │  swappable VLM       │   │                       │
     │ returns SceneKeyframe│   │  backend             │   │                       │
@@ -66,7 +66,7 @@ Three roles, deliberately not four — `SceneLoader` and `Captioner` are abstrac
 |---|---|---|
 | `SceneKeyframe`, `SceneDescription` | Pydantic model | Value object — pure data, no behavior |
 | `SceneLoader` / `NuScenesSceneLoader` | Abstract class / implementation | Adapter — isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
-| `Captioner` / `HuggingFaceCaptioner` | Abstract class / implementation | Strategy — swappable VLM backend (unit tests inject a fake) |
+| `Captioner` / `BackendCaptioner` (`CaptionBackend` + `CaptionModel`) | Abstract class / composition | Strategy — the runtime (HuggingFace/Ollama/Anthropic) and the model are swapped independently (unit tests inject a fake) |
 | `ScenePipeline` | Class | Facade — one `run()` entry point over loader→captioner, no I/O or model logic of its own |
 | `write_json` | Function | — deliberately *not* promoted to a class; nothing varies here yet |
 | `Settings` | pydantic-settings class | Single typed source of config, read once per process |
@@ -85,7 +85,7 @@ CLI path (batch):
                                         │
                                         ▼
                               ┌──────────────────────┐
-                              │ HuggingFaceCaptioner │
+                              │ BackendCaptioner     │
                               │ image-to-text        │
                               │ pipeline (lazy)      │
                               └──────────────────────┘
@@ -93,7 +93,7 @@ CLI path (batch):
 API path (on-demand, optional):
 
 ┌────────────┐   HTTP POST    ┌───────────────────────┐   Python call   ┌──────────────────────┐
-│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│ HuggingFaceCaptioner │
+│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│ BackendCaptioner     │
 └────────────┘   (image)      └───────────────────────┘                 └──────────────────────┘
 ```
 
@@ -114,7 +114,7 @@ Each layer only imports from layers to its left:
 - **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`, `Job`). No imports from any other package.
 - **`errors.py`** — the `DomainError` hierarchy, shared by every capability and mapped to HTTP codes by `api/`.
 - **Capability packages** — each one holds an abstract port *and* its concrete implementations, so everything about one concern lives in one place:
-  - **`captioning/`** — `Captioner` port; `HuggingFaceCaptioner`, `OllamaCaptioner`, `AnthropicCaptioner`; `build_captioner` picks one from config.
+  - **`captioning/`** — `Captioner` port; `CaptionBackend` (`HuggingFaceBackend`, `OllamaBackend`, `AnthropicBackend`) + `CaptionModel`, combined by `BackendCaptioner`; `build_captioner` picks them from config.
   - **`scenes/`** — `SceneLoader` port; `NuScenesSceneLoader`; `ScenePipeline` (loader → captioner) and `write_json`.
   - **`jobs/`** — `JobQueue` and `JobStore` ports; `CeleryJobQueue`, `PostgresJobStore` (with its SQLAlchemy `orm.py`/`storage.py`); `IngestWorker`/`CaptionWorker`.
 
@@ -139,7 +139,7 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | Package | Responsibility |
 |---|---|
 | [`backseat_driver.models`](../backseat_driver/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
-| [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus its backends: `HuggingFaceCaptioner` (BLIP, terse), `OllamaCaptioner` and `AnthropicCaptioner` (verbose, prompt-driven), chosen via `build_captioner` |
+| [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
 | [`backseat_driver.scenes`](../backseat_driver/scenes/) | `SceneLoader` port, `NuScenesSceneLoader`, `ScenePipeline`, `write_json` |
 | [`backseat_driver.jobs`](../backseat_driver/jobs/) | `JobQueue`/`JobStore` ports, Celery and Postgres implementations, `IngestWorker`/`CaptionWorker` |
 | [`backseat_driver.errors`](../backseat_driver/errors.py) | `DomainError` hierarchy |
@@ -166,6 +166,6 @@ Set the format via `BACKSEAT_DRIVER_LOG_FORMAT=colored|json` or in `.env`.
 The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
 1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
-2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `HuggingFaceCaptioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
+2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `Captioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
 Both images share `captioning/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

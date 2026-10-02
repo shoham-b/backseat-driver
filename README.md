@@ -23,7 +23,7 @@ generic scaffold.
 1. **Loads a scene** — [`scenes/nuscenes_scene_loader.py`](backseat_driver/scenes/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
-2. **Runs a VLM** — [`captioning/huggingface_captioner.py`](backseat_driver/captioning/huggingface_captioner.py) passes that image through
+2. **Runs a VLM** — [`captioning/huggingface_backend.py`](backseat_driver/captioning/huggingface_backend.py) passes that image through
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
 3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
@@ -101,7 +101,7 @@ Four layers, matching the "structure it as if this was a production project" ask
 [docs/development.md](docs/development.md#tests) for commands:
 
 - **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset. `scenes/nuscenes_scene_loader.py` and
-  `captioning/huggingface_captioner.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
+  `captioning/huggingface_backend.py` import nuscenes-devkit/transformers lazily inside methods specifically so these tests
   can monkeypatch them out (fake `NuScenes` class, fake `transformers.pipeline`) and run in milliseconds.
   Covers the middle-frame selection logic, missing-camera error handling, pipeline orchestration
   (including `--max-scenes` and empty-dataset edge cases), and the JSON writer.

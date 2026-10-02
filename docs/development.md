@@ -71,9 +71,9 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_captioner.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_backend.py` import nuscenes-devkit and
 transformers lazily inside methods specifically so these tests can monkeypatch them out — see
-`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_captioner.py`.
+`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_backend.py`.
 
 ### Integration tests
 
@@ -84,7 +84,7 @@ uv run pytest tests/integrationtests -v
 ```
 
 FastAPI runs in-process via `httpx.ASGITransport` — no port binding, no subprocess, and the real
-`HuggingFaceCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
+`BackendCaptioner` is swapped for a `FakeCaptioner` fixture so tests don't download model weights.
 
 ### Smoke tests
 
@@ -136,7 +136,7 @@ and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --cods
 backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── captioning/     # Captioner port + HuggingFace/Ollama/Anthropic backends and build_captioner
+├── captioning/     # Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel, build_captioner
 ├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
 ├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
 ├── errors.py       # DomainError hierarchy

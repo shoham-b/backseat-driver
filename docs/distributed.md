@@ -12,7 +12,7 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
                                  ▼
                           RabbitMQ [backseat_driver.caption]
                                  ▼
-                     caption-worker × N (HuggingFaceCaptioner, model loaded once)
+                     caption-worker × N (BackendCaptioner, model loaded once)
                                  ▼
                       Postgres (scene_descriptions)  ◀── GET /jobs/{id}
 ```
