@@ -56,7 +56,7 @@ def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_labe
     assert result.exit_code == 0, result.output
     assert [d["scene_name"] for d in written] == ["scene-0000", "scene-0001"]
     assert [d["reference_description"] for d in written] == SCENE_LABELS
-    assert [d["image_path"] for d in written] == [str(dataroot / middle_image(i)) for i in range(2)]
+    assert [Path(d["image_path"]) for d in written] == [dataroot / middle_image(i) for i in range(2)]
     assert all(Path(d["image_path"]).is_file() for d in written)
     assert captioner.seen_paths == [d["image_path"] for d in written]
 

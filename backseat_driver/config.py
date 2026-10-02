@@ -35,9 +35,10 @@ class Settings(BaseSettings):
     ui_host: str = "127.0.0.1"
     ui_port: int = 8081
 
-    # nuScenes dataset
+    # nuScenes dataset: the dataroot is a cache, filled from nuscenes_url when <dataroot>/<version> is missing
     nuscenes_dataroot: str = "data/sets/nuscenes"
     nuscenes_version: str = "v1.0-mini"
+    nuscenes_url: str = "https://d36yt3mvayqw5m.cloudfront.net/public/v1.0/v1.0-mini.tgz"
     camera_channel: str = "CAM_FRONT"
 
     # VLM captioning
