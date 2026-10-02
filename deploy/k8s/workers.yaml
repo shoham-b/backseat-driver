@@ -1,4 +1,5 @@
-# Both workers run the CLI image. Scale caption-worker with `kubectl scale`; replicas share one queue.
+# Each worker has its own image (no torch in ingest, no nuscenes-devkit in caption). Scale caption-worker with
+# `kubectl scale` or let KEDA do it (deploy/components/keda-autoscaling); replicas share one queue.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,7 +15,7 @@ spec:
       securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: worker
-          image: ghcr.io/shoham-b/backseat-driver-cli
+          image: ghcr.io/shoham-b/backseat-driver-ingest-worker
           imagePullPolicy: IfNotPresent
           args: [worker, ingest]
           envFrom:
@@ -44,7 +45,7 @@ spec:
       securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: worker
-          image: ghcr.io/shoham-b/backseat-driver-cli
+          image: ghcr.io/shoham-b/backseat-driver-caption-worker
           imagePullPolicy: IfNotPresent
           args: [worker, caption]
           envFrom:

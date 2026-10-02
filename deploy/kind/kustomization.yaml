@@ -1,0 +1,37 @@
+# Local cluster: `just k8s-up`. Uses the images built and loaded by that recipe, a hostPath volume for ./data,
+# and queue-depth autoscaling.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../k8s
+  - data-volume.yaml
+components:
+  - ../components/keda-autoscaling
+images:
+  - {name: ghcr.io/shoham-b/backseat-driver-api, newName: backseat-driver-api, newTag: local}
+  - {name: ghcr.io/shoham-b/backseat-driver-cli, newName: backseat-driver-cli, newTag: local}
+  - {name: ghcr.io/shoham-b/backseat-driver-ingest-worker, newName: backseat-driver-ingest-worker, newTag: local}
+  - {name: ghcr.io/shoham-b/backseat-driver-caption-worker, newName: backseat-driver-caption-worker, newTag: local}
+generatorOptions:
+  disableNameSuffixHash: true
+secretGenerator:
+  # Development credentials only, matching the base's RabbitMQ URL.
+  - name: rabbitmq-management
+    namespace: backseat-driver
+    literals:
+      - host=http://guest:guest@rabbitmq:15672/
+patches:
+  # One API replica is plenty locally, and each loads the model.
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 1}
+  # kind maps host port 8080 to this NodePort (see deploy/kind/cluster.yaml), so the API is at localhost:8080 as in compose.
+  - target: {kind: Service, name: api}
+    patch: |-
+      - {op: replace, path: /spec/type, value: NodePort}
+      - {op: add, path: /spec/ports/0/nodePort, value: 30080}
+  # Bind the dataset claim to the hostPath volume below instead of a dynamically provisioned one.
+  - target: {kind: PersistentVolumeClaim, name: nuscenes-data}
+    patch: |-
+      - {op: add, path: /spec/volumeName, value: nuscenes-data}
+      - {op: add, path: /spec/storageClassName, value: ""}

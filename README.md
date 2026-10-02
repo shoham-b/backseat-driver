@@ -132,7 +132,8 @@ live in [`deploy/k8s`](deploy/k8s) (`kubectl apply -k deploy/k8s`); see **[docs/
 
 ```bash
 just run        # run the pipeline
-just dev         # API dev server with hot reload (optional deployment mode)
+just dev         # API dev server with hot reload (monolith mode: no broker/database needed)
+just dev-distributed  # same, against RabbitMQ + Postgres in Docker
 just test        # unit + integration tests
 just fmt          # auto-fix and reformat
 just typecheck    # type check

@@ -45,6 +45,19 @@ jobs = [
     "sqlalchemy>=2.0",
 ]
 
+# Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
+ingest-worker = [
+    { include-group = "core" },
+    { include-group = "nuscenes" },
+    { include-group = "jobs" },
+]
+
+caption-worker = [
+    { include-group = "core" },
+    { include-group = "vlm" },
+    { include-group = "jobs" },
+]
+
 # Everything the batch CLI pipeline needs at runtime.
 cli = [
     { include-group = "core" },

@@ -6,9 +6,9 @@ There are several ways to run the project. They all run the same code and read t
 
 | Mode | What runs where | Commands |
 |---|---|---|
-| **1. Dev: local** | Everything on your machine, no Docker. `/describe` and the batch pipeline work as-is; `/ready` and `/jobs` need RabbitMQ + Postgres, which only the optional `just infra` provides. | `just dev`, `just run` |
+| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store, so no broker, database or workers are needed. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just run` |
 | **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
-| **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just serve` is the API's command outside a container |
+| **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just k8s-up` for a local kind cluster with autoscaling; `just serve` is the API's command outside a container |
 
 The batch pipeline (`backseat-driver run`) works in all three: on the host (`just run`), in a container (`just docker-run`), or as a Kubernetes Job.
 
@@ -18,13 +18,14 @@ The batch pipeline (`backseat-driver run`) works in all three: on the host (`jus
 |---|---|---|---|
 | Describe the dataset once | `just run` (= `uv run backseat-driver run`) | host | dataset in `data/` |
 | …in a container instead | `just docker-run` (= `docker compose --profile cli run --rm cli run`) | Docker | dataset in `data/` |
-| Debug the API locally | `just dev` (`fastapi dev`, no Docker) | host | nothing for `/describe`; RabbitMQ + Postgres for `/ready` and `/jobs` |
-| …with `/ready` and `/jobs` working | `just infra`, then `just dev` | API on host, RabbitMQ + Postgres in Docker | Docker |
-| Run the API in production mode | `just serve` (expects RabbitMQ + Postgres to exist; locally run `just infra` first) | host | RabbitMQ + Postgres |
+| Debug the API locally | `just dev` (`fastapi dev`, monolith: `/describe`, `/ready` and `/jobs` all work in-process, no Docker) | host | dataset in `data/` for `/jobs` |
+| …against real RabbitMQ + Postgres | `just dev-distributed`, plus `just worker-ingest` / `just worker-caption` | API and workers on host, RabbitMQ + Postgres in Docker | Docker, dataset |
+| Run the API in production mode | `just serve` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) | host | nothing, or RabbitMQ + Postgres in distributed mode |
 | Run the queue workers on the host | `just worker-ingest` / `just worker-caption` (start infra first) | same | Docker, dataset |
 | The whole distributed stack | `just up` (`just up-dev` hot-reloads the API) | Docker Compose | Docker, dataset |
 | The model-comparison UI | `just ui` (host) or `docker compose --profile ui up ui` | host / Docker | results in `output/` |
 | The same stack in a cluster | `just k8s-apply` | Kubernetes | cluster, dataset volume |
+| ...on a local kind cluster, autoscaling | `just k8s-up` | kind | Docker, kind, dataset in `data/` |
 
 `just --list` shows every recipe; the per-recipe comments say what each needs.
 
@@ -37,11 +38,12 @@ k8s CronJob `pipeline`┘
 
 just dev / just serve ─┐
 compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ ingest / caption workers ──▶ Postgres
-                           (/describe is synchronous; /jobs and /ready need RabbitMQ and Postgres)
+                           (/describe is synchronous; in distributed mode /jobs and /ready need RabbitMQ and Postgres;
+                            in the default monolith mode `just dev` runs the workers inside the API process)
 ```
 
-- **One image, two targets.** `docker/Dockerfile` builds `cli` (the pipeline, `db init` and the workers; entrypoint `backseat-driver`) and `api` (`fastapi run`). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api}`, which the Kubernetes manifests pull. Both run as the non-root user `app` (uid 10001).
-- **`/ready` needs infrastructure.** The API checks RabbitMQ and Postgres, so an API started without them reports not-ready and the smoke/system tests fail. `just infra` (local only; run for you by `just worker-*`, but not by `just dev` or `just serve`, and never needed in Kubernetes) starts both in Docker, publishes them on `127.0.0.1:5672` / `5432` (the defaults in `.env.example`) and creates the schema.
+- **One Dockerfile, a target per service.** `docker/Dockerfile` builds `cli` (the pipeline, `db init`, the report UI; entrypoint `backseat-driver`), `api` (`fastapi run`), `ingest-worker` (nuscenes-devkit, no torch) and `caption-worker` (torch, no nuscenes-devkit). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}`, which the Kubernetes manifests pull. All run as the non-root user `app` (uid 10001).
+- **`BACKSEAT_DRIVER_MODE` decides whether `/ready` needs infrastructure.** In the default `monolith` mode the queue and store live in the API process, so `just dev` is ready with nothing else running. In `distributed` mode (compose, Kubernetes, `just dev-distributed`) the API checks RabbitMQ and Postgres, so one started without them reports not-ready. `just infra` (local only; run for you by `just dev-distributed` and `just worker-*`, never needed in Kubernetes) starts both in Docker, publishes them on `127.0.0.1:5672` / `5432` (the defaults in `.env.example`) and creates the schema.
 - **Containers don't read `.env`.** Its `localhost` URLs would be wrong inside a container. Compose instead interpolates the captioner settings (`BACKSEAT_DRIVER_VLM_BACKEND`, model names, `ANTHROPIC_API_KEY`, …) from your shell or `.env`, so `BACKSEAT_DRIVER_VLM_BACKEND=ollama just up` and a `.env` entry behave the same. Broker and database URLs always point at the compose services.
 - **Ollama on the host.** Containers reach it at `host.docker.internal:11434`; override with `BACKSEAT_DRIVER_COMPOSE_OLLAMA_URL`.
 - **Model weights are cached** in the `hf-cache` volume, so repeat runs don't re-download them.

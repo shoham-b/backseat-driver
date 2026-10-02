@@ -16,7 +16,8 @@ import yaml
 from backseat_driver.api.app import app as api_app
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app as cli_app
-from backseat_driver.config import Settings
+from backseat_driver.config import RunMode, Settings
+from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
 
 ROOT = Path(__file__).parents[2]
 K8S = ROOT / "deploy" / "k8s"
@@ -159,7 +160,7 @@ def test_dataset_volume_is_mounted_read_only_everywhere() -> None:
                 assert volume["persistentVolumeClaim"]["readOnly"] is True, name
 
 
-@pytest.mark.parametrize("stage", ["cli", "api"])
+@pytest.mark.parametrize("stage", ["cli", "api", "ingest-worker", "caption-worker"])
 def test_runtime_images_drop_root(stage: str) -> None:
     dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
 
@@ -201,3 +202,34 @@ def test_example_run_job_is_a_valid_invocation_on_the_defined_volumes() -> None:
     assert job["metadata"]["namespace"] == yaml.safe_load((K8S / "kustomization.yaml").read_text())["namespace"]
     assert {v["persistentVolumeClaim"]["claimName"] for v in pod["volumes"] if "persistentVolumeClaim" in v} <= claims
     assert pod["securityContext"]["fsGroup"] == 10001  # so the non-root user can write to the results volume
+
+
+def test_cluster_runs_in_distributed_mode_not_the_monolith_default() -> None:
+    (config,) = [doc for doc in _of_kind("ConfigMap") if doc["metadata"]["name"] == "backseat-driver-config"]
+
+    assert config["data"]["BACKSEAT_DRIVER_MODE"] == RunMode.DISTRIBUTED
+
+
+def test_each_worker_runs_its_own_image() -> None:
+    images = {name: container["image"] for name, container in _our_containers() if name.endswith("-worker")}
+
+    assert images == {
+        "ingest-worker": "ghcr.io/shoham-b/backseat-driver-ingest-worker",
+        "caption-worker": "ghcr.io/shoham-b/backseat-driver-caption-worker",
+    }
+
+
+def test_autoscalers_target_the_workers_and_watch_the_queues_they_consume() -> None:
+    component = ROOT / "deploy" / "components" / "keda-autoscaling"
+    scaled = {
+        doc["metadata"]["name"]: doc
+        for doc in _documents(component / "autoscaling.yaml")
+        if doc["kind"] == "ScaledObject"
+    }
+    deployments = {doc["metadata"]["name"] for doc in _of_kind("Deployment")}
+
+    queues = {name: obj["spec"]["triggers"][0]["metadata"]["queueName"] for name, obj in scaled.items()}
+
+    assert queues == {"ingest-worker": INGEST_QUEUE, "caption-worker": CAPTION_QUEUE}
+    assert {obj["spec"]["scaleTargetRef"]["name"] for obj in scaled.values()} <= deployments
+    assert all(obj["spec"]["minReplicaCount"] >= 1 for obj in scaled.values())  # the model must stay loaded

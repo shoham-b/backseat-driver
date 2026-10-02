@@ -1,0 +1,13 @@
+# /data inside the kind node is the repo's ./data directory (extraMounts in deploy/kind/cluster.yaml).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: nuscenes-data
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes: [ReadWriteOnce]
+  storageClassName: ""
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /data
