@@ -1,0 +1,21 @@
+# Creates the tables (idempotent). The API and workers are not gated on it in Kubernetes: they build their
+# database clients lazily and Celery retries, so they recover on their own once this Job has succeeded.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: db-init
+          image: ghcr.io/shoham-b/backseat-driver-cli
+          imagePullPolicy: IfNotPresent
+          args: [db, init]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}

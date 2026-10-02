@@ -77,6 +77,15 @@ up:
 down:
     docker compose down
 
+# Render the Kubernetes manifests (needs kubectl)
+k8s-render:
+    kubectl kustomize deploy/k8s
+
+# Validate the rendered manifests against the Kubernetes schemas (no cluster needed)
+k8s-validate:
+    kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
+    uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
+
 
 
 # Build HTML docs

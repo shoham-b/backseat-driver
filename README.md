@@ -125,7 +125,8 @@ fast manual smoke check once you have the data locally.
 See **[docs/architecture.md#deployment](docs/architecture.md#deployment)** for the full discussion. Short
 version: `docker/Dockerfile` has two targets — `cli` (the pipeline, meant to run as a scheduled batch
 job / CronJob) and `api` (the same captioning logic behind `/describe`, for on-demand use). Both are built
-and pushed to `ghcr.io` in [`.github/workflows/docker.yml`](.github/workflows/docker.yml).
+and pushed to `ghcr.io` in [`.github/workflows/docker.yml`](.github/workflows/docker.yml). Kubernetes manifests
+live in [`deploy/k8s`](deploy/k8s) (`kubectl apply -k deploy/k8s`); see **[docs/deployment.md](docs/deployment.md)**.
 
 ## Development
 
@@ -146,6 +147,9 @@ codebase conventions.
 ```bash
 # Run the pipeline (primary deliverable)
 docker compose --profile cli run --rm cli
+
+# Model-comparison UI over ./output (http://localhost:8081)
+docker compose --profile ui up ui --build
 
 # Optional HTTP API
 docker compose up api --build

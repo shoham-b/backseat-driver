@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: api}
+  template:
+    metadata:
+      labels: {app: api}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: ghcr.io/shoham-b/backseat-driver-api
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080, name: http}]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          # /health only proves the process is up; /ready also checks the VLM, broker and database, so a pod
+          # whose dependencies are down is taken out of rotation instead of restarted.
+          livenessProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /ready, port: http}
+            periodSeconds: 5
+            timeoutSeconds: 10
+          startupProbe:
+            httpGet: {path: /health, port: http}
+            periodSeconds: 3
+            failureThreshold: 40
+          volumeMounts:
+            - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 250m, memory: 1Gi}
+            limits: {memory: 3Gi}
+      volumes:
+        - {name: hf-cache, emptyDir: {}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector: {app: api}
+  ports: [{port: 80, targetPort: http, name: http}]

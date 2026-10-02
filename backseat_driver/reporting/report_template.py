@@ -6,6 +6,7 @@ TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Backseat Driver Report</title>
+<link rel="icon" href="data:,">
 <style>
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #66707c; --border: #dde1e6;
@@ -23,7 +24,7 @@ TEMPLATE = r"""<!doctype html>
   h1 { margin: 0 0 4px; font-size: 22px; }
   h2 { margin: 0 0 12px; font-size: 16px; }
   .sub { color: var(--muted); margin: 0; }
-  main { padding: 16px 24px 48px; display: grid; gap: 20px; max-width: 1200px; margin: 0 auto; }
+  main { padding: 16px 24px 48px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; max-width: 1200px; margin: 0 auto; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
   .filters { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
   label { color: var(--muted); font-size: 13px; }

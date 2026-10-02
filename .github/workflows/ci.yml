@@ -76,6 +76,22 @@ jobs:
       - if: always()
         run: docker compose --profile test down
 
+  deploy-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - run: docker compose --profile cli --profile ui --profile test config --quiet
+      - run: kubectl kustomize deploy/k8s > rendered.yaml
+      - run: uvx kubernetes-validate rendered.yaml
+      - run: uvx kubernetes-validate deploy/k8s/examples/run-job.yaml
+
   audit:
     runs-on: ubuntu-latest
     permissions:

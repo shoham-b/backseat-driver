@@ -4,7 +4,7 @@ ARG PYTHON_VERSION=3.12
 
 # ── Stage 1: uv + Python base ─────────────────────────────────────────────────
 FROM python:${PYTHON_VERSION}-slim AS build-tools
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.8.17 /uv /usr/local/bin/uv
 ENV UV_LINK_MODE=copy
 
 # ── Stage 2: Build CLI dependencies (the batch pipeline) ──────────────────────
@@ -43,7 +43,11 @@ WORKDIR /app
 COPY --from=build-cli /app/.venv /app/.venv
 COPY --from=build-cli /app/backseat_driver /app/backseat_driver
 
-ENV PATH=/app/.venv/bin:$PATH
+# Non-root so the image runs under Kubernetes' runAsNonRoot; HF_HOME is where the model weights are cached.
+RUN useradd --system --uid 10001 --create-home app
+USER 10001
+ENV PATH=/app/.venv/bin:$PATH \
+    HF_HOME=/home/app/.cache/huggingface
 ENTRYPOINT ["backseat-driver"]
 CMD ["run"]
 
@@ -53,6 +57,9 @@ WORKDIR /app
 COPY --from=build-api /app/.venv /app/.venv
 COPY --from=build-api /app/backseat_driver /app/backseat_driver
 
-ENV PATH=/app/.venv/bin:$PATH
+RUN useradd --system --uid 10001 --create-home app
+USER 10001
+ENV PATH=/app/.venv/bin:$PATH \
+    HF_HOME=/home/app/.cache/huggingface
 EXPOSE 8080
 CMD ["fastapi", "run", "backseat_driver/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
