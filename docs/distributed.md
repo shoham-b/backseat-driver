@@ -42,7 +42,7 @@ The API's HTTP surface is identical in both modes; only where the work runs diff
 
 Each service has its own `docker/Dockerfile` target and dependency group: `api`, `ingest-worker` (nuscenes-devkit, no torch), `caption-worker` (torch, no nuscenes-devkit), and `cli` (everything, also used by `db-init`). Build one with `docker build -f docker/Dockerfile --target caption-worker .`.
 
-Run it with `just up` (and `docker compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data`, mounted read-only into both workers.
+Run it with `just up` (and `just compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data`, mounted read-only into both workers.
 
 ## Design choices
 

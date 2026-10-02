@@ -87,9 +87,9 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: docker compose --profile test run --build --rm systemtest
+      - run: docker compose -f docker/docker-compose.yml --project-directory . --profile test run --build --rm systemtest
       - if: always()
-        run: docker compose --profile test down
+        run: docker compose -f docker/docker-compose.yml --project-directory . --profile test down
 
   deploy-config:
     runs-on: ubuntu-latest
@@ -102,8 +102,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
-      - run: docker compose --profile cli --profile ui --profile test config --quiet
-      - run: docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml config --quiet
+      - run: docker compose -f docker/docker-compose.yml --project-directory . --profile cli --profile ui --profile test config --quiet
+      - run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --project-directory . config --quiet
       - run: kubectl kustomize deploy/k8s > rendered.yaml
       - run: uvx kubernetes-validate rendered.yaml
       - run: uvx kubernetes-validate deploy/k8s/examples/run-job.yaml

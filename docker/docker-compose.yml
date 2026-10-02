@@ -140,7 +140,7 @@ services:
       dockerfile: docker/Dockerfile
       target: ingest-worker
 
-  # Scale out with `docker compose up --scale caption-worker=N`; each replica pulls from the same queue.
+  # Scale out with `just compose up --scale caption-worker=N`; each replica pulls from the same queue.
   caption-worker:
     <<: *worker
     build:

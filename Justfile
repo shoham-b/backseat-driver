@@ -3,12 +3,15 @@
 
 set windows-shell := ["bash", "-c"]
 
+# The compose file lives in docker/, but paths and .env resolve from the repo root.
+compose := "docker compose -f docker/docker-compose.yml --project-directory ."
+
+# Run any docker compose command against the stack, e.g. `just compose --profile ui up ui`
+compose *ARGS:
+    {{compose}} {{ARGS}}
+
 default:
     @just --list
-
-# Sync all dev dependencies
-sync:
-    uv sync --group dev
 
 # Run the scene-description pipeline over the local nuScenes dataset
 run *ARGS:
@@ -42,8 +45,8 @@ test:
 
 # System tests via Docker Compose — builds images, runs system + smoke tests against containerised API
 test-compose:
-    docker compose --profile test run --build --rm systemtest
-    docker compose --profile test down
+    {{compose}} --profile test run --build --rm systemtest
+    {{compose}} --profile test down
 
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
@@ -85,12 +88,12 @@ serve:
 
 # LOCAL ONLY: RabbitMQ + Postgres in Docker on localhost, schema created (production gets these from Kubernetes)
 infra:
-    docker compose up -d --wait rabbitmq postgres
+    {{compose}} up -d --wait rabbitmq postgres
     uv run backseat-driver db init
 
 # Stop the stack and the infra started by `just infra`
 infra-down:
-    docker compose down
+    {{compose}} down
 
 # Host-run queue workers for local work (production runs them in Kubernetes); start the local infra first (needs Docker)
 worker-ingest: infra
@@ -102,19 +105,19 @@ worker-caption: infra
 
 # The pipeline in the cli container (same as `just run`, but containerised): `just docker-run --max-scenes 2`
 docker-run *ARGS:
-    docker compose --profile cli run --build --rm cli run {{ARGS}}
+    {{compose}} --profile cli run --build --rm cli run {{ARGS}}
 
 # Distributed mode, all in Docker: API + RabbitMQ + Postgres + ingest/caption workers
 up:
-    docker compose up --build
+    {{compose}} up --build
 
 # Same as `up`, with the API hot-reloading from ./backseat_driver
 up-dev:
-    docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up --build
+    {{compose}} -f docker/docker-compose.dev.yml up --build
 
 # Stop the distributed stack
 down:
-    docker compose down
+    {{compose}} down
 
 # Render the Kubernetes manifests (needs kubectl)
 k8s-render:
@@ -163,11 +166,11 @@ k8s-delete:
 
 # Build HTML docs
 docs:
-    uv run --group docs mkdocs build
+    uv run --group docs mkdocs build -f docs/mkdocs.yml
 
 # Serve docs with live reload
 docs-open:
-    uv run --group docs mkdocs serve
+    uv run --group docs mkdocs serve -f docs/mkdocs.yml
 
 # Install pre-commit hooks
 hooks:

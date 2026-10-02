@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Runs system + smoke tests against an already-running API container.
-# Usage: docker compose --profile test up --abort-on-container-exit
+# Usage: just compose --profile test up --abort-on-container-exit
 
 ARG PYTHON_VERSION=3.12
 FROM python:${PYTHON_VERSION}-slim

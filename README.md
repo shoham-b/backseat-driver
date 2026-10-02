@@ -151,7 +151,7 @@ just up           # API + RabbitMQ + Postgres + queue workers
 just k8s-apply    # the same stack on Kubernetes (deploy/k8s)
 
 # Model-comparison UI over ./output (http://localhost:8081)
-docker compose --profile ui up ui --build
+just compose --profile ui up ui --build
 
 See [docs/running.md](docs/running.md) for how these, `just dev` and the CLI fit together.
 ```
