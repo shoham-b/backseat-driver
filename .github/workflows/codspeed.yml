@@ -4,6 +4,7 @@ on:
   push:
     branches: [master, main]
   pull_request:
+  # Lets CodSpeed trigger backtest runs to generate initial performance data.
   workflow_dispatch:
 
 permissions: {}
@@ -14,10 +15,11 @@ concurrency:
 
 jobs:
   benchmarks:
+    name: Run benchmarks
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write # CodSpeed authenticates via OIDC, no token secret needed
+      id-token: write # OpenID Connect authentication with CodSpeed
     steps:
       - uses: actions/checkout@v7
         with:
@@ -26,7 +28,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --group dev
-      - uses: CodSpeedHQ/action@v5
+      - name: Run benchmarks
+        uses: CodSpeedHQ/action@v5
         with:
           mode: simulation
-          run: uv run --with pytest-codspeed pytest tests/benchmarks --codspeed
+          run: uv run pytest tests/benchmarks --codspeed

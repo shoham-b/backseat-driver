@@ -9,9 +9,9 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.adapters.factory import build_captioner
-from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
-from backseat_driver.adapters.ollama_captioner import OllamaCaptioner
+from backseat_driver.captioning.factory import build_captioner
+from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.captioning.ollama_captioner import OllamaCaptioner
 from backseat_driver.config import Settings, VlmBackend
 
 

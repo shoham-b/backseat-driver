@@ -14,6 +14,14 @@ sync:
 run *ARGS:
     uv run backseat-driver run {{ARGS}}
 
+# Build the static model-comparison HTML report from result JSON files
+report *ARGS:
+    uv run backseat-driver report {{ARGS}}
+
+# Serve the model-comparison UI locally (default: every JSON in output/)
+ui *ARGS:
+    uv run backseat-driver ui {{ARGS}}
+
 # Auto-fix and format
 fmt:
     uv run ruff check --fix .
@@ -37,9 +45,9 @@ test-compose:
     docker compose --profile test run --build --rm systemtest
     docker compose --profile test down
 
-# Benchmarks (CodSpeed; locally this just runs them, CI does the measuring)
+# Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
-    uv run --with pytest-codspeed pytest tests/benchmarks --codspeed
+    uv run pytest tests/benchmarks --codspeed
 
 # Smoke tests against a running service (set API_URL to override target)
 test-smoke:

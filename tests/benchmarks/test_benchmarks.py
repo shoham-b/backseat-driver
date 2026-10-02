@@ -1,6 +1,6 @@
 """CodSpeed benchmarks for the pure-Python parts of the pipeline.
 
-Skipped when pytest-codspeed isn't installed (it's only installed in the CodSpeed workflow),
+Skipped when pytest-codspeed isn't installed,
 so the regular test run is unaffected. The model is faked: we measure our own overhead, not inference.
 
 `@pytest.mark.benchmark` times the whole test body, so anything that isn't the code under test
@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.bl.pipeline import ScenePipeline, describe_keyframe
-from backseat_driver.bl.writer import write_json
 from backseat_driver.models import SceneDescription, SceneKeyframe
+from backseat_driver.scenes.pipeline import ScenePipeline, describe_keyframe
+from backseat_driver.scenes.writer import write_json
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
 
 pytest.importorskip("pytest_codspeed")

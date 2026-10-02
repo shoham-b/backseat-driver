@@ -14,8 +14,8 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
-from backseat_driver.bl.job_queue import JobQueue
-from backseat_driver.bl.job_store import JobStore
+from backseat_driver.jobs.job_queue import JobQueue
+from backseat_driver.jobs.job_store import JobStore
 from backseat_driver.models import IngestTask, Job, SceneDescription
 
 router = APIRouter(tags=["jobs"])

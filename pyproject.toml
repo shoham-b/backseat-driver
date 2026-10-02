@@ -84,6 +84,7 @@ dev = [
     "httpx>=0.28",
     "hypothesis>=6",
     "schemathesis>=3.0",
+    "pytest-codspeed>=5.0.3",
     { include-group = "cli" },
     { include-group = "api" },
 ]
@@ -102,6 +103,10 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "ASYNC"]
 
+[tool.ruff.lint.per-file-ignores]
+# Embedded HTML/JS page: long lines and typographic characters are intentional.
+"backseat_driver/reporting/report_template.py" = ["E501", "RUF001"]
+
 [tool.ruff.format]
 quote-style = "double"
 
@@ -117,8 +122,8 @@ asyncio_default_test_loop_scope = "session"
 
 [tool.coverage.run]
 source = ["backseat_driver"]
-omit = ["*/cli/*"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 95
+exclude_also = ["if __name__ == .__main__.:"]
 

@@ -1,4 +1,4 @@
-"""Celery tasks — the worker entry points, thin wrappers over `backseat_driver.bl.workers`.
+"""Celery tasks — the worker entry points, thin wrappers over `backseat_driver.jobs.workers`.
 
 Start a worker with `backseat-driver worker ingest|caption`, or directly:
 
@@ -16,20 +16,20 @@ from celery import Task
 from celery.signals import setup_logging as celery_setup_logging
 from pydantic import ValidationError
 
-from backseat_driver.adapters.celery_job_queue import (
+from backseat_driver.captioning.factory import build_captioner
+from backseat_driver.config import get_settings
+from backseat_driver.jobs.celery_job_queue import (
     CAPTION_TASK,
     INGEST_TASK,
     MAX_RETRIES,
     CeleryJobQueue,
     make_celery_app,
 )
-from backseat_driver.adapters.factory import build_captioner
-from backseat_driver.adapters.nuscenes_scene_loader import NuScenesSceneLoader
-from backseat_driver.adapters.postgres_job_store import PostgresJobStore
-from backseat_driver.bl.workers import CaptionWorker, IngestWorker
-from backseat_driver.config import get_settings
+from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import CaptionTask, IngestTask
+from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
 
 celery_app = make_celery_app(get_settings().rabbitmq_url)
 

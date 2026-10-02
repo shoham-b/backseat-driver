@@ -5,10 +5,10 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from backseat_driver.api.errors import APIError
-from backseat_driver.bl.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from backseat_driver.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
 
 # Maps each concrete DomainError subclass to its HTTP status code.
-# Add entries here as new domain errors are introduced in bl/errors.py.
+# Add entries here as new domain errors are introduced in errors.py.
 _DOMAIN_STATUS: dict[type[DomainError], HTTPStatus] = {
     NotFoundError: HTTPStatus.NOT_FOUND,
     ConflictError: HTTPStatus.CONFLICT,

@@ -17,7 +17,7 @@ _NO_CLUSTER = ["--without-gossip", "--without-mingle", "--without-heartbeat"]
 @worker_app.command()
 def ingest() -> None:
     """Consume ingest tasks: load the dataset and fan out one caption task per scene."""
-    from backseat_driver.adapters.celery_job_queue import INGEST_QUEUE
+    from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
     from backseat_driver.tasks import celery_app
 
     setup_logging(LogFormat(get_settings().log_format), service="ingest-worker")
@@ -27,7 +27,7 @@ def ingest() -> None:
 @worker_app.command()
 def caption() -> None:
     """Consume caption tasks: run each scene's keyframe through the VLM and record the result."""
-    from backseat_driver.adapters.celery_job_queue import CAPTION_QUEUE
+    from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
     from backseat_driver.tasks import caption_worker, celery_app
 
     setup_logging(LogFormat(get_settings().log_format), service="caption-worker")

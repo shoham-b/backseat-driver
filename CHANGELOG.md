@@ -7,6 +7,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- `report` CLI command: builds a self-contained HTML page comparing how each model described every scene, with scene/model/text filters and precision/recall/F1 against the nuScenes scene label
+- `reference_description` on `SceneKeyframe`/`SceneDescription`, filled from the nuScenes scene description
+
 ## [0.1.0] — Initial release
 
 ### Added

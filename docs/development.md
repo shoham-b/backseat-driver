@@ -29,11 +29,11 @@ Run `just --list` at any time to see all targets. The full table:
 | `just dev` | API dev server with hot reload (`fastapi dev`) — optional deployment mode |
 | `just serve` | API production-mode server, binds `0.0.0.0:8080` |
 | `just test` | Unit + integration tests with coverage |
-| `just bench` | CodSpeed benchmarks (`tests/benchmarks/`) |
 | `just test-smoke` | Smoke tests against a running API |
 | `just test-system` | System tests (requires the API to be running locally) |
 | `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
 | `just test-all` | All non-smoke tests with coverage |
+| `just bench` | Performance benchmarks (pytest-codspeed) |
 | `just lint` | Ruff check + format check (CI mode — no auto-fixes) |
 | `just fmt` | Auto-fix and reformat |
 | `just typecheck` | ty type check |
@@ -71,7 +71,7 @@ There are four test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `adapters/nuscenes_scene_loader.py` and `adapters/huggingface_captioner.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_captioner.py` import nuscenes-devkit and
 transformers lazily inside methods specifically so these tests can monkeypatch them out — see
 `tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_captioner.py`.
 
@@ -117,14 +117,29 @@ just test   # includes --cov; must stay above 80% (enforced in CI)
 
 Coverage is measured over `backseat_driver` excluding `cli/`.
 
+### Benchmarks
+
+```bash
+just bench   # or: uv run pytest tests/benchmarks --codspeed
+```
+
+`tests/benchmarks/` holds [pytest-codspeed](https://codspeed.io/docs/reference/pytest-codspeed) benchmarks
+for the pipeline, the queue workers, queue-message (de)serialization, the JSON writer and nuScenes keyframe
+selection. Like the unit tests they run against in-memory fakes, so they measure the code around the VLM, not
+the model. The `CodSpeed` workflow runs them in CPU simulation mode on every push and pull request and reports
+regressions on the PR. To measure locally the same way, install the [CodSpeed CLI](https://codspeed.io/docs/cli)
+and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --codspeed`.
+
 ## Package structure
 
 ```
 backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── bl/             # Business logic and the abstract ports it depends on: pipeline, workers, writer, errors
-├── adapters/       # Concrete platform implementations of the bl/ ports (nuScenes, HuggingFace, Ollama, Anthropic, Celery, Postgres)
+├── captioning/     # Captioner port + HuggingFace/Ollama/Anthropic backends and build_captioner
+├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
+├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
+├── errors.py       # DomainError hierarchy
 ├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
@@ -140,14 +155,14 @@ tests/
 
 ### Swapping the VLM
 
-`bl/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
-Subclass it under `backseat_driver/adapters/` (e.g. a different HF model, or a call to an external VLM API) and pass it
+`captioning/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
+Subclass it in `backseat_driver/captioning/`, next to the existing backends (e.g. a different HF model, or a call to an external VLM API) and pass it
 into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
 1. Add request/response models to `backseat_driver/models/` or directly in the router module.
-2. Add business logic to `backseat_driver/bl/`.
+2. Add domain logic to the matching capability package (`captioning/`, `scenes/`, `jobs/`).
 3. Create or extend a router in `backseat_driver/api/routers/`.
 4. Register the router in `backseat_driver/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.
