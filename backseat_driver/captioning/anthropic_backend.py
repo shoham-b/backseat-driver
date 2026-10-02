@@ -1,4 +1,4 @@
-"""Anthropic (Claude) adapter for the `Captioner` port.
+"""Anthropic (Claude) backend for the `CaptionBackend` port.
 
 Calls the hosted Messages API with the image and a prompt, so descriptions are far
 more detailed than BLIP's one-liners. Unlike the local backends this needs an API
@@ -9,8 +9,9 @@ import base64
 import urllib.request
 from pathlib import Path
 
-from backseat_driver.captioning._http import DETAILED_SCENE_PROMPT, post_json
-from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.captioning._http import post_json
+from backseat_driver.captioning.backend import CaptionBackend
+from backseat_driver.captioning.model import CaptionModel
 
 _API_VERSION = "2023-06-01"
 # A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).
@@ -23,49 +24,41 @@ _MEDIA_TYPES_BY_SUFFIX = {
 }
 
 
-class AnthropicCaptioner(Captioner):
-    """Image captioning backed by a Claude model through the Anthropic Messages API."""
+class AnthropicBackend(CaptionBackend):
+    """Runs Claude models through the Anthropic Messages API."""
 
     def __init__(
         self,
         api_key: str,
-        model_name: str = "claude-haiku-4-5-20251001",
         base_url: str = "https://api.anthropic.com",
-        prompt: str = DETAILED_SCENE_PROMPT,
         max_tokens: int = 512,
         timeout: float = 60.0,
     ) -> None:
         if not api_key:
-            raise ValueError("AnthropicCaptioner requires a non-empty api_key")
+            raise ValueError("AnthropicBackend requires a non-empty api_key")
         self._api_key = api_key
-        self._model_name = model_name
         self._base_url = base_url.rstrip("/")
-        self._prompt = prompt
         self._max_tokens = max_tokens
         self._timeout = timeout
 
-    @property
-    def model_name(self) -> str:
-        return self._model_name
-
-    def load(self) -> None:
+    def load(self, model: CaptionModel) -> None:
         # Hosted model: nothing to load locally.
         return
 
-    def caption(self, image_path: str) -> str:
+    def generate(self, image_path: str, model: CaptionModel) -> str:
         media_type = _MEDIA_TYPES_BY_SUFFIX.get(Path(image_path).suffix.lower())
         if media_type is None:
             raise ValueError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
         image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
         payload = {
-            "model": self._model_name,
+            "model": model.name,
             "max_tokens": self._max_tokens,
             "messages": [
                 {
                     "role": "user",
                     "content": [
                         {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
-                        {"type": "text", "text": self._prompt},
+                        {"type": "text", "text": model.prompt},
                     ],
                 }
             ],

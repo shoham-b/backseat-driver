@@ -9,10 +9,8 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.captioning.factory import build_captioner
-from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
-from backseat_driver.captioning.ollama_captioner import OllamaCaptioner
-from backseat_driver.config import Settings, VlmBackend
+from backseat_driver.captioning.model import CaptionModel
+from backseat_driver.captioning.ollama_backend import OllamaBackend
 
 
 class _FakeResponse(io.BytesIO):
@@ -43,9 +41,9 @@ def test_caption_posts_prompt_and_image_and_returns_stripped_response(
         return _FakeResponse(json.dumps({"response": "  a long, detailed description  "}).encode())
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
-    captioner = OllamaCaptioner(model_name="llava", base_url="http://ollama:11434/")
+    backend = OllamaBackend(base_url="http://ollama:11434/")
 
-    description = captioner.caption(image_path)
+    description = backend.generate(image_path, CaptionModel("llava"))
 
     assert description == "a long, detailed description"
     assert seen["url"] == "http://ollama:11434/api/generate"
@@ -61,7 +59,7 @@ def test_caption_raises_when_server_unreachable(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     with pytest.raises(RuntimeError, match="Cannot reach Ollama"):
-        OllamaCaptioner().caption(image_path)
+        OllamaBackend().generate(image_path, CaptionModel("llava"))
 
 
 def test_caption_raises_with_server_error_body(monkeypatch: pytest.MonkeyPatch, image_path: str) -> None:
@@ -73,7 +71,7 @@ def test_caption_raises_with_server_error_body(monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     with pytest.raises(RuntimeError, match="model not found"):
-        OllamaCaptioner().caption(image_path)
+        OllamaBackend().generate(image_path, CaptionModel("llava"))
 
 
 def test_healthcheck_is_false_when_server_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -82,35 +80,10 @@ def test_healthcheck_is_false_when_server_unreachable(monkeypatch: pytest.Monkey
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    assert OllamaCaptioner().healthcheck() is False
+    assert OllamaBackend().healthcheck() is False
 
 
 def test_healthcheck_is_true_when_server_responds(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(urllib.request, "urlopen", lambda url, timeout: _FakeResponse(b"{}"))
 
-    assert OllamaCaptioner().healthcheck() is True
-
-
-def test_build_captioner_defaults_to_huggingface() -> None:
-    settings = Settings()
-
-    captioner = build_captioner(settings)
-
-    assert isinstance(captioner, HuggingFaceCaptioner)
-
-
-def test_build_captioner_selects_ollama_with_configured_model_and_url() -> None:
-    settings = Settings(ollama_model_name="llama3.2-vision", ollama_url="http://gpu-box:11434")
-
-    captioner = build_captioner(settings, backend=VlmBackend.OLLAMA)
-
-    assert isinstance(captioner, OllamaCaptioner)
-    assert captioner.model_name == "llama3.2-vision"
-
-
-def test_build_captioner_model_override_wins() -> None:
-    settings = Settings()
-
-    captioner = build_captioner(settings, backend=VlmBackend.OLLAMA, model_name="bakllava")
-
-    assert captioner.model_name == "bakllava"
+    assert OllamaBackend().healthcheck() is True

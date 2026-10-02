@@ -9,11 +9,10 @@ from fastapi.testclient import TestClient
 from backseat_driver.api.app import app
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from backseat_driver.captioning.captioner import Captioner
-from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
-from tests.fakes import FakeJobQueue, FakeJobStore
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
 
 
-class _UnhealthyCaptioner(HuggingFaceCaptioner):
+class _UnhealthyCaptioner(FakeCaptioner):
     def healthcheck(self) -> bool:
         return False
 
@@ -70,11 +69,11 @@ def test_readiness_unhealthy_backend() -> None:
 
 def test_get_captioner_reads_from_app_state() -> None:
     mock_request = MagicMock()
-    mock_request.app.state.captioner = HuggingFaceCaptioner()
+    mock_request.app.state.captioner = FakeCaptioner()
 
     result = get_captioner(mock_request)
 
-    assert isinstance(result, HuggingFaceCaptioner)
+    assert result is mock_request.app.state.captioner
 
 
 def test_error_response_shape_on_unhandled_exception() -> None:

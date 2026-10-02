@@ -1,7 +1,8 @@
 """Port for vision-language captioning — turns an image on disk into a short description.
 
-Platform-specific implementations (HuggingFace, Ollama, Anthropic) live next to it in
-this package, so the rest of the code depends only on this abstract class.
+The rest of the code depends only on this abstract class. The standard implementation
+is `BackendCaptioner`, which pairs a `CaptionBackend` (HuggingFace, Ollama, Anthropic)
+with a `CaptionModel`.
 """
 
 from abc import ABC, abstractmethod

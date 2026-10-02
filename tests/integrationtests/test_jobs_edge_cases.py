@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from backseat_driver.api.app import app
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
-from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.captioning.backend_captioner import BackendCaptioner
 from backseat_driver.config import get_settings
 from backseat_driver.jobs import celery_job_queue, storage
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
@@ -158,7 +158,7 @@ def test_lifespan_wires_the_real_adapters_without_connecting(monkeypatch: pytest
         health = client.get("/health")
     get_settings.cache_clear()
 
-    assert isinstance(state.captioner, HuggingFaceCaptioner)
+    assert isinstance(state.captioner, BackendCaptioner)
     assert isinstance(state.job_queue, CeleryJobQueue)
     assert isinstance(state.job_store, PostgresJobStore)
     assert health.status_code == HTTPStatus.OK

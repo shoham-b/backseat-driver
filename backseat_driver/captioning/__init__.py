@@ -1,1 +1,1 @@
-"""Captioning: the `Captioner` port and its VLM backends (HuggingFace, Ollama, Anthropic)."""
+"""Captioning: the `Captioner` port, built from a `CaptionBackend` plus a `CaptionModel`."""

@@ -1,4 +1,4 @@
-"""Edge cases of the Anthropic and Ollama captioners beyond their happy paths (see their own test modules)."""
+"""Edge cases of the Anthropic and Ollama backends beyond their happy paths (see their own test modules)."""
 
 import io
 import json
@@ -11,8 +11,11 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.captioning.anthropic_captioner import AnthropicCaptioner
-from backseat_driver.captioning.ollama_captioner import OllamaCaptioner
+from backseat_driver.captioning.anthropic_backend import AnthropicBackend
+from backseat_driver.captioning.model import CaptionModel
+from backseat_driver.captioning.ollama_backend import OllamaBackend
+
+_MODEL = CaptionModel("test-model")
 
 
 class _FakeResponse(io.BytesIO):
@@ -33,11 +36,7 @@ def image_path(tmp_path: Path) -> str:
 
 
 def test_anthropic_load_is_a_noop_for_the_hosted_model() -> None:
-    assert AnthropicCaptioner(api_key="k").load() is None
-
-
-def test_anthropic_model_name_is_the_configured_model() -> None:
-    assert AnthropicCaptioner(api_key="k", model_name="claude-test").model_name == "claude-test"
+    assert AnthropicBackend(api_key="k").load(_MODEL) is None
 
 
 def test_anthropic_healthcheck_is_true_when_the_key_is_accepted(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,7 +49,7 @@ def test_anthropic_healthcheck_is_true_when_the_key_is_accepted(monkeypatch: pyt
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    healthy = AnthropicCaptioner(api_key="secret", base_url="https://api.test/").healthcheck()
+    healthy = AnthropicBackend(api_key="secret", base_url="https://api.test/").healthcheck()
 
     assert healthy is True
     assert seen["url"] == "https://api.test/v1/models?limit=1"
@@ -63,7 +62,7 @@ def test_anthropic_healthcheck_is_false_when_the_key_is_rejected(monkeypatch: py
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    assert AnthropicCaptioner(api_key="bad").healthcheck() is False
+    assert AnthropicBackend(api_key="bad").healthcheck() is False
 
 
 def test_anthropic_healthcheck_is_false_on_a_non_200_response(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -71,7 +70,7 @@ def test_anthropic_healthcheck_is_false_on_a_non_200_response(monkeypatch: pytes
     response.status = HTTPStatus.NO_CONTENT
     monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout: response)
 
-    assert AnthropicCaptioner(api_key="k").healthcheck() is False
+    assert AnthropicBackend(api_key="k").healthcheck() is False
 
 
 @pytest.mark.parametrize(
@@ -98,7 +97,7 @@ def test_anthropic_tags_each_supported_image_type(
 
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
-    AnthropicCaptioner(api_key="k").caption(str(path))
+    AnthropicBackend(api_key="k").generate(str(path), _MODEL)
 
     assert seen["body"]["messages"][0]["content"][0]["source"]["media_type"] == media_type
 
@@ -117,7 +116,7 @@ def test_anthropic_ignores_non_text_blocks_and_strips_the_joined_text(
     ).encode()
     monkeypatch.setattr(urllib.request, "urlopen", lambda request, timeout: _FakeResponse(body))
 
-    assert AnthropicCaptioner(api_key="k").caption(image_path) == "one two"
+    assert AnthropicBackend(api_key="k").generate(image_path, _MODEL) == "one two"
 
 
 def test_anthropic_reports_an_unreachable_service(monkeypatch: pytest.MonkeyPatch, image_path: str) -> None:
@@ -127,22 +126,18 @@ def test_anthropic_reports_an_unreachable_service(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
 
     with pytest.raises(RuntimeError, match="Cannot reach Anthropic"):
-        AnthropicCaptioner(api_key="k").caption(image_path)
+        AnthropicBackend(api_key="k").generate(image_path, _MODEL)
 
 
 def test_anthropic_caption_of_a_missing_file_fails_fast(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        AnthropicCaptioner(api_key="k").caption(str(tmp_path / "missing.jpg"))
+        AnthropicBackend(api_key="k").generate(str(tmp_path / "missing.jpg"), _MODEL)
 
 
 def test_ollama_load_is_a_noop_because_the_server_owns_the_model() -> None:
-    assert OllamaCaptioner().load() is None
-
-
-def test_ollama_model_name_is_the_configured_model() -> None:
-    assert OllamaCaptioner(model_name="llava:13b").model_name == "llava:13b"
+    assert OllamaBackend().load(_MODEL) is None
 
 
 def test_ollama_caption_of_a_missing_file_fails_fast(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        OllamaCaptioner().caption(str(tmp_path / "missing.png"))
+        OllamaBackend().generate(str(tmp_path / "missing.png"), _MODEL)
