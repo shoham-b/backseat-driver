@@ -46,11 +46,16 @@ def ui(
         list[Path] | None,
         typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
     ] = None,
-    host: Annotated[str, typer.Option(help="Interface to serve on")] = "127.0.0.1",
-    port: Annotated[int, typer.Option(help="Port to serve on")] = 8081,
+    host: Annotated[str | None, typer.Option(help="Interface to serve on [default: BACKSEAT_DRIVER_UI_HOST]")] = None,
+    port: Annotated[int | None, typer.Option(help="Port to serve on [default: BACKSEAT_DRIVER_UI_PORT]")] = None,
     open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the page in a browser")] = True,
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
+    from backseat_driver.config import get_settings
+
+    settings = get_settings()
+    host = host or settings.ui_host
+    port = port or settings.ui_port
     results = results or _default_results()
 
     with tempfile.TemporaryDirectory() as tmp:

@@ -83,3 +83,18 @@ def test_output_path_filename_is_always_safe(model: str) -> None:
 
     assert path.startswith("output/ollama__")
     assert "/" not in path.removeprefix("output/")
+
+
+def test_ui_defaults_to_loopback_on_8081() -> None:
+    s = Settings()
+
+    assert (s.ui_host, s.ui_port) == ("127.0.0.1", 8081)
+
+
+def test_ui_bind_address_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_HOST", "0.0.0.0")
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9000")
+
+    s = Settings()
+
+    assert (s.ui_host, s.ui_port) == ("0.0.0.0", 9000)

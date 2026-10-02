@@ -17,10 +17,12 @@ spec:
         - name: ui
           image: ghcr.io/shoham-b/backseat-driver-cli
           imagePullPolicy: IfNotPresent
-          args: [ui, --host, 0.0.0.0, --port, "8081", --no-open]
+          args: [ui, --no-open]
           ports: [{containerPort: 8081, name: http}]
           envFrom:
             - configMapRef: {name: backseat-driver-config}
+          env:
+            - {name: BACKSEAT_DRIVER_UI_HOST, value: 0.0.0.0}  # reachable through the Service, not just loopback
           readinessProbe:
             httpGet: {path: /, port: http}
             periodSeconds: 5

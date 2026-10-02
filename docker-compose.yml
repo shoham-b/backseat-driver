@@ -40,7 +40,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
       target: cli
-    command: ["ui", "--host", "0.0.0.0", "--port", "8081", "--no-open"]
+    command: ["ui", "--no-open"]
+    environment:
+      BACKSEAT_DRIVER_UI_HOST: 0.0.0.0
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output:ro

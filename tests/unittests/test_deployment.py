@@ -179,7 +179,7 @@ def test_compose_ui_service_serves_on_all_interfaces() -> None:
     ui = compose["services"]["ui"]
 
     assert ui["command"][0] == "ui"
-    assert "0.0.0.0" in ui["command"]
+    assert ui["environment"]["BACKSEAT_DRIVER_UI_HOST"] == "0.0.0.0"
     assert "--no-open" in ui["command"]
     assert ui["profiles"] == ["ui"]
 

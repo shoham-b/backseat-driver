@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     api_port: int = 8080
     log_format: Literal["colored", "json"] = "colored"
 
+    # Model-comparison UI (`backseat-driver ui`)
+    ui_host: str = "127.0.0.1"
+    ui_port: int = 8081
+
     # nuScenes dataset
     nuscenes_dataroot: str = "data/sets/nuscenes"
     nuscenes_version: str = "v1.0-mini"
