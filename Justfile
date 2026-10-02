@@ -71,8 +71,8 @@ api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
 dev:
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
-# Production-mode server on the host; binds all interfaces (needs `just infra`)
-serve:
+# Production-mode server on the host; binds all interfaces. Starts the infra first (needs Docker)
+serve: infra
     uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port {{api_port}}
 
 # RabbitMQ + Postgres in Docker (published on localhost) with the schema created, for host-run API/workers
@@ -84,12 +84,12 @@ infra:
 infra-down:
     docker compose down
 
-# Host-run queue workers (distributed mode); need `just infra`
-worker-ingest:
+# Host-run queue workers (distributed mode); start the infra first (needs Docker)
+worker-ingest: infra
     uv run backseat-driver worker ingest
 
 # ...and the caption worker (loads the model before consuming)
-worker-caption:
+worker-caption: infra
     uv run backseat-driver worker caption
 
 # The pipeline in the cli container (same as `just run`, but containerised): `just docker-run --max-scenes 2`
