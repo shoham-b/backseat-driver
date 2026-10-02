@@ -19,7 +19,9 @@ from backseat_driver.logger import LogFormat, setup_logging
 
 @app.command()
 def run(
-    dataroot: Annotated[str | None, typer.Option(help="Path to the local nuScenes dataset root")] = None,
+    dataroot: Annotated[
+        str | None, typer.Option(help="Cache directory for the nuScenes dataset (downloaded here if missing)")
+    ] = None,
     version: Annotated[str | None, typer.Option(help="nuScenes dataset version, e.g. v1.0-mini")] = None,
     camera: Annotated[str | None, typer.Option(help="Camera channel to use as the representative frame")] = None,
     backend: Annotated[
@@ -39,6 +41,7 @@ def run(
     setup_logging(LogFormat(settings.log_format), service="cli")
 
     from backseat_driver.captioning.factory import build_captioner
+    from backseat_driver.scenes.nuscenes_dataset import ensure_nuscenes_dataset
     from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
     from backseat_driver.scenes.pipeline import ScenePipeline
     from backseat_driver.scenes.writer import write_json
@@ -48,6 +51,7 @@ def run(
     camera = camera or settings.camera_channel
     output = output or settings.output_path_for(backend, model)
 
+    ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channel=camera)
     captioner = build_captioner(settings, backend=backend, model_name=model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
