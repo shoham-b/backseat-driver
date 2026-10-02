@@ -18,7 +18,7 @@ from backseat_driver.cli import test as test_cli
 from backseat_driver.cli import worker as worker_cli
 from backseat_driver.config import get_settings
 from backseat_driver.jobs import postgres_job_store
-from backseat_driver.scenes import nuscenes_dataset, nuscenes_scene_loader
+from backseat_driver.scenes import nuscenes_scene_loader
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
 
 runner = CliRunner()
@@ -29,7 +29,6 @@ def _isolate_global_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Commands call `setup_logging`, which replaces loguru's sinks process-wide; keep that out of other tests."""
     for module in (run_cli, db_cli, worker_cli):
         monkeypatch.setattr(module, "setup_logging", mock.Mock())
-    monkeypatch.setattr(nuscenes_dataset, "ensure_nuscenes_dataset", mock.Mock())  # never download in tests
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
