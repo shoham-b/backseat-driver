@@ -95,6 +95,17 @@ def test_descriptions_round_trip_through_the_database_sorted_by_scene(store: Pos
     assert descriptions[0].model_dump(exclude={"generated_at"}) == _description(1).model_dump(exclude={"generated_at"})
 
 
+def test_a_description_with_a_reference_label_is_stored_without_it(store: PostgresJobStore) -> None:
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx")
+    labelled = _description(1).model_copy(update={"reference_description": "Parked truck"})
+
+    store.record_description(job_id, labelled)
+
+    [stored] = store.list_descriptions(job_id)
+    assert stored.reference_description is None
+
+
 def test_a_job_with_no_descriptions_lists_none(store: PostgresJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")

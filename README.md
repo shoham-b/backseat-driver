@@ -27,7 +27,7 @@ generic scaffold.
    a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
    to produce a short natural-language description.
 3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
-   per scene to `output/scene_descriptions.json`:
+   per scene to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
 
    ```json
    [
@@ -82,7 +82,7 @@ uv sync --group dev
 
 # 3. Run the pipeline
 uv run backseat-driver run
-# → output/scene_descriptions.json
+# → output/huggingface__Salesforce-blip-image-captioning-base.json
 ```
 
 Or fully containerized, no local Python required:

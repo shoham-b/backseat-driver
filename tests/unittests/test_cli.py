@@ -96,7 +96,7 @@ def test_run_defaults_come_from_settings(
     monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/env/root")
     monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_VERSION", "v-env")
     monkeypatch.setenv("BACKSEAT_DRIVER_CAMERA_CHANNEL", "CAM_ENV")
-    monkeypatch.setenv("BACKSEAT_DRIVER_OUTPUT_PATH", str(tmp_path / "env.json"))
+    monkeypatch.setenv("BACKSEAT_DRIVER_OUTPUT_DIR", str(tmp_path))
 
     result = runner.invoke(app, ["run"])
 
@@ -104,7 +104,7 @@ def test_run_defaults_come_from_settings(
     pipeline_doubles["loader_cls"].assert_called_once_with(
         dataroot="/env/root", version="v-env", camera_channel="CAM_ENV"
     )
-    assert (tmp_path / "env.json").exists()
+    assert (tmp_path / "huggingface__Salesforce-blip-image-captioning-base.json").exists()
 
 
 def test_run_options_override_settings(

@@ -12,6 +12,8 @@ Usage::
     keyframes = loader.load_keyframes()
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
@@ -42,7 +44,7 @@ class NuScenesSceneLoader(SceneLoader):
         nusc = NuScenes(version=self._version, dataroot=self._dataroot, verbose=False)
         return [self._keyframe_for_scene(nusc, scene) for scene in nusc.scene]
 
-    def _keyframe_for_scene(self, nusc: "NuScenes", scene: dict[str, Any]) -> SceneKeyframe:
+    def _keyframe_for_scene(self, nusc: NuScenes, scene: dict[str, Any]) -> SceneKeyframe:
         sample = self._middle_sample(nusc, scene)
         sample_data_token = sample["data"].get(self._camera_channel)
         if sample_data_token is None:
@@ -52,10 +54,11 @@ class NuScenesSceneLoader(SceneLoader):
             scene_name=scene["name"],
             camera_channel=self._camera_channel,
             image_path=nusc.get_sample_data_path(sample_data_token),
+            reference_description=scene.get("description") or None,
         )
 
     @staticmethod
-    def _middle_sample(nusc: "NuScenes", scene: dict[str, Any]) -> dict[str, Any]:
+    def _middle_sample(nusc: NuScenes, scene: dict[str, Any]) -> dict[str, Any]:
         samples: list[dict[str, Any]] = []
         token = scene["first_sample_token"]
         while token:

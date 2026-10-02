@@ -4,7 +4,8 @@ Usage::
 
     backseat_driver run
     backseat_driver run --dataroot data/sets/nuscenes --version v1.0-mini \
-        --camera CAM_FRONT --output output/scene_descriptions.json
+        --camera CAM_FRONT --backend ollama --model llava:13b
+    # -> output/ollama__llava-13b.json
 """
 
 from typing import Annotated
@@ -26,7 +27,9 @@ def run(
         typer.Option(help="Captioner backend: huggingface (terse BLIP), ollama or anthropic (verbose, prompt-driven)"),
     ] = None,
     model: Annotated[str | None, typer.Option(help="Model name for the chosen backend")] = None,
-    output: Annotated[str | None, typer.Option(help="Path to write the JSON results to")] = None,
+    output: Annotated[
+        str | None, typer.Option(help="Where to write the JSON results [default: output/<backend>__<model>.json]")
+    ] = None,
     max_scenes: Annotated[
         int | None, typer.Option(help="Only process the first N scenes (useful for a quick run)")
     ] = None,
@@ -43,7 +46,7 @@ def run(
     dataroot = dataroot or settings.nuscenes_dataroot
     version = version or settings.nuscenes_version
     camera = camera or settings.camera_channel
-    output = output or settings.output_path
+    output = output or settings.output_path_for(backend, model)
 
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channel=camera)
     captioner = build_captioner(settings, backend=backend, model_name=model)

@@ -23,7 +23,8 @@ class PostgresJobStore(JobStore):
             raise NotFoundError(f"job {job_id} not found")
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        self._storage.insert_description(job_id, description.model_dump())
+        # The nuScenes reference label is only used by the CLI report; the table has no column for it.
+        self._storage.insert_description(job_id, description.model_dump(exclude={"reference_description"}))
 
     def get_job(self, job_id: UUID) -> Job:
         found = self._storage.fetch_job(job_id)

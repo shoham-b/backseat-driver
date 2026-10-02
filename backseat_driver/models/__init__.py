@@ -14,6 +14,7 @@ class SceneKeyframe(BaseModel):
     scene_name: str
     camera_channel: str
     image_path: str
+    reference_description: str | None = None  # nuScenes' own human-written scene label, used to score models
 
 
 class SceneDescription(BaseModel):
@@ -25,6 +26,7 @@ class SceneDescription(BaseModel):
     image_path: str
     description: str
     model_name: str
+    reference_description: str | None = None
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

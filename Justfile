@@ -14,6 +14,14 @@ sync:
 run *ARGS:
     uv run backseat-driver run {{ARGS}}
 
+# Build the static model-comparison HTML report from result JSON files
+report *ARGS:
+    uv run backseat-driver report {{ARGS}}
+
+# Serve the model-comparison UI locally (default: every JSON in output/)
+ui *ARGS:
+    uv run backseat-driver ui {{ARGS}}
+
 # Auto-fix and format
 fmt:
     uv run ruff check --fix .
