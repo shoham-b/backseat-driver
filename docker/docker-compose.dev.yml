@@ -1,10 +1,11 @@
-# Development overrides — hot-reload, source mounts, no image builds
-# Usage: docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up
+# Development overrides — API hot-reload against a live source mount.
+# Usage: just up-dev   (= docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml up --build)
 services:
   api:
     build:
       target: build-api      # Use the build stage, not the stripped runtime
-    command: ["uv", "run", "fastapi", "dev", "backseat_driver/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
+    # The venv is already built into the image; `uv run` would re-sync it (and need the network) on every start.
+    command: ["fastapi", "dev", "backseat_driver/api/app.py", "--host", "0.0.0.0", "--port", "8080"]
     volumes:
       - ./backseat_driver:/app/backseat_driver:ro   # live source mount
     environment:

@@ -1,0 +1,46 @@
+# The batch pipeline (`backseat-driver run`) as a CronJob, like `docker compose --profile cli run cli`.
+# Suspended so it never runs by surprise; trigger it with
+#   kubectl create job --from=cronjob/pipeline pipeline-manual -n backseat-driver
+# Results land on the `pipeline-output` volume as <backend>__<model>.json.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pipeline-output
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipeline
+spec:
+  schedule: "0 3 * * *"
+  suspend: true
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: pipeline
+              image: ghcr.io/shoham-b/backseat-driver-cli:latest
+              args: [run]
+              envFrom:
+                - configMapRef: {name: backseat-driver}
+                - secretRef: {name: backseat-driver}
+              volumeMounts:
+                - {name: data, mountPath: /app/data, readOnly: true}
+                - {name: output, mountPath: /app/output}
+                - {name: hf-cache, mountPath: /root/.cache/huggingface}
+          volumes:
+            - name: data
+              persistentVolumeClaim: {claimName: nuscenes-data}
+            - name: output
+              persistentVolumeClaim: {claimName: pipeline-output}
+            - name: hf-cache
+              emptyDir: {}

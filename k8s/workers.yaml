@@ -1,0 +1,67 @@
+# The dataset lives on a shared ReadWriteMany volume, as with compose's ./data mount: queue messages carry image
+# paths, not pixels, so every worker must see the same files. Bind `nuscenes-data` to storage you have populated
+# (see docs/running.md); an unmatched claim leaves the workers Pending.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nuscenes-data
+spec:
+  accessModes: [ReadWriteMany]
+  resources:
+    requests:
+      storage: 50Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingest-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: ingest-worker}
+  template:
+    metadata:
+      labels: {app: ingest-worker}
+    spec:
+      containers:
+        - name: ingest-worker
+          image: ghcr.io/shoham-b/backseat-driver-cli:latest
+          args: [worker, ingest]
+          envFrom:
+            - configMapRef: {name: backseat-driver}
+            - secretRef: {name: backseat-driver}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data}
+---
+# Scale with `kubectl scale deploy/caption-worker --replicas=N -n backseat-driver`.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caption-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: caption-worker}
+  template:
+    metadata:
+      labels: {app: caption-worker}
+    spec:
+      containers:
+        - name: caption-worker
+          image: ghcr.io/shoham-b/backseat-driver-cli:latest
+          args: [worker, caption]
+          envFrom:
+            - configMapRef: {name: backseat-driver}
+            - secretRef: {name: backseat-driver}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+            - {name: hf-cache, mountPath: /root/.cache/huggingface}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data}
+        # Per-pod scratch: each replica downloads the weights once per pod lifetime.
+        - name: hf-cache
+          emptyDir: {}

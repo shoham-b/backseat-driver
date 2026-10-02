@@ -76,6 +76,19 @@ jobs:
       - if: always()
         run: docker compose --profile test down
 
+  deploy-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: docker compose --profile cli --profile test config -q
+      - run: docker compose -f docker-compose.yml -f docker/docker-compose.dev.yml config -q
+      # kubectl is preinstalled on ubuntu-latest; this fails on any manifest kustomize can't render.
+      - run: kubectl kustomize k8s > /dev/null
+
   audit:
     runs-on: ubuntu-latest
     permissions:

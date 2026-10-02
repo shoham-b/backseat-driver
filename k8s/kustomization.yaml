@@ -1,0 +1,13 @@
+# Same topology as docker-compose.yml: postgres + rabbitmq, a db-init Job, the API, and the two worker kinds.
+# Apply with `just k8s-apply` (kubectl apply -k k8s). Images are the ones docker.yml publishes to ghcr.io.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: backseat-driver
+resources:
+  - namespace.yaml
+  - config.yaml
+  - infra.yaml
+  - db-init.yaml
+  - api.yaml
+  - workers.yaml
+  - batch.yaml
