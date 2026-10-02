@@ -9,7 +9,7 @@ import pytest
 from typer.testing import CliRunner
 
 from backseat_driver import __version__
-from backseat_driver.adapters import factory, nuscenes_scene_loader, postgres_job_store
+from backseat_driver.captioning import factory
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
 from backseat_driver.cli import db as db_cli
@@ -17,6 +17,8 @@ from backseat_driver.cli import run as run_cli
 from backseat_driver.cli import test as test_cli
 from backseat_driver.cli import worker as worker_cli
 from backseat_driver.config import get_settings
+from backseat_driver.jobs import postgres_job_store
+from backseat_driver.scenes import nuscenes_scene_loader
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
 
 runner = CliRunner()
@@ -213,7 +215,7 @@ def test_db_init_fails_loudly_when_the_database_is_unreachable(monkeypatch: pyte
 
 def test_ingest_worker_consumes_only_the_ingest_queue(monkeypatch: pytest.MonkeyPatch) -> None:
     from backseat_driver import tasks
-    from backseat_driver.adapters.celery_job_queue import INGEST_QUEUE
+    from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
 
     worker_main = mock.Mock()
     monkeypatch.setattr(tasks.celery_app, "worker_main", worker_main)
@@ -229,7 +231,7 @@ def test_ingest_worker_consumes_only_the_ingest_queue(monkeypatch: pytest.Monkey
 
 def test_caption_worker_loads_the_model_before_it_starts_consuming(monkeypatch: pytest.MonkeyPatch) -> None:
     from backseat_driver import tasks
-    from backseat_driver.adapters.celery_job_queue import CAPTION_QUEUE
+    from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
 
     order: list[str] = []
     monkeypatch.setattr(tasks, "caption_worker", lambda: order.append("load"))

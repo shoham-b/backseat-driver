@@ -6,9 +6,9 @@ import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import OperationalError
 
-from backseat_driver.db import storage
-from backseat_driver.db.orm import SceneDescriptionRow
-from backseat_driver.db.storage import JobStorage
+from backseat_driver.jobs import storage
+from backseat_driver.jobs.orm import SceneDescriptionRow
+from backseat_driver.jobs.storage import JobStorage
 
 
 def _values(n: int = 1) -> dict:

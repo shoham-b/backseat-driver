@@ -5,10 +5,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from backseat_driver.adapters.postgres_job_store import PostgresJobStore
-from backseat_driver.bl.errors import NotFoundError
-from backseat_driver.db import storage
-from backseat_driver.db.storage import JobStorage
+from backseat_driver.errors import NotFoundError
+from backseat_driver.jobs import storage
+from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import JobState, SceneDescription
 
 

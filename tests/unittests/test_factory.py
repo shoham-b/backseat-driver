@@ -1,10 +1,10 @@
 import pytest
 from pydantic import SecretStr
 
-from backseat_driver.adapters.anthropic_captioner import AnthropicCaptioner
-from backseat_driver.adapters.factory import build_captioner
-from backseat_driver.adapters.huggingface_captioner import HuggingFaceCaptioner
-from backseat_driver.adapters.ollama_captioner import OllamaCaptioner
+from backseat_driver.captioning.anthropic_captioner import AnthropicCaptioner
+from backseat_driver.captioning.factory import build_captioner
+from backseat_driver.captioning.huggingface_captioner import HuggingFaceCaptioner
+from backseat_driver.captioning.ollama_captioner import OllamaCaptioner
 from backseat_driver.config import Settings, VlmBackend
 
 

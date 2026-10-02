@@ -4,8 +4,8 @@ from uuid import uuid4
 import pytest
 from kombu.exceptions import OperationalError as KombuOperationalError
 
-from backseat_driver.adapters import celery_job_queue
-from backseat_driver.adapters.celery_job_queue import (
+from backseat_driver.jobs import celery_job_queue
+from backseat_driver.jobs.celery_job_queue import (
     CAPTION_QUEUE,
     CAPTION_TASK,
     INGEST_QUEUE,

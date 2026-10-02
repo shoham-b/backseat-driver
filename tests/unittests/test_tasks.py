@@ -7,9 +7,9 @@ from celery import Task
 from pydantic import ValidationError
 
 from backseat_driver import tasks
+from backseat_driver.config import get_settings
 from backseat_driver.jobs.celery_job_queue import MAX_RETRIES
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
-from backseat_driver.config import get_settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import CaptionTask, IngestTask
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe

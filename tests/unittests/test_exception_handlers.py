@@ -6,7 +6,7 @@ import pytest
 
 from backseat_driver.api.errors import APIError
 from backseat_driver.api.exception_handlers import api_error_handler, domain_error_handler, unhandled_exception_handler
-from backseat_driver.bl.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from backseat_driver.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
 
 
 class _UnmappedDomainError(DomainError):
