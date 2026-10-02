@@ -64,7 +64,8 @@ def ensure_nuscenes_dataset(dataroot: str, version: str, url: str) -> None:
     with urllib.request.urlopen(url) as response:
         length = response.headers.get("Content-Length")
         reader = _ProgressReader(response, int(length) if length else None)
-        with tarfile.open(fileobj=reader, mode="r|gz") as archive:  # type: ignore[call-overload]
+        # Stream mode only ever calls read(); the stubs demand a seekable, writable file object regardless.
+        with tarfile.open(fileobj=reader, mode="r|gz") as archive:  # type: ignore
             archive.extractall(scratch, filter="data")
 
     if not (scratch / version).is_dir():
