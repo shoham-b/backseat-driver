@@ -1,10 +1,12 @@
 """In-memory test doubles — no broker, no database, no model."""
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.captioning.http_client import HttpClient
 from backseat_driver.config import Settings
 from backseat_driver.errors import NotFoundError
 from backseat_driver.jobs.job_queue import JobQueue
@@ -115,3 +117,42 @@ def make_keyframe(n: int) -> SceneKeyframe:
         camera_channel="CAM_FRONT",
         image_path=f"/img/{n}.jpg",
     )
+
+
+@dataclass(frozen=True)
+class PostedJson:
+    url: str
+    payload: dict[str, Any]
+    headers: dict[str, str]
+    timeout: float
+    service: str
+
+
+@dataclass(frozen=True)
+class Probe:
+    url: str
+    headers: dict[str, str]
+    timeout: float
+
+
+class FakeHttpClient(HttpClient):
+    """Answers `post_json` with a canned body (or raises) and `is_reachable` with a canned flag, recording each call."""
+
+    def __init__(self, response: dict[str, Any] | None = None, error: Exception | None = None, reachable: bool = True):
+        self.posts: list[PostedJson] = []
+        self.probes: list[Probe] = []
+        self._response = response if response is not None else {}
+        self._error = error
+        self._reachable = reachable
+
+    def post_json(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float, service: str
+    ) -> dict[str, Any]:
+        self.posts.append(PostedJson(url, payload, headers, timeout, service))
+        if self._error:
+            raise self._error
+        return self._response
+
+    def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
+        self.probes.append(Probe(url, headers, timeout))
+        return self._reachable
