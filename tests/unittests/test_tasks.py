@@ -15,7 +15,6 @@ from tests.fakes import (
     FakeCaptioner,
     FakeJobQueue,
     FakeJobStore,
-    FakeLogging,
     FakeSceneLoader,
     make_keyframe,
     make_settings,
@@ -231,8 +230,8 @@ def test_workers_build_nothing_until_asked() -> None:
 
 
 def test_worker_logging_is_service_tagged() -> None:
-    logging = FakeLogging()
+    calls: list[tuple[LogFormat, str]] = []
 
-    tasks.configure_worker_logging(make_settings(), setup=logging)
+    tasks.configure_worker_logging(make_settings(), setup=lambda fmt, service: calls.append((fmt, service)))
 
-    assert logging.calls == [(LogFormat.COLORED, "worker")]
+    assert calls == [(LogFormat.COLORED, "worker")]

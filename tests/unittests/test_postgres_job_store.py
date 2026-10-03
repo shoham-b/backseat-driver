@@ -3,6 +3,8 @@ from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.jobs.postgres_job_store import PostgresJobStore
@@ -29,7 +31,12 @@ def _description(n: int, text: str | None = None) -> SceneDescription:
 
 def test_constructing_the_store_never_connects() -> None:
     engines_created: list[object] = []
-    job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=lambda *a, **k: engines_created.append(a))
+
+    def engine_factory(*args: object, **kwargs: object) -> Engine:
+        engines_created.append(args)
+        return create_engine("sqlite://")
+
+    job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=engine_factory)
 
     PostgresJobStore(job_storage)
 
