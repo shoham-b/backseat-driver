@@ -8,12 +8,13 @@ the scene in motion.
 
 Usage::
 
-    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini")
+    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini", camera_channels=["CAM_FRONT"])
     keyframes = loader.load_keyframes()
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
@@ -24,6 +25,10 @@ if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes
 
 
+# The six cameras on a nuScenes vehicle, front-centre first then clockwise.
+ALL_CAMERA_CHANNELS = ("CAM_FRONT", "CAM_FRONT_RIGHT", "CAM_BACK_RIGHT", "CAM_BACK", "CAM_BACK_LEFT", "CAM_FRONT_LEFT")
+
+
 class NuScenesSceneLoader(SceneLoader):
     """Reads scenes from a local nuScenes dataset via nuscenes-devkit."""
 
@@ -31,28 +36,37 @@ class NuScenesSceneLoader(SceneLoader):
         self,
         dataroot: str,
         version: str = "v1.0-mini",
-        camera_channel: str = "CAM_FRONT",
+        camera_channels: Sequence[str] = ("CAM_FRONT",),
     ) -> None:
+        if not camera_channels:
+            raise ValueError("camera_channels must name at least one camera")
         self._dataroot = dataroot
         self._version = version
-        self._camera_channel = camera_channel
+        self._camera_channels = tuple(camera_channels)
 
     def load_keyframes(self) -> list[SceneKeyframe]:
-        """Return one SceneKeyframe per scene in the dataset, in dataset order."""
+        """Return one SceneKeyframe per scene and camera, in dataset order (a scene's cameras stay together)."""
         from nuscenes.nuscenes import NuScenes
 
         nusc = NuScenes(version=self._version, dataroot=self._dataroot, verbose=False)
-        return [self._keyframe_for_scene(nusc, scene) for scene in nusc.scene]
+        keyframes: list[SceneKeyframe] = []
+        for scene in nusc.scene:
+            sample = self._middle_sample(nusc, scene)
+            for channel in self._camera_channels:
+                keyframes.append(self._keyframe_for_camera(nusc, scene, sample, channel))
+        return keyframes
 
-    def _keyframe_for_scene(self, nusc: NuScenes, scene: dict[str, Any]) -> SceneKeyframe:
-        sample = self._middle_sample(nusc, scene)
-        sample_data_token = sample["data"].get(self._camera_channel)
+    @staticmethod
+    def _keyframe_for_camera(
+        nusc: NuScenes, scene: dict[str, Any], sample: dict[str, Any], channel: str
+    ) -> SceneKeyframe:
+        sample_data_token = sample["data"].get(channel)
         if sample_data_token is None:
-            raise NotFoundError(f"Scene {scene['name']!r} has no {self._camera_channel} data in its middle sample")
+            raise NotFoundError(f"Scene {scene['name']!r} has no {channel} data in its middle sample")
         return SceneKeyframe(
             scene_token=scene["token"],
             scene_name=scene["name"],
-            camera_channel=self._camera_channel,
+            camera_channel=channel,
             # The devkit joins with os.sep but its table paths use "/"; normalise so the JSON is portable across OSes.
             image_path=nusc.get_sample_data_path(sample_data_token).replace("\\", "/"),
             reference_description=scene.get("description") or None,

@@ -16,7 +16,7 @@ spec:
         - name: run
           image: ghcr.io/shoham-b/backseat-driver-cli:latest
           imagePullPolicy: IfNotPresent
-          args: [run, --backend, huggingface]
+          args: [run, --camera, CAM_FRONT, --backend, huggingface]
           envFrom:
             - configMapRef: {name: backseat-driver-config}
             - secretRef: {name: backseat-driver-secrets}

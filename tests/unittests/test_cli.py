@@ -81,28 +81,27 @@ def test_run_writes_one_json_entry_per_scene_and_echoes_them(
 ) -> None:
     output = tmp_path / "out" / "descriptions.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(output)])
 
     assert result.exit_code == 0, result.output
     written = json.loads(output.read_text(encoding="utf-8"))
     assert [d["scene_name"] for d in written] == ["scene-0001", "scene-0002", "scene-0003"]
     assert "Wrote 3 scene description(s)" in result.output
-    assert "scene-0002: a quiet street" in result.output
+    assert "scene-0002 [CAM_FRONT]: a quiet street" in result.output
 
 
-def test_run_defaults_come_from_settings(
+def test_run_dataset_defaults_come_from_settings(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]
 ) -> None:
     monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/env/root")
     monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_VERSION", "v-env")
-    monkeypatch.setenv("BACKSEAT_DRIVER_CAMERA_CHANNEL", "CAM_ENV")
     monkeypatch.setenv("BACKSEAT_DRIVER_OUTPUT_DIR", str(tmp_path))
 
-    result = runner.invoke(app, ["run"])
+    result = runner.invoke(app, ["run", "--camera", "CAM_ENV"])
 
     assert result.exit_code == 0, result.output
     pipeline_doubles["loader_cls"].assert_called_once_with(
-        dataroot="/env/root", version="v-env", camera_channel="CAM_ENV"
+        dataroot="/env/root", version="v-env", camera_channels=["CAM_ENV"]
     )
     assert (tmp_path / "huggingface__Salesforce-blip-image-captioning-base.json").exists()
 
@@ -127,7 +126,7 @@ def test_run_options_override_settings(
 
     assert result.exit_code == 0, result.output
     pipeline_doubles["loader_cls"].assert_called_once_with(
-        dataroot="/cli/root", version="v-cli", camera_channel="CAM_BACK"
+        dataroot="/cli/root", version="v-cli", camera_channels=["CAM_BACK"]
     )
     [(settings,), kwargs] = pipeline_doubles["build"].call_args
     assert kwargs == {"backend": "ollama", "model_name": "llava:7b"}
@@ -137,7 +136,7 @@ def test_run_options_override_settings(
 def test_run_max_scenes_limits_the_work(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--max-scenes", "2", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--max-scenes", "2", "--output", str(output)])
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text(encoding="utf-8"))) == 2
@@ -148,7 +147,7 @@ def test_run_on_an_empty_dataset_writes_an_empty_array(tmp_path: Path, monkeypat
     monkeypatch.setattr(factory, "build_captioner", mock.Mock(return_value=FakeCaptioner()))
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(output)])
 
     assert result.exit_code == 0, result.output
     assert json.loads(output.read_text(encoding="utf-8")) == []
@@ -177,7 +176,7 @@ def test_run_surfaces_a_failing_captioner_rather_than_writing_partial_output(
     monkeypatch.setattr(factory, "build_captioner", mock.Mock(return_value=captioner))
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(output)])
 
     assert result.exit_code == 1
     assert isinstance(result.exception, RuntimeError)
@@ -320,3 +319,36 @@ def test_smoke_explains_how_to_install_pytest_when_it_is_missing(monkeypatch: py
 
     assert result.exit_code == 1
     assert "uv sync --group dev" in result.output
+
+
+def test_run_all_cameras_loads_every_nuscenes_camera(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
+    result = runner.invoke(app, ["run", "--all-cameras", "--output", str(tmp_path / "o.json")])
+
+    assert result.exit_code == 0, result.output
+    [kwargs] = [call.kwargs for call in pipeline_doubles["loader_cls"].call_args_list]
+    assert kwargs["camera_channels"] == list(nuscenes_scene_loader.ALL_CAMERA_CHANNELS)
+
+
+def test_run_repeated_camera_flags_select_those_cameras(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
+    result = runner.invoke(
+        app, ["run", "--camera", "CAM_BACK", "--camera", "CAM_FRONT", "--output", str(tmp_path / "o.json")]
+    )
+
+    assert result.exit_code == 0, result.output
+    [kwargs] = [call.kwargs for call in pipeline_doubles["loader_cls"].call_args_list]
+    assert kwargs["camera_channels"] == ["CAM_BACK", "CAM_FRONT"]
+
+
+def test_run_rejects_all_cameras_together_with_camera(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
+    result = runner.invoke(app, ["run", "--all-cameras", "--camera", "CAM_BACK", "--output", str(tmp_path / "o.json")])
+
+    assert result.exit_code == 2
+    pipeline_doubles["loader_cls"].assert_not_called()
+
+
+def test_run_requires_a_camera_choice(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
+    result = runner.invoke(app, ["run", "--output", str(tmp_path / "o.json")])
+
+    assert result.exit_code == 2
+    assert "--all-cameras" in result.output
+    pipeline_doubles["loader_cls"].assert_not_called()

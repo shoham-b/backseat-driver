@@ -26,7 +26,7 @@ def build_job_backend(settings: Settings, captioner: Captioner) -> tuple[JobQueu
     loader = NuScenesSceneLoader(
         dataroot=settings.nuscenes_dataroot,
         version=settings.nuscenes_version,
-        camera_channel=settings.camera_channel,
+        camera_channels=[settings.camera_channel],
     )
     queue.register(
         on_ingest=IngestWorker(loader=loader, queue=queue, store=store).handle,
