@@ -27,6 +27,8 @@ The batch pipeline (`backseat-driver run`) works in all three: on the host (`jus
 | The same stack in a cluster | `just k8s-apply` | Kubernetes | cluster, dataset volume |
 | ...on a local kind cluster, autoscaling | `just k8s-up` | kind | Docker, kind, dataset in `data/` |
 
+A static copy of the UI, built from the sample results in `demo/` (BLIP on ten nuScenes front-camera keyframes), is published at `/ui/` on the docs site by `.github/workflows/pages.yml`. It has no live-inference card because Pages has no API behind it. To refresh it, copy new `run` output into `demo/`, rewriting each `image_path` to a copied keyframe under `demo/images/`. The keyframes are from nuScenes ([CC BY-NC-SA 4.0](https://www.nuscenes.org/terms-of-use)); keep the sample small.
+
 `just --list` shows every recipe; the per-recipe comments say what each needs.
 
 ## How the pieces relate

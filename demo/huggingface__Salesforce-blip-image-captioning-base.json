@@ -1,0 +1,102 @@
+[
+  {
+    "scene_token": "cc8c0bf57f984915a77078b10eb33198",
+    "scene_name": "scene-0061",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0061__CAM_FRONT.jpg",
+    "description": "a construction site",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Parked truck, construction, intersection, turn left, following a van",
+    "generated_at": "2026-10-03T17:49:36.641833Z"
+  },
+  {
+    "scene_token": "fcbccedd61424f1b85dcbf8f897f9754",
+    "scene_name": "scene-0103",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0103__CAM_FRONT.jpg",
+    "description": "a street with cars",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Many peds right, wait for turning car, long bike rack left, cyclist",
+    "generated_at": "2026-10-03T17:49:39.223813Z"
+  },
+  {
+    "scene_token": "6f83169d067343658251f72e1dd17dbc",
+    "scene_name": "scene-0553",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0553__CAM_FRONT.jpg",
+    "description": "a crosswalk in a city",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Wait at intersection, bicycle, large truck, peds crossing crosswalk, ped with stroller",
+    "generated_at": "2026-10-03T17:49:41.737556Z"
+  },
+  {
+    "scene_token": "bebf5f5b2a674631ab5c88fd1aa9e87a",
+    "scene_name": "scene-0655",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0655__CAM_FRONT.jpg",
+    "description": "a street with a white line",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Parking lot, parked cars, jaywalker, bendy bus, gardening vehicles",
+    "generated_at": "2026-10-03T17:49:43.578332Z"
+  },
+  {
+    "scene_token": "2fc3753772e241f2ab2cd16a784cc680",
+    "scene_name": "scene-0757",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0757__CAM_FRONT.jpg",
+    "description": "a white crosswalk",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Arrive at busy intersection, bus, wait at intersection, bicycle, peds",
+    "generated_at": "2026-10-03T17:49:46.090007Z"
+  },
+  {
+    "scene_token": "c5224b9b454b4ded9b5d2d2634bbda8a",
+    "scene_name": "scene-0796",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0796__CAM_FRONT.jpg",
+    "description": "a street with a white line",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Scooter, peds on sidewalk, bus, cars, truck, fake construction worker, bicycle, cross intersection, car overtaking us",
+    "generated_at": "2026-10-03T17:49:48.765511Z"
+  },
+  {
+    "scene_token": "325cef682f064c55a255f2625c533b75",
+    "scene_name": "scene-0916",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-0916__CAM_FRONT.jpg",
+    "description": "a street with cars parked on it",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Parking lot, bicycle rack, parked bicycles, bus, many peds, parked scooters, parked motorcycle",
+    "generated_at": "2026-10-03T17:49:51.555684Z"
+  },
+  {
+    "scene_token": "d25718445d89453381c659b9c8734939",
+    "scene_name": "scene-1077",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-1077__CAM_FRONT.jpg",
+    "description": "a car driving down a street at night",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Night, big street, bus stop, high speed, construction vehicle",
+    "generated_at": "2026-10-03T17:49:54.579423Z"
+  },
+  {
+    "scene_token": "de7d80a1f5fb4c3e82ce8a4f213b450a",
+    "scene_name": "scene-1094",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-1094__CAM_FRONT.jpg",
+    "description": "a car driving down a street at night",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Night, after rain, many peds, PMD, ped with bag, jaywalker, truck, scooter",
+    "generated_at": "2026-10-03T17:49:57.715944Z"
+  },
+  {
+    "scene_token": "e233467e827140efa4b42d2b4c435855",
+    "scene_name": "scene-1100",
+    "camera_channel": "CAM_FRONT",
+    "image_path": "demo/images/scene-1100__CAM_FRONT.jpg",
+    "description": "a car is parked in the middle of a street",
+    "model_name": "Salesforce/blip-image-captioning-base",
+    "reference_description": "Night, peds in sidewalk, peds cross crosswalk, scooter, PMD, difficult lighting",
+    "generated_at": "2026-10-03T17:50:00.976421Z"
+  }
+]
