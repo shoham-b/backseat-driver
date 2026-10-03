@@ -1,4 +1,5 @@
-import pytest
+from pathlib import Path
+
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -17,19 +18,22 @@ def test_defaults() -> None:
     assert s.output_dir == "output"
 
 
-def test_nuscenes_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/mnt/nuscenes")
-    monkeypatch.setenv("BACKSEAT_DRIVER_CAMERA_CHANNEL", "CAM_BACK")
+def _settings_from_env_file(tmp_path: Path, **variables: str) -> Settings:
+    """Settings read from a dotenv file, so the prefix/parsing is tested without touching os.environ."""
+    env_file = tmp_path / ".env"
+    env_file.write_text("".join(f"BACKSEAT_DRIVER_{name.upper()}={value}\n" for name, value in variables.items()))
+    return Settings(_env_file=env_file)
 
-    s = Settings()
+
+def test_nuscenes_env_override(tmp_path: Path) -> None:
+    s = _settings_from_env_file(tmp_path, nuscenes_dataroot="/mnt/nuscenes", camera_channel="CAM_BACK")
 
     assert s.nuscenes_dataroot == "/mnt/nuscenes"
     assert s.camera_channel == "CAM_BACK"
 
 
-def test_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_API_PORT", "9090")
-    s = Settings()
+def test_env_override(tmp_path: Path) -> None:
+    s = _settings_from_env_file(tmp_path, api_port="9090")
     assert s.api_port == 9090
 
 
@@ -91,11 +95,8 @@ def test_ui_defaults_to_loopback_on_8081() -> None:
     assert (s.ui_host, s.ui_port) == ("127.0.0.1", 8081)
 
 
-def test_ui_bind_address_is_read_from_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_UI_HOST", "0.0.0.0")
-    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9000")
-
-    s = Settings()
+def test_ui_bind_address_is_read_from_the_environment(tmp_path: Path) -> None:
+    s = _settings_from_env_file(tmp_path, ui_host="0.0.0.0", ui_port="9000")
 
     assert (s.ui_host, s.ui_port) == ("0.0.0.0", 9000)
 

@@ -1,3 +1,4 @@
+import os
 import tarfile
 from pathlib import Path
 
@@ -59,6 +60,9 @@ def test_a_cache_from_an_older_archive_is_replaced(tmp_path: Path) -> None:
     with tarfile.open(newer, "w:gz") as tar:
         (tmp_path / "new.json").write_text("a longer payload so the size differs")
         tar.add(tmp_path / "new.json", arcname="v1.0-mini/new.json")
+    # file:// archives are told apart by Last-Modified (1s resolution) and size; two files written back to back can tie.
+    stamp = newer.stat().st_mtime + 60
+    os.utime(newer, (stamp, stamp))
 
     ensure_nuscenes_dataset(str(dataroot), "v1.0-mini", old_url)
 

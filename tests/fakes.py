@@ -1,9 +1,11 @@
-"""In-memory test doubles for the distributed mode — no broker, no database, no model."""
+"""In-memory test doubles — no broker, no database, no model."""
 
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.config import Settings
 from backseat_driver.errors import NotFoundError
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore, derive_state
@@ -99,6 +101,11 @@ class FakeCaptioner(Captioner):
 
     def healthcheck(self) -> bool:
         return True
+
+
+def make_settings(**overrides: Any) -> Settings:
+    """Settings straight from keyword arguments, ignoring any .env file, so tests never touch the environment."""
+    return Settings(_env_file=None, **overrides)
 
 
 def make_keyframe(n: int) -> SceneKeyframe:
