@@ -51,7 +51,7 @@ def ingest_worker() -> IngestWorker:
     loader = NuScenesSceneLoader(
         dataroot=settings.nuscenes_dataroot,
         version=settings.nuscenes_version,
-        camera_channel=settings.camera_channel,
+        camera_channels=[settings.camera_channel],
     )
     return IngestWorker(loader=loader, queue=CeleryJobQueue(settings.rabbitmq_url), store=_store())
 

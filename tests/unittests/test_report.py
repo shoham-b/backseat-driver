@@ -8,11 +8,13 @@ from backseat_driver.reporting.html_report_writer import write_html
 from backseat_driver.reporting.report import build_report
 
 
-def _desc(scene: int, model: str, text: str, reference: str | None = "parked truck") -> SceneDescription:
+def _desc(
+    scene: int, model: str, text: str, reference: str | None = "parked truck", camera: str = "CAM_FRONT"
+) -> SceneDescription:
     return SceneDescription(
         scene_token=f"token-{scene}",
         scene_name=f"scene-{scene:04d}",
-        camera_channel="CAM_FRONT",
+        camera_channel=camera,
         image_path=f"/img/{scene}.jpg",
         description=text,
         model_name=model,
@@ -95,3 +97,27 @@ def test_write_html_fails_fast_on_missing_image(tmp_path: Path) -> None:
 
     with pytest.raises(FileNotFoundError):
         write_html(report, str(tmp_path / "report.html"))
+
+
+def test_build_report_keeps_each_camera_of_a_scene_as_its_own_row() -> None:
+    descriptions = [
+        _desc(1, "a", "x", camera="CAM_FRONT"),
+        _desc(1, "a", "y", camera="CAM_BACK"),
+        _desc(1, "b", "z", camera="CAM_BACK"),
+    ]
+
+    report = build_report(descriptions)
+
+    assert [(s.scene_name, s.camera_channel) for s in report.scenes] == [
+        ("scene-0001", "CAM_BACK"),
+        ("scene-0001", "CAM_FRONT"),
+    ]
+    assert [e.model_name for e in report.scenes[0].entries] == ["a", "b"]
+    assert report.cameras == ["CAM_BACK", "CAM_FRONT"]
+
+
+def test_build_report_still_rejects_the_same_model_twice_on_one_camera() -> None:
+    descriptions = [_desc(1, "a", "x", camera="CAM_BACK"), _desc(1, "a", "y", camera="CAM_BACK")]
+
+    with pytest.raises(ValueError, match=r"CAM_BACK.*more than once"):
+        build_report(descriptions)

@@ -50,7 +50,10 @@ def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_labe
 ) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--dataroot", str(dataroot), "--version", VERSION, "--output", str(output)])
+    result = runner.invoke(
+        app,
+        ["run", "--camera", "CAM_FRONT", "--dataroot", str(dataroot), "--version", VERSION, "--output", str(output)],
+    )
     written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
@@ -64,7 +67,9 @@ def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_labe
 def test_run_honours_max_scenes(dataroot: Path, captioner: FakeCaptioner, tmp_path: Path) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--dataroot", str(dataroot), "--max-scenes", "1", "--output", str(output)])
+    result = runner.invoke(
+        app, ["run", "--camera", "CAM_FRONT", "--dataroot", str(dataroot), "--max-scenes", "1", "--output", str(output)]
+    )
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text())) == 1
@@ -75,7 +80,7 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(
 ) -> None:
     result_file = tmp_path / "result.json"
     html_file = tmp_path / "report.html"
-    runner.invoke(app, ["run", "--dataroot", str(dataroot), "--output", str(result_file)])
+    runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--dataroot", str(dataroot), "--output", str(result_file)])
 
     result = runner.invoke(app, ["report", str(result_file), "--output", str(html_file)])
     html = html_file.read_text()
@@ -87,7 +92,10 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(
 
 
 def test_run_fails_clearly_when_the_dataset_is_missing(captioner: FakeCaptioner, tmp_path: Path) -> None:
-    result = runner.invoke(app, ["run", "--dataroot", str(tmp_path / "nowhere"), "--output", str(tmp_path / "x.json")])
+    result = runner.invoke(
+        app,
+        ["run", "--camera", "CAM_FRONT", "--dataroot", str(tmp_path / "nowhere"), "--output", str(tmp_path / "x.json")],
+    )
 
     assert result.exit_code != 0
     assert not (tmp_path / "x.json").exists()

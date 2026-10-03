@@ -52,7 +52,7 @@ compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ 
 ## Docker Compose
 
 ```bash
-just docker-run --max-scenes 2   # one-off pipeline run, writes ./output
+just docker-run --camera CAM_FRONT --max-scenes 2   # one-off pipeline run, writes ./output
 just up                          # api :8080, rabbitmq UI :15672, postgres, db-init, ingest-worker, 2 × caption-worker
 just compose up --scale caption-worker=4
 just test-system                # builds, starts the stack, runs system + smoke tests, tears down

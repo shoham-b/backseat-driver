@@ -10,7 +10,7 @@ uv run pre-commit install
 
 # Download the nuScenes v1.0-mini dataset into data/sets/nuscenes (see Getting Started),
 # then run the pipeline:
-just run
+just run --camera CAM_FRONT
 ```
 
 Results are written to `output/<backend>__<model>.json` by default, so runs of different models sit side by side and never overwrite each other.
