@@ -2,6 +2,7 @@ from collections.abc import Callable
 
 import pytest
 from fastapi import FastAPI, Request
+from starlette.datastructures import State
 
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
@@ -23,7 +24,7 @@ def test_dependency_returns_the_object_the_lifespan_put_on_app_state(
     getter: Callable[..., object], attribute: str, instance: object
 ) -> None:
     app = FastAPI()
-    setattr(app.state, attribute, instance)
+    app.state = State({attribute: instance})
 
     assert getter(_request_to(app)) is instance
 
