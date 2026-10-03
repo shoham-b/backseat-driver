@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     api_host: str = "127.0.0.1"
     api_port: int = 8080
-    # Origins allowed to call the API from a browser; the default is the page served by `ui`.
-    cors_origins: list[str] = ["http://127.0.0.1:8081", "http://localhost:8081"]
+    # Explicit override of the origins allowed to call the API from a browser; see `allowed_origins` for the default.
+    cors_origins: list[str] | None = None
     log_format: Literal["colored", "json"] = "colored"
 
     # Model-comparison UI (`backseat-driver ui`)
@@ -79,6 +79,16 @@ class Settings(BaseSettings):
         # Model names contain "/" and ":" (e.g. "Salesforce/blip-...", "llava:13b"), which are unsafe in filenames.
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", self.model_name_for(backend, model_name)).strip("-")
         return f"{self.output_dir}/{backend.value}__{slug}.json"
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """Origins allowed to call the API from a browser: `cors_origins` if set, else the page served by `ui`."""
+        if self.cors_origins is not None:
+            return self.cors_origins
+        # A browser reaches a wildcard bind through loopback, so both names are allowed alongside the configured host.
+        hosts = dict.fromkeys(["127.0.0.1", "localhost", self.ui_host])
+        hosts.pop("0.0.0.0", None)
+        return [f"http://{host}:{self.ui_port}" for host in hosts]
 
     @computed_field  # type: ignore[prop-decorator]
     @property

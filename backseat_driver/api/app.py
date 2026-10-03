@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 app = FastAPI(title="Backseat Driver", lifespan=lifespan)
 app.add_middleware(RequestIDMiddleware)
 # Middleware is built at import time, before the lifespan runs, so settings are read here.
-app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["GET", "POST"])
+app.add_middleware(CORSMiddleware, allow_origins=get_settings().allowed_origins, allow_methods=["GET", "POST"])
 app.add_exception_handler(DomainError, domain_error_handler)  # type: ignore
 app.add_exception_handler(APIError, api_error_handler)  # type: ignore
 app.add_exception_handler(Exception, unhandled_exception_handler)
