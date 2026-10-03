@@ -6,31 +6,32 @@ Usage::
     backseat-driver worker caption
 """
 
-import typer
-
 from backseat_driver.cli import worker_app
-from backseat_driver.cli.context import cli_context
-from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
-from backseat_driver.logger import LogFormat
+from backseat_driver.config import get_settings
+from backseat_driver.logger import LogFormat, setup_logging
 
 # Gossip, mingle and heartbeat are worker-to-worker chatter that needs the remote-control queues (see make_celery_app).
 _NO_CLUSTER = ["--without-gossip", "--without-mingle", "--without-heartbeat"]
 
 
 @worker_app.command()
-def ingest(ctx: typer.Context) -> None:
+def ingest() -> None:
     """Consume ingest tasks: load the dataset and fan out one caption task per scene."""
-    deps = cli_context(ctx)
-    deps.configure_logging(LogFormat(deps.settings.log_format), "ingest-worker")
-    deps.start_worker(["worker", "-Q", INGEST_QUEUE, "-n", "ingest@%h", "--pool=solo", *_NO_CLUSTER])
+    from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
+    from backseat_driver.tasks import celery_app
+
+    setup_logging(LogFormat(get_settings().log_format), service="ingest-worker")
+    celery_app.worker_main(["worker", "-Q", INGEST_QUEUE, "-n", "ingest@%h", "--pool=solo", *_NO_CLUSTER])
 
 
 @worker_app.command()
-def caption(ctx: typer.Context) -> None:
+def caption() -> None:
     """Consume caption tasks: run each scene's keyframe through the VLM and record the result."""
-    deps = cli_context(ctx)
-    deps.configure_logging(LogFormat(deps.settings.log_format), "caption-worker")
+    from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
+    from backseat_driver.tasks import caption_worker, celery_app
+
+    setup_logging(LogFormat(get_settings().log_format), service="caption-worker")
     # Load the model before consuming, not on the first message: a model that can't load should
     # fail the worker at startup, not leave it pulling messages it would fail every time.
-    deps.load_caption_model()
-    deps.start_worker(["worker", "-Q", CAPTION_QUEUE, "-n", "caption@%h", "--pool=solo", *_NO_CLUSTER])
+    caption_worker()
+    celery_app.worker_main(["worker", "-Q", CAPTION_QUEUE, "-n", "caption@%h", "--pool=solo", *_NO_CLUSTER])

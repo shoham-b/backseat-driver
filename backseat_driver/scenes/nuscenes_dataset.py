@@ -17,8 +17,6 @@ from typing import IO
 
 from loguru import logger
 
-from backseat_driver.scenes.dataset_cache import DatasetCache
-
 _MARKER = ".nuscenes-cache.json"
 
 
@@ -77,11 +75,3 @@ def ensure_nuscenes_dataset(dataroot: str, version: str, url: str) -> None:
         entry.rename(root / entry.name)
     scratch.rmdir()
     marker.write_text(json.dumps(remote))  # last, so its presence means the extraction finished
-
-
-class NuScenesDatasetCache(DatasetCache):
-    def __init__(self, url: str) -> None:
-        self._url = url
-
-    def ensure(self, dataroot: str, version: str) -> None:
-        ensure_nuscenes_dataset(dataroot, version, self._url)

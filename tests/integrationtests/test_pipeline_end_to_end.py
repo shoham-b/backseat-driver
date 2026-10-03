@@ -1,11 +1,12 @@
-"""The pipeline over a real (tiny) nuScenes dataset: real devkit, loader, writer and report; only the model is faked.
-
-Unit tests monkeypatch the devkit, so this is what proves the pieces still fit together on actual dataset files.
+"""The CLI over real wiring: the dataset arrives through a `file://` archive, the real devkit and loader read it, and
+the model is a stub Ollama server on localhost. Nothing is faked or patched, so this is also what proves each command
+is routed to the right collaborators; the command functions themselves hold no logic.
 """
 
 import json
+import threading
 from collections.abc import Iterator
-from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,24 +15,37 @@ from typer.testing import CliRunner
 
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
-from backseat_driver.cli.context import CliContext, default_context
 from backseat_driver.config import get_settings
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import IngestTask
 from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
-from tests.fakes import (
-    FakeCaptioner,
-    FakeCaptionerFactory,
-    FakeDatasetCache,
-    FakeJobQueue,
-    FakeJobStore,
-    FakeLogging,
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
+from tests.nuscenes_dataset import (
+    SCENE_LABELS,
+    VERSION,
+    build_nuscenes_archive,
+    build_nuscenes_dataset,
+    middle_image,
 )
-from tests.nuscenes_dataset import SCENE_LABELS, VERSION, build_nuscenes_dataset, middle_image
 
 pytest.importorskip("nuscenes.nuscenes", reason="nuscenes-devkit (and its OpenCV libraries) is not installed")
 
 runner = CliRunner()
+CAPTION = "a parked truck near construction"
+
+
+class _OllamaStub(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers["Content-Length"]))
+        body = json.dumps({"response": CAPTION}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: object) -> None:
+        pass
 
 
 @pytest.fixture(autouse=True)
@@ -42,64 +56,58 @@ def _fresh_settings() -> Iterator[None]:
 
 
 @pytest.fixture
-def dataroot(tmp_path: Path) -> Path:
-    return build_nuscenes_dataset(tmp_path / "nuscenes")
+def ollama_url() -> Iterator[str]:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _OllamaStub)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    server.server_close()
 
 
 @pytest.fixture
-def captioner() -> FakeCaptioner:
-    return FakeCaptioner("a parked truck near construction")
+def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
+    """Points every external dependency of `run` at something local, so no run can reach the network or a real cache."""
+    return {
+        "BACKSEAT_DRIVER_NUSCENES_URL": build_nuscenes_archive(tmp_path).as_uri(),
+        "BACKSEAT_DRIVER_NUSCENES_DATAROOT": str(tmp_path / "cache"),
+        "BACKSEAT_DRIVER_NUSCENES_VERSION": VERSION,
+        "BACKSEAT_DRIVER_VLM_BACKEND": "ollama",
+        "BACKSEAT_DRIVER_OLLAMA_URL": ollama_url,
+        "BACKSEAT_DRIVER_OUTPUT_DIR": str(tmp_path / "output"),
+    }
 
 
-@pytest.fixture
-def context(captioner: FakeCaptioner) -> CliContext:
-    """The real loader over the fixture dataset; only the model, the (network) dataset cache and logging are faked."""
-    return replace(
-        default_context(),
-        configure_logging=FakeLogging(),
-        dataset_cache=FakeDatasetCache(),
-        build_captioner=FakeCaptionerFactory(captioner),
-    )
-
-
-def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_label(
-    dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path
+def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
+    cli_env: dict[str, str], tmp_path: Path
 ) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(
-        app, ["run", "--dataroot", str(dataroot), "--version", VERSION, "--output", str(output)], obj=context
-    )
+    result = runner.invoke(app, ["run", "--output", str(output)], env=cli_env)
     written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
     assert [d["scene_name"] for d in written] == ["scene-0000", "scene-0001"]
     assert [d["reference_description"] for d in written] == SCENE_LABELS
-    assert [Path(d["image_path"]) for d in written] == [dataroot / middle_image(i) for i in range(2)]
+    assert [d["description"] for d in written] == [CAPTION] * 2
+    cache = tmp_path / "cache"
+    assert [Path(d["image_path"]) for d in written] == [cache / middle_image(i) for i in range(2)]
     assert all(Path(d["image_path"]).is_file() for d in written)
-    assert captioner.seen_paths == [d["image_path"] for d in written]
 
 
-def test_run_honours_max_scenes(dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path) -> None:
+def test_run_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(
-        app, ["run", "--dataroot", str(dataroot), "--max-scenes", "1", "--output", str(output)], obj=context
-    )
+    result = runner.invoke(app, ["run", "--max-scenes", "1", "--output", str(output)], env=cli_env)
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text())) == 1
 
 
-def test_run_then_report_scores_the_descriptions_against_the_labels(
-    dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path
-) -> None:
-    result_file = tmp_path / "result.json"
-    html_file = tmp_path / "report.html"
-    runner.invoke(app, ["run", "--dataroot", str(dataroot), "--output", str(result_file)], obj=context)
+def test_run_then_report_scores_the_descriptions_against_the_labels(cli_env: dict[str, str], tmp_path: Path) -> None:
+    runner.invoke(app, ["run"], env=cli_env)  # default output: <output dir>/<backend>__<model>.json
 
-    result = runner.invoke(app, ["report", str(result_file), "--output", str(html_file)])
-    html = html_file.read_text()
+    result = runner.invoke(app, ["report"], env=cli_env)
+    html = (tmp_path / "output" / "report.html").read_text()
 
     assert result.exit_code == 0, result.output
     assert "scene-0000" in html
@@ -107,16 +115,17 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(
     assert "data:image/jpeg;base64," in html  # images are inlined, so the page works without the dataset
 
 
-def test_run_fails_clearly_when_the_dataset_is_missing(context: CliContext, tmp_path: Path) -> None:
-    result = runner.invoke(
-        app, ["run", "--dataroot", str(tmp_path / "nowhere"), "--output", str(tmp_path / "x.json")], obj=context
-    )
+def test_run_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str, str], tmp_path: Path) -> None:
+    unreachable = {**cli_env, "BACKSEAT_DRIVER_NUSCENES_URL": (tmp_path / "gone.tgz").as_uri()}
+
+    result = runner.invoke(app, ["run", "--output", str(tmp_path / "x.json")], env=unreachable)
 
     assert result.exit_code != 0
     assert not (tmp_path / "x.json").exists()
 
 
-def test_distributed_workers_over_the_real_loader_keep_the_reference_label(dataroot: Path) -> None:
+def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_path: Path) -> None:
+    dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     queue, store, captioner = FakeJobQueue(), FakeJobStore(), FakeCaptioner("a truck")
     loader = NuScenesSceneLoader(dataroot=str(dataroot), version=VERSION)
     job_id = uuid4()

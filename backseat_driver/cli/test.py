@@ -2,22 +2,19 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from backseat_driver.cli import test_app
-from backseat_driver.cli.context import PytestNotInstalledError, cli_context
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-# pytest's ExitCode.OK and NO_TESTS_COLLECTED; spelled out because pytest is only an (optional) dev dependency.
-_SUCCESS_CODES = (0, 5)
 
 
 @test_app.command()
 def smoke(
-    ctx: typer.Context,
     api_url: Annotated[
         str | None,
         typer.Option(envvar="API_URL", help="Base URL of a running service to test against"),
@@ -31,14 +28,19 @@ def smoke(
         just infra && just dev   # local (the API's /ready checks RabbitMQ + Postgres)
         just compose up # containerised
     """
+    try:
+        import pytest
+    except ImportError:
+        typer.echo("pytest is not installed — run: uv sync --group dev", err=True)
+        raise typer.Exit(1) from None
+
+    if api_url:
+        os.environ["API_URL"] = api_url
+
     args = [str(_PROJECT_ROOT / "tests" / "smoketests")]
     if verbose:
         args.append("-v")
 
-    try:
-        code = cli_context(ctx).run_pytest(args, api_url)
-    except PytestNotInstalledError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(1) from None
-    if code not in _SUCCESS_CODES:
-        raise typer.Exit(code)
+    result = pytest.main(args)
+    if result not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED):
+        raise typer.Exit(int(result))

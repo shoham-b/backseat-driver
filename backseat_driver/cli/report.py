@@ -7,21 +7,22 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
+import functools
+import http.server
 import json
 import tempfile
+import webbrowser
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
 from backseat_driver.cli import app
-from backseat_driver.cli.context import cli_context
 from backseat_driver.models import SceneDescription
 
 
 @app.command()
 def report(
-    ctx: typer.Context,
     results: Annotated[
         list[Path] | None,
         typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
@@ -31,16 +32,16 @@ def report(
     ] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
-    settings = cli_context(ctx).settings
-    output = output or Path(settings.output_dir) / "report.html"
-    results = results or _default_results(settings.output_dir)
+    from backseat_driver.config import get_settings
+
+    output = output or Path(get_settings().output_dir) / "report.html"
+    results = results or _default_results()
     count = _write_report(results, output)
     typer.secho(f"Wrote report for {count} description(s) to {output}", fg=typer.colors.GREEN)
 
 
 @app.command()
 def ui(
-    ctx: typer.Context,
     results: Annotated[
         list[Path] | None,
         typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
@@ -53,25 +54,32 @@ def ui(
     ] = None,
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
-    deps = cli_context(ctx)
-    settings = deps.settings
+    from backseat_driver.config import get_settings
+
+    settings = get_settings()
     host = host or settings.ui_host
     port = port or settings.ui_port
-    results = results or _default_results(settings.output_dir)
+    results = results or _default_results()
     api_url = api_url or settings.api_url
 
     with tempfile.TemporaryDirectory() as tmp:
         count = _write_report(results, Path(tmp) / "index.html", api_url)
+        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=tmp)
         url = f"http://{host}:{port}/"
         typer.secho(f"Serving {count} description(s) from {len(results)} file(s) at {url} (Ctrl+C to stop)", fg="green")
-        try:
-            deps.serve(tmp, host, port, url if open_browser else None)
-        except KeyboardInterrupt:
-            typer.echo("Stopped")
+        with http.server.ThreadingHTTPServer((host, port), handler) as server:
+            if open_browser:
+                webbrowser.open(url)
+            try:
+                server.serve_forever()
+            except KeyboardInterrupt:
+                typer.echo("Stopped")
 
 
-def _default_results(output_dir: str) -> list[Path]:
-    found = sorted(Path(output_dir).glob("*.json"))
+def _default_results() -> list[Path]:
+    from backseat_driver.config import get_settings
+
+    found = sorted(Path(get_settings().output_dir).glob("*.json"))
     if not found:
         raise typer.BadParameter("no result files found; pass some or run `backseat-driver run` first")
     return found

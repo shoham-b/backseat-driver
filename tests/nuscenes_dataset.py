@@ -5,6 +5,7 @@ samples with one CAM_FRONT image, so the loader's "middle sample" choice is obse
 """
 
 import json
+import tarfile
 from pathlib import Path
 
 from PIL import Image
@@ -90,3 +91,13 @@ def build_nuscenes_dataset(root: Path, scene_labels: list[str] = SCENE_LABELS) -
     for name, rows in tables.items():
         (version_dir / f"{name}.json").write_text(json.dumps(rows))
     return root
+
+
+def build_nuscenes_archive(directory: Path) -> Path:
+    """The dataset as a `.tgz`, laid out like the real download, for `file://` URLs in place of the network."""
+    root = build_nuscenes_dataset(directory / "archive-source")
+    archive = directory / "nuscenes.tgz"
+    with tarfile.open(archive, "w:gz") as tar:
+        for entry in root.iterdir():
+            tar.add(entry, arcname=entry.name)
+    return archive
