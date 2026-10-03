@@ -81,7 +81,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - **Test layers** (fastest → slowest):
   1. `tests/unittests/` — pure logic, no network, no filesystem. Each test exercises a single unit (one function or method) in isolation; replace its collaborators with fakes or stubs instead of running them. A test that drives several real units together belongs in `tests/integrationtests/`.
   2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`, and the `jobs/` workers (`IngestWorker`/`CaptionWorker`) run in-process the same way: real worker, queue and store wired together, with only the platform edges (Celery/RabbitMQ, Postgres, models) swapped for in-memory implementations.
-  3. `tests/smoketests/` — live HTTP; requires a running service (set `API_URL` to override target).
+  3. `tests/smoketests/` — live HTTP; requires a running service (pass `--api-url` to override the target).
   4. `tests/uitests/` — Selenium + headless Chrome against the real `ui` server.
   5. `tests/systemtests/` — Docker Compose, runs everything containerised.
 - **AAA structure**: Every test must follow Arrange → Act → Assert with a blank line between each phase. Name the sections with a comment only when the block is non-obvious; otherwise the blank lines are enough.

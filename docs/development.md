@@ -69,7 +69,7 @@ There are four test layers, from fastest to slowest:
 |---|---|---|
 | Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are replaced by injected fakes, no dataset or model download |
 | Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
-| Smoke | `tests/smoketests/` | running API (set `API_URL` to override) |
+| Smoke | `tests/smoketests/` | running API (pass `--api-url` to override) |
 | UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
 | System | `tests/systemtests/` | Docker Compose |
 
