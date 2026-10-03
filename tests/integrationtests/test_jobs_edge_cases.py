@@ -1,30 +1,27 @@
 from http import HTTPStatus
-from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 
-from backseat_driver.api.app import app
+from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
 from backseat_driver.captioning.backend_captioner import BackendCaptioner
-from backseat_driver.config import get_settings
-from backseat_driver.jobs import celery_job_queue, storage
+from backseat_driver.config import RunMode, VlmBackend
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
 from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
 from backseat_driver.jobs.postgres_job_store import PostgresJobStore
 from backseat_driver.models import JobState
-from tests.fakes import FakeJobQueue, FakeJobStore
+from tests.fakes import FakeJobQueue, FakeJobStore, make_settings
+from tests.integrationtests.conftest import ClientFactory
 
 
 @pytest.fixture
-def isolated(monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, FakeJobQueue, FakeJobStore]:
+def isolated(client_with: ClientFactory) -> tuple[TestClient, FakeJobQueue, FakeJobStore]:
     queue, store = FakeJobQueue(), FakeJobStore()
-    monkeypatch.setitem(app.dependency_overrides, get_job_queue, lambda: queue)
-    monkeypatch.setitem(app.dependency_overrides, get_job_store, lambda: store)
-    return TestClient(app), queue, store
+    return client_with({get_job_queue: lambda: queue, get_job_store: lambda: store}), queue, store
 
 
 @pytest.mark.parametrize("body", [{"max_scenes": -1}, {"max_scenes": "many"}, {"max_scenes": 1.5}, {"max_scenes": []}])
@@ -95,17 +92,16 @@ def test_a_generated_request_id_is_used_as_the_transaction_id(
     assert response.json()["transaction_id"] == response.headers[REQUEST_ID_HEADER]
 
 
-def test_a_broker_outage_surfaces_as_a_server_error_not_a_silent_accept(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_broker_outage_surfaces_as_a_server_error_not_a_silent_accept(client_with: ClientFactory) -> None:
     class _BrokenQueue(FakeJobQueue):
         def enqueue_ingest(self, task) -> None:
             raise ConnectionError("broker down")
 
-    monkeypatch.setitem(app.dependency_overrides, get_job_queue, lambda: _BrokenQueue())
-    monkeypatch.setitem(app.dependency_overrides, get_job_store, lambda: FakeJobStore())
+    client = client_with(
+        {get_job_queue: lambda: _BrokenQueue(), get_job_store: lambda: FakeJobStore()}, raise_server_exceptions=False
+    )
 
-    response = TestClient(app, raise_server_exceptions=False).post("/jobs")
+    response = client.post("/jobs")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     assert response.json()["error"]["message"] == "internal server error"  # internals are not leaked
@@ -145,45 +141,29 @@ def test_unsupported_methods_are_rejected(client: TestClient, method: str, path:
     assert getattr(client, method)(path).status_code == HTTPStatus.METHOD_NOT_ALLOWED
 
 
-def test_lifespan_wires_the_real_adapters_without_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
-    # No dependency overrides: this is what a deployed process builds. None of them may connect at startup.
-    monkeypatch.setattr(app, "dependency_overrides", {})
-    monkeypatch.setenv("BACKSEAT_DRIVER_VLM_BACKEND", "huggingface")
-    monkeypatch.setenv("BACKSEAT_DRIVER_MODE", "distributed")
-    get_settings.cache_clear()
-    create_engine = mock.Mock()
-    make_app = mock.Mock()
-    monkeypatch.setattr(storage, "create_engine", create_engine)
-    monkeypatch.setattr(celery_job_queue, "make_celery_app", make_app)
+def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
+    # No dependency overrides: this is what a deployed process builds. The default broker and database URLs
+    # point at nothing, so startup only succeeds if none of the adapters connects while being constructed.
+    service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED))
 
-    with TestClient(app) as client:
+    with TestClient(service) as client:
         state = client.app.state
         health = client.get("/health")
-    get_settings.cache_clear()
 
     assert isinstance(state.captioner, BackendCaptioner)
     assert isinstance(state.job_queue, CeleryJobQueue)
     assert isinstance(state.job_store, PostgresJobStore)
     assert health.status_code == HTTPStatus.OK
-    create_engine.assert_not_called()
-    make_app.assert_not_called()
 
 
-def test_lifespan_defaults_to_the_monolith_with_no_infrastructure(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(app, "dependency_overrides", {})
-    monkeypatch.setenv("BACKSEAT_DRIVER_VLM_BACKEND", "huggingface")
-    monkeypatch.delenv("BACKSEAT_DRIVER_MODE", raising=False)
-    get_settings.cache_clear()
-    create_engine = mock.Mock()
-    monkeypatch.setattr(storage, "create_engine", create_engine)
+def test_lifespan_defaults_to_the_monolith_with_no_infrastructure() -> None:
+    service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE))
 
-    with TestClient(app) as client:
+    with TestClient(service) as client:
         state = client.app.state
         job_id = client.post("/jobs").json()["job_id"]
         job = client.get(f"/jobs/{job_id}")
-    get_settings.cache_clear()
 
     assert isinstance(state.job_queue, InProcessJobQueue)
     assert isinstance(state.job_store, InMemoryJobStore)
     assert job.status_code == HTTPStatus.OK
-    create_engine.assert_not_called()

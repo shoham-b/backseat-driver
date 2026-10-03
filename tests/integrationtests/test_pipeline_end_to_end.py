@@ -4,6 +4,7 @@ is routed to the right collaborators; the command functions themselves hold no l
 """
 
 import json
+import re
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -78,6 +79,11 @@ def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
     }
 
 
+def _plain(output: str) -> str:
+    """CLI output without terminal styling, which CI sets (FORCE_COLOR) and which splits option names."""
+    return re.sub(r"[[0-9;]*m", "", output)
+
+
 def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
     cli_env: dict[str, str], tmp_path: Path
 ) -> None:
@@ -145,7 +151,7 @@ def test_run_requires_a_camera_choice(cli_env: dict[str, str], tmp_path: Path) -
     result = runner.invoke(app, ["run", "--output", str(tmp_path / "x.json")], env=cli_env)
 
     assert result.exit_code == 2
-    assert "--all-cameras" in result.output
+    assert "--all-cameras" in _plain(result.output)
 
 
 def test_run_rejects_all_cameras_together_with_camera(cli_env: dict[str, str], tmp_path: Path) -> None:

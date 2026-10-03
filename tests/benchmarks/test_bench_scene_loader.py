@@ -42,12 +42,13 @@ class _SyntheticNuScenes:
 
 
 @pytest.mark.parametrize("scenes", [10, 200])
-def test_load_keyframes(benchmark: BenchmarkFixture, monkeypatch: pytest.MonkeyPatch, scenes: int) -> None:
+def test_load_keyframes(benchmark: BenchmarkFixture, scenes: int) -> None:
     dataset_cls = type("_Dataset", (_SyntheticNuScenes,), {"scenes": scenes})
     dataset = dataset_cls(version="v1.0-mini", dataroot="data/sets/nuscenes")
     # Build the synthetic dataset once, so only keyframe selection is measured.
-    monkeypatch.setattr("nuscenes.nuscenes.NuScenes", lambda **_: dataset)
-    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini")
+    loader = NuScenesSceneLoader(
+        dataroot="data/sets/nuscenes", version="v1.0-mini", open_dataset=lambda version, dataroot: dataset
+    )
 
     keyframes = benchmark(loader.load_keyframes)
 

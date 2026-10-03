@@ -115,11 +115,8 @@ def test_allowed_origins_default_to_the_ui_page() -> None:
     assert s.cors_origins == ["http://127.0.0.1:8081", "http://localhost:8081"]
 
 
-def test_allowed_origins_follow_the_ui_address(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_UI_HOST", "0.0.0.0")
-    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9000")
-
-    s = Settings()
+def test_allowed_origins_follow_the_ui_address() -> None:
+    s = Settings(ui_host="0.0.0.0", ui_port=9000)
 
     assert s.cors_origins == ["http://127.0.0.1:9000", "http://localhost:9000", "http://0.0.0.0:9000"]
 

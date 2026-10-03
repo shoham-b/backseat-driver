@@ -14,6 +14,7 @@ def init() -> None:
     from loguru import logger
 
     from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+    from backseat_driver.jobs.storage import JobStorage
 
-    PostgresJobStore(settings.database_url).ensure_schema()
+    PostgresJobStore(JobStorage(settings.database_url)).ensure_schema()
     logger.info("database schema ready")

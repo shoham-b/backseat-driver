@@ -1,4 +1,4 @@
-from contextlib import nullcontext
+from collections.abc import Callable
 from http import HTTPStatus
 from io import BytesIO
 from pathlib import Path
@@ -7,11 +7,10 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from backseat_driver.api.app import app
-from backseat_driver.api.dependencies import get_captioner
-from backseat_driver.api.routers import describe as describe_module
+from backseat_driver.api.dependencies import get_captioner, get_upload_dir
 from backseat_driver.captioning.captioner import Captioner
 from tests.fakes import FakeCaptioner
+from tests.integrationtests.conftest import ClientFactory
 
 
 class _RecordingCaptioner(FakeCaptioner):
@@ -33,9 +32,11 @@ class _FailingCaptioner(FakeCaptioner):
         raise OSError("cannot identify image file")
 
 
-def _install(monkeypatch: pytest.MonkeyPatch, captioner: Captioner) -> TestClient:
-    monkeypatch.setitem(app.dependency_overrides, get_captioner, lambda: captioner)
-    return TestClient(app)
+def _install(client_with: ClientFactory, captioner: Captioner, upload_dir: Path | None = None) -> TestClient:
+    overrides: dict[Callable[..., object], Callable[..., object]] = {get_captioner: lambda: captioner}
+    if upload_dir is not None:
+        overrides[get_upload_dir] = lambda: upload_dir
+    return client_with(overrides)
 
 
 def _png() -> bytes:
@@ -44,9 +45,9 @@ def _png() -> bytes:
     return buf.getvalue()
 
 
-def test_the_captioner_reads_the_uploaded_bytes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_captioner_reads_the_uploaded_bytes(client_with: ClientFactory) -> None:
     captioner = _RecordingCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner)
     payload = _png()
 
     response = client.post("/describe", files={"image": ("scene.png", payload, "image/png")})
@@ -55,9 +56,9 @@ def test_the_captioner_reads_the_uploaded_bytes(monkeypatch: pytest.MonkeyPatch)
     assert captioner.contents == [payload]
 
 
-def test_the_upload_is_removed_once_the_request_completes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_upload_is_removed_once_the_request_completes(client_with: ClientFactory) -> None:
     captioner = FakeCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner)
 
     client.post("/describe", files={"image": ("scene.png", _png(), "image/png")})
 
@@ -66,9 +67,9 @@ def test_the_upload_is_removed_once_the_request_completes(monkeypatch: pytest.Mo
     assert not Path(seen).parent.exists()
 
 
-def test_the_temp_file_keeps_the_upload_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_temp_file_keeps_the_upload_suffix(client_with: ClientFactory) -> None:
     captioner = FakeCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner)
 
     client.post("/describe", files={"image": ("photo.jpeg", _png(), "image/jpeg")})
 
@@ -89,11 +90,10 @@ def test_the_temp_file_keeps_the_upload_suffix(monkeypatch: pytest.MonkeyPatch) 
     ],
 )
 def test_a_hostile_filename_cannot_place_the_upload_outside_the_temp_directory(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, filename: str
+    client_with: ClientFactory, tmp_path: Path, filename: str
 ) -> None:
-    monkeypatch.setattr(describe_module.tempfile, "TemporaryDirectory", lambda: nullcontext(str(tmp_path)))
     captioner = _RecordingCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner, upload_dir=tmp_path)
 
     response = client.post("/describe", files={"image": (filename, _png(), "image/png")})
 
@@ -107,18 +107,18 @@ def test_a_hostile_filename_cannot_place_the_upload_outside_the_temp_directory(
     [("photo.PNG", ".png"), ("noextension", ""), ("archive.tar.gz", ".gz"), ("evil.png:stream", ""), ("x.p ng", "")],
 )
 def test_only_a_plain_extension_of_the_filename_reaches_the_captioner(
-    monkeypatch: pytest.MonkeyPatch, filename: str, expected_suffix: str
+    client_with: ClientFactory, filename: str, expected_suffix: str
 ) -> None:
     captioner = FakeCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner)
 
     client.post("/describe", files={"image": (filename, _png(), "image/png")})
 
     assert Path(captioner.seen_paths[0]).name == f"upload{expected_suffix}"
 
 
-def test_a_captioner_failure_is_reported_as_unprocessable_with_the_reason(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = _install(monkeypatch, _FailingCaptioner())
+def test_a_captioner_failure_is_reported_as_unprocessable_with_the_reason(client_with: ClientFactory) -> None:
+    client = _install(client_with, _FailingCaptioner())
 
     response = client.post("/describe", files={"image": ("scene.png", b"not an image", "image/png")})
 
@@ -128,7 +128,7 @@ def test_a_captioner_failure_is_reported_as_unprocessable_with_the_reason(monkey
     assert "cannot identify image file" in error["message"]
 
 
-def test_the_failed_upload_is_still_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_failed_upload_is_still_cleaned_up(client_with: ClientFactory) -> None:
     seen: list[str] = []
 
     class _Failing(FakeCaptioner):
@@ -136,7 +136,7 @@ def test_the_failed_upload_is_still_cleaned_up(monkeypatch: pytest.MonkeyPatch) 
             seen.append(image_path)
             raise ValueError("bad")
 
-    client = _install(monkeypatch, _Failing())
+    client = _install(client_with, _Failing())
 
     client.post("/describe", files={"image": ("scene.png", _png(), "image/png")})
 
@@ -155,9 +155,9 @@ def test_a_non_file_image_field_is_a_validation_error(client: TestClient) -> Non
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
 
 
-def test_an_empty_upload_never_reaches_the_captioner(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_an_empty_upload_never_reaches_the_captioner(client_with: ClientFactory) -> None:
     captioner = FakeCaptioner()
-    client = _install(monkeypatch, captioner)
+    client = _install(client_with, captioner)
 
     response = client.post("/describe", files={"image": ("empty.png", b"", "image/png")})
 
@@ -166,8 +166,8 @@ def test_an_empty_upload_never_reaches_the_captioner(monkeypatch: pytest.MonkeyP
     assert captioner.seen_paths == []
 
 
-def test_the_response_reports_the_model_that_produced_the_caption(monkeypatch: pytest.MonkeyPatch) -> None:
-    client = _install(monkeypatch, FakeCaptioner("a rainy road"))
+def test_the_response_reports_the_model_that_produced_the_caption(client_with: ClientFactory) -> None:
+    client = _install(client_with, FakeCaptioner("a rainy road"))
 
     body = client.post("/describe", files={"image": ("s.png", _png(), "image/png")}).json()
 

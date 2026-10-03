@@ -1,8 +1,8 @@
 import json
 from http import HTTPStatus
-from unittest.mock import MagicMock
 
 import pytest
+from starlette.requests import Request
 
 from backseat_driver.api.errors import APIError
 from backseat_driver.api.exception_handlers import (
@@ -11,6 +11,8 @@ from backseat_driver.api.exception_handlers import (
     unhandled_exception_handler,
 )
 from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
+
+_REQUEST = Request({"type": "http"})
 
 
 class _UnmappedBackseatDriverError(BackseatDriverError):
@@ -27,7 +29,7 @@ class _UnmappedBackseatDriverError(BackseatDriverError):
     ],
 )
 async def test_errors_map_to_their_http_status(error: BackseatDriverError, status: HTTPStatus) -> None:
-    response = await backseat_driver_error_handler(MagicMock(), error)
+    response = await backseat_driver_error_handler(_REQUEST, error)
 
     assert response.status_code == status
     expected = {"error": {"code": status, "status": status.phrase, "message": str(error)}}
@@ -35,20 +37,20 @@ async def test_errors_map_to_their_http_status(error: BackseatDriverError, statu
 
 
 async def test_api_error_uses_its_own_status_and_message() -> None:
-    response = await api_error_handler(MagicMock(), APIError("not ready", HTTPStatus.SERVICE_UNAVAILABLE))
+    response = await api_error_handler(_REQUEST, APIError("not ready", HTTPStatus.SERVICE_UNAVAILABLE))
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     assert json.loads(bytes(response.body))["error"]["message"] == "not ready"
 
 
 async def test_api_error_defaults_to_bad_request() -> None:
-    response = await api_error_handler(MagicMock(), APIError("nope"))
+    response = await api_error_handler(_REQUEST, APIError("nope"))
 
     assert response.status_code == HTTPStatus.BAD_REQUEST
 
 
 async def test_unhandled_exceptions_never_leak_their_message() -> None:
-    response = await unhandled_exception_handler(MagicMock(), RuntimeError("secret connection string"))
+    response = await unhandled_exception_handler(_REQUEST, RuntimeError("secret connection string"))
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     assert b"secret" not in bytes(response.body)

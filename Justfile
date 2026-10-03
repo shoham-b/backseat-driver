@@ -48,7 +48,7 @@ test-system:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "${API_URL:-}" ]; then
-        uv run pytest tests/systemtests -v
+        uv run pytest tests/systemtests -v --api-url "$API_URL"
     else
         trap '{{compose}} --profile test down' EXIT
         {{compose}} --profile test run --build --rm systemtest
