@@ -1,9 +1,9 @@
 import re
 from enum import StrEnum
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import SecretStr, computed_field
+from pydantic import SecretStr, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,8 +27,8 @@ class Settings(BaseSettings):
 
     api_host: str = "127.0.0.1"
     api_port: int = 8080
-    # Origins allowed to call the API from a browser; the default is the page served by `ui`.
-    cors_origins: list[str] = ["http://127.0.0.1:8081", "http://localhost:8081"]
+    # Origins allowed to call the API from a browser; left empty, it is derived from the UI address below.
+    cors_origins: list[str] = []
     log_format: Literal["colored", "json"] = "colored"
 
     # Model-comparison UI (`backseat-driver ui`)
@@ -79,6 +79,13 @@ class Settings(BaseSettings):
         # Model names contain "/" and ":" (e.g. "Salesforce/blip-...", "llava:13b"), which are unsafe in filenames.
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", self.model_name_for(backend, model_name)).strip("-")
         return f"{self.output_dir}/{backend.value}__{slug}.json"
+
+    @model_validator(mode="after")
+    def _default_cors_origins(self) -> Self:
+        if not self.cors_origins:
+            hosts = dict.fromkeys(["127.0.0.1", "localhost", self.ui_host])
+            self.cors_origins = [f"http://{host}:{self.ui_port}" for host in hosts]
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property
