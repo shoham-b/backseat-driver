@@ -35,13 +35,8 @@ class _FakeNuScenes:
         return f"/data/sets/nuscenes/samples/CAM_FRONT/{sample_data_token}.jpg"
 
 
-@pytest.fixture(autouse=True)
-def fake_nuscenes(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("nuscenes.nuscenes.NuScenes", _FakeNuScenes)
-
-
 def test_load_keyframes_picks_the_middle_sample() -> None:
-    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini")
+    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini", open_dataset=_FakeNuScenes)
 
     [keyframe] = loader.load_keyframes()
 
@@ -53,7 +48,9 @@ def test_load_keyframes_picks_the_middle_sample() -> None:
 
 
 def test_load_keyframes_uses_configured_camera_channel() -> None:
-    loader = NuScenesSceneLoader(dataroot="data/sets/nuscenes", version="v1.0-mini", camera_channels=["CAM_BACK"])
+    loader = NuScenesSceneLoader(
+        dataroot="data/sets/nuscenes", version="v1.0-mini", open_dataset=_FakeNuScenes, camera_channels=["CAM_BACK"]
+    )
 
     with pytest.raises(NotFoundError, match="CAM_BACK"):
         loader.load_keyframes()
