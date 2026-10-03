@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 from collections.abc import Iterator
 from pathlib import Path
@@ -350,5 +351,6 @@ def test_run_requires_a_camera_choice(tmp_path: Path, pipeline_doubles: dict[str
     result = runner.invoke(app, ["run", "--output", str(tmp_path / "o.json")])
 
     assert result.exit_code == 2
-    assert "--all-cameras" in result.output
+    # CI forces colour, and Rich styles the option name, so strip the escape codes before matching.
+    assert "--all-cameras" in re.sub(r"\x1b\[[0-9;]*m", "", result.output)
     pipeline_doubles["loader_cls"].assert_not_called()
