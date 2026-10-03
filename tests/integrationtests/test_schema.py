@@ -1,25 +1,17 @@
 """Schema-conformance tests — schemathesis exercises all OpenAPI operations
 and validates that every response matches the declared schema."""
 
-from collections.abc import Iterator
-
-import pytest
 import schemathesis
 
-from backseat_driver.api.app import app
+from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_captioner
-from tests.fakes import FakeCaptioner
+from tests.fakes import FakeCaptioner, make_settings
 
+app = create_app(make_settings())
+app.dependency_overrides[get_captioner] = lambda: FakeCaptioner("a fake scene description")
 # /metrics is added by prometheus_fastapi_instrumentator and returns text/plain,
 # which is outside the OpenAPI spec — exclude it from schema conformance checks.
 schema = schemathesis.openapi.from_asgi("/openapi.json", app).exclude(path_regex=r"^/metrics")
-
-
-@pytest.fixture(autouse=True, scope="module")
-def _override_captioner() -> Iterator[None]:
-    app.dependency_overrides[get_captioner] = lambda: FakeCaptioner("a fake scene description")
-    yield
-    app.dependency_overrides.pop(get_captioner, None)
 
 
 @schema.parametrize()

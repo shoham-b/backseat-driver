@@ -106,8 +106,16 @@ class FakeCaptioner(Captioner):
 
 
 def make_settings(**overrides: Any) -> Settings:
-    """Settings straight from keyword arguments, ignoring any .env file, so tests never touch the environment."""
-    return Settings(_env_file=None, **overrides)
+    """Settings straight from keyword arguments, ignoring any .env file, so tests never touch the environment.
+
+    A model is chosen for every backend, since building a captioner without one fails on purpose.
+    """
+    models: dict[str, Any] = {
+        "vlm_model_name": "fake-model",
+        "ollama_model_name": "fake-model",
+        "anthropic_model_name": "fake-model",
+    }
+    return Settings(_env_file=None, **{**models, **overrides})
 
 
 def make_keyframe(n: int) -> SceneKeyframe:
