@@ -20,7 +20,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
   - `captioning/` — `captioner.py` (`Captioner` ABC); `backend.py` (`CaptionBackend` ABC: the runtime, i.e. where inference happens) and `model.py` (`CaptionModel`: which model runs and its prompt) are separate; `backend_captioner.py` (`BackendCaptioner`) pairs one of each behind `Captioner`. Backends: `huggingface_backend.py` wraps a HuggingFace `image-to-text` pipeline (one per model, loaded lazily on first use); `ollama_backend.py` and `anthropic_backend.py` call a local Ollama server / the hosted Claude API over stdlib HTTP (shared helper in `_http.py`) for verbose, prompt-driven descriptions. `factory.py` (`build_backend`, `build_captioner`) picks the backend from `BACKSEAT_DRIVER_VLM_BACKEND` and the model from config.
   - `scenes/` — `nuscenes_dataset.py` (downloads/validates the local nuScenes copy), `scene_loader.py` (`SceneLoader` ABC), `nuscenes_scene_loader.py` (nuScenes devkit), `pipeline.py` (`ScenePipeline`, orchestrates loader → captioner → `list[SceneDescription]`; never imports nuscenes-devkit/transformers/torch directly), `writer.py` (writes `list[SceneDescription]` as JSON).
   - `jobs/` — `/jobs` processing, in two run modes chosen by `BACKSEAT_DRIVER_MODE` via `factory.py` (`build_job_backend`): `monolith` (default; `in_process_job_queue.py` + `in_memory_job_store.py` run the workers on a thread inside the API process, so `just dev` needs no broker/db/workers) or `distributed` (docker compose; Celery + Postgres with `ingest-worker`/`caption-worker` built from their own Dockerfile targets). Distributed parts: `job_queue.py` (`JobQueue` ABC) + `celery_job_queue.py` (Celery/RabbitMQ); `job_store.py` (`JobStore` ABC) + `postgres_job_store.py` (maps rows to domain models) over `orm.py` (SQLAlchemy tables) and `storage.py` (`JobStorage`: engine/sessions/queries, returns rows not domain models; only `postgres_job_store.py` uses it); `workers.py` (`IngestWorker`/`CaptionWorker` handlers that reuse `describe_keyframe`). `backseat_driver/tasks.py` wraps the handlers as Celery tasks. See `docs/distributed.md`.
-- `backseat_driver/reporting/` — Model-comparison report behind `report`/`ui`: `metrics.py` (content-word precision/recall/F1 against the nuScenes label), `report.py` (groups `SceneDescription`s by scene, scores them), `html_report_writer.py` + `report_template.py` (one self-contained HTML page, images inlined). Pure logic plus file I/O; no platform dependencies.
+- `backseat_driver/reporting/` — Model-comparison report behind `report`/`ui`: `metrics.py` (content-word precision/recall/F1 against the nuScenes label), `report.py` (groups `SceneDescription`s by scene and camera, scores them), `html_report_writer.py` + `report_template.py` (one self-contained HTML page, images inlined). Pure logic plus file I/O; no platform dependencies.
 - `backseat_driver/errors.py` — `DomainError` hierarchy shared by all packages; `api/exception_handlers.py` maps these to HTTP status codes.
 
 - `backseat_driver/cli/` — Typer CLI. `run` is the primary command: runs the full pipeline over a local nuScenes dataset and writes JSON to `output/<backend>__<model>.json` (inferred via `Settings.output_path_for`). `report` / `ui` build or serve the HTML comparison of those files. `test smoke` runs the smoke suite against a running API. Commands (like API routes) are thin entrypoints with no logic of their own: they build the real collaborators and call the classes below, so unit tests inject fakes there (`tests/fakes.py`, `Settings(...)` kwargs) and only the integration tests drive the commands, with env vars for the CLI process (`runner.invoke(..., env=...)`), a `file://` dataset archive and a stub model server. Prefer fakes subclassing the ports over `monkeypatch`/`mock.patch`.
@@ -34,8 +34,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - `backseat_driver/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `BACKSEAT_DRIVER_`.
 - `backseat_driver/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
-- `tests/unittests/` — Fast, isolated unit tests (no I/O).
-- `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`.
+- `tests/unittests/` — Fast, isolated unit tests (no I/O), one function or method under test at a time.
+- `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`, plus in-process worker tests.
 - `tests/smoketests/` — Black-box HTTP tests against a running service.
 - `tests/systemtests/` — Full Docker Compose end-to-end tests.
 - `tests/uitests/` — Selenium tests that drive the model-comparison UI (the real `ui` server) in headless Chrome. Run with `just test-ui`; set `CHROME_BIN`/`CHROMEDRIVER` to use a specific browser.
@@ -58,7 +58,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 | `just lint` | Ruff check + format check (CI mode, no fixes) |
 | `just fmt` | Auto-fix and reformat |
 | `just typecheck` | ty type check |
-| `just test-compose` | Full system test via Docker Compose |
+| `just test-system` | Full system test via Docker Compose |
 | `just test-smoke` | Smoke tests against a running service |
 | `just docs` | Build HTML docs with MkDocs |
 
@@ -79,8 +79,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - **Scope constraint**: Only test and lint files you actually modified. Do not run a full-suite ruff or mypy pass over unmodified files.
 - **Test layers** (fastest → slowest):
-  1. `tests/unittests/` — pure logic, no network, no filesystem.
-  2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`.
+  1. `tests/unittests/` — pure logic, no network, no filesystem. Each test exercises a single unit (one function or method) in isolation; replace its collaborators with fakes or stubs instead of running them. A test that drives several real units together belongs in `tests/integrationtests/`.
+  2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`, and the `jobs/` workers (`IngestWorker`/`CaptionWorker`) run in-process the same way: real worker, queue and store wired together, with only the platform edges (Celery/RabbitMQ, Postgres, models) swapped for in-memory implementations.
   3. `tests/smoketests/` — live HTTP; requires a running service (set `API_URL` to override target).
   4. `tests/uitests/` — Selenium + headless Chrome against the real `ui` server.
   5. `tests/systemtests/` — Docker Compose, runs everything containerised.
@@ -107,7 +107,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - **hypothesis**: Use for property-based tests on pure functions — especially config parsing, model validation, and domain logic in `scenes/`/`jobs/`. Import `from hypothesis import given, strategies as st`. See `tests/unittests/test_config.py` for examples.
 - **Heavy deps (transformers/torch/nuscenes-devkit) stay behind lazy imports**: `captioning/huggingface_backend.py` and `scenes/nuscenes_scene_loader.py` import them inside methods, not at module scope, so unit tests can monkeypatch them without a model download or a dataset on disk. See `tests/unittests/test_huggingface_backend.py` and `test_nuscenes_scene_loader.py` for the pattern.
 - **schemathesis**: Automatically fuzzes all OpenAPI operations declared in the schema. Tests live in `tests/integrationtests/test_schema.py`. Run with `just test` — it's part of the normal integration test suite.
-- **Comments**: Comment the *why*, not the *what*. Delete any comment that merely restates what the code already says.
+- **Comments**: Only write a comment that tells the reader something new: the *why*, a constraint, or a non-obvious consequence. Never describe what the code plainly does, and delete any existing comment that merely restates it.
+- **PR review comments**: Always reply to every review comment on the PR, even when the reply is just "done" to show you accept it. Reply in the comment's own thread; for a fix, include the commit SHA.
 - **Scratch files**: Place any temporary debug or exploration scripts under `scratch/` (gitignored). Do not leave them in the project root or any package directory.
 
 ---

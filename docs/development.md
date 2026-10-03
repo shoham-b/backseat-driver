@@ -38,9 +38,8 @@ Run `just --list` at any time to see all targets. The full table:
 | `just test` | Unit + integration tests with coverage |
 | `just test-smoke` | Smoke tests against a running API |
 | `just test-ui` | Selenium tests of the model-comparison UI (needs Chrome) |
-| `just test-system` | System tests (requires a running API: `just dev`, `just dev-distributed` (+ workers) or `just up`) |
-| `just test-compose` | Full system test via Docker Compose (builds images, tears down after) |
-| `just test-all` | All non-smoke tests with coverage |
+| `just test-system` | Full system test via Docker Compose (builds images, tears down after) |
+| `just test-all` | `just test` followed by `just test-system` |
 | `just bench` | Performance benchmarks (pytest-codspeed) |
 | `just lint` | Ruff check + format check (CI mode — no auto-fixes) |
 | `just fmt` | Auto-fix and reformat |
@@ -111,12 +110,19 @@ uv run backseat-driver test smoke --api-url http://staging:8080
 ### System tests (Docker Compose)
 
 ```bash
-just test-compose
+just test-system
 ```
 
 Builds the images, starts the stack (API, RabbitMQ, Postgres), runs `tests/systemtests/` and `tests/smoketests/` inside the
 `systemtest` container, then tears everything down. Both `systemtest` and the `cli` service have
 `profiles` set (`test` / `cli`) so neither starts with a plain `just compose up`.
+
+To skip Docker and test an API that is already running (`just dev`, `just up`, a staging URL), set `API_URL`; only
+`tests/systemtests/` runs, from the host:
+
+```bash
+API_URL=http://localhost:8080 just test-system
+```
 
 ### Coverage
 
@@ -182,7 +188,7 @@ into `ScenePipeline` — nothing else needs to change.
 ```bash
 just docker-run          # run the pipeline in the cli container
 just up                  # API + RabbitMQ + Postgres + workers
-just test-compose        # system tests
+just test-system        # system tests
 ```
 
 Images are defined in `docker/Dockerfile` with named build targets: `cli` (default/primary) and `api`. See [Running it](running.md) for how every way of running the project fits together.

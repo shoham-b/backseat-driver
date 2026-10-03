@@ -82,7 +82,7 @@ def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_la
 ) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)], env=cli_env)
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(output)], env=cli_env)
     written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
@@ -97,14 +97,18 @@ def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_la
 def test_run_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--max-scenes", "1", "--output", str(output)], env=cli_env)
+    result = runner.invoke(
+        app, ["run", "--camera", "CAM_FRONT", "--max-scenes", "1", "--output", str(output)], env=cli_env
+    )
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text())) == 1
 
 
 def test_run_then_report_scores_the_descriptions_against_the_labels(cli_env: dict[str, str], tmp_path: Path) -> None:
-    runner.invoke(app, ["run"], env=cli_env)  # default output: <output dir>/<backend>__<model>.json
+    runner.invoke(
+        app, ["run", "--camera", "CAM_FRONT"], env=cli_env
+    )  # default output: <output dir>/<backend>__<model>.json
 
     result = runner.invoke(app, ["report"], env=cli_env)
     html = (tmp_path / "output" / "report.html").read_text()
@@ -118,10 +122,25 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(cli_env: dic
 def test_run_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str, str], tmp_path: Path) -> None:
     unreachable = {**cli_env, "BACKSEAT_DRIVER_NUSCENES_URL": (tmp_path / "gone.tgz").as_uri()}
 
-    result = runner.invoke(app, ["run", "--output", str(tmp_path / "x.json")], env=unreachable)
+    result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(tmp_path / "x.json")], env=unreachable)
 
     assert result.exit_code != 0
     assert not (tmp_path / "x.json").exists()
+
+
+def test_run_requires_a_camera_choice(cli_env: dict[str, str], tmp_path: Path) -> None:
+    result = runner.invoke(app, ["run", "--output", str(tmp_path / "x.json")], env=cli_env)
+
+    assert result.exit_code == 2
+    assert "--all-cameras" in result.output
+
+
+def test_run_rejects_all_cameras_together_with_camera(cli_env: dict[str, str], tmp_path: Path) -> None:
+    result = runner.invoke(
+        app, ["run", "--all-cameras", "--camera", "CAM_BACK", "--output", str(tmp_path / "x.json")], env=cli_env
+    )
+
+    assert result.exit_code == 2
 
 
 def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_path: Path) -> None:

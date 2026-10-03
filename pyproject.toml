@@ -9,6 +9,7 @@ authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
 
 [project.scripts]
 backseat-driver = "backseat_driver.cli.__main__:app"
+bd = "backseat_driver.cli.__main__:app"
 
 [build-system]
 requires = ["setuptools>=61"]

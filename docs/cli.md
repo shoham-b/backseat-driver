@@ -1,6 +1,6 @@
 # CLI Reference
 
-All commands are run via `uv run backseat-driver <command>`.
+All commands are run via `uv run backseat-driver <command>`. `bd` is a shorter alias for the same entry point, so `uv run bd <command>` works too.
 
 Global help: `uv run backseat-driver --help`
 
@@ -30,27 +30,31 @@ uv run backseat-driver run [OPTIONS]
 |---|---|---|---|
 | `--dataroot` | `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | nuScenes dataset version |
-| `--camera` | `BACKSEAT_DRIVER_CAMERA_CHANNEL` | `CAM_FRONT` | Camera channel used as the representative frame |
+| `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera channel used as the representative frame, e.g. `CAM_FRONT`. Repeat it (`--camera CAM_FRONT --camera CAM_BACK`) to describe several cameras |
+| `--all-cameras` | — | — | Describe all six cameras (`CAM_FRONT`, `CAM_FRONT_RIGHT`, `CAM_BACK_RIGHT`, `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_FRONT_LEFT`) of every scene. Cannot be combined with `--camera` |
 | `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` | `Salesforce/blip-image-captioning-base` / `llava` | Model for the chosen backend |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
-| `--max-scenes` | — | (all scenes) | Only process the first N scenes |
+| `--max-scenes` | — | (all scenes) | Only process the first N scenes (all of a scene's cameras count as one) |
 
 **Examples:**
 
 ```bash
-# Full v1.0-mini run with defaults
-uv run backseat-driver run
+# Full v1.0-mini run on the front camera
+uv run backseat-driver run --camera CAM_FRONT
 
 # Pick the backend and model; the output file is inferred
-uv run backseat-driver run --backend ollama --model llava:13b
+uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava:13b
 # -> output/ollama__llava-13b.json
 
 # Quick check against the first 2 scenes only
-uv run backseat-driver run --max-scenes 2
+uv run backseat-driver run --camera CAM_FRONT --max-scenes 2
 
 # Different dataset location and camera
 uv run backseat-driver run --dataroot /mnt/nuscenes --camera CAM_BACK
+
+# Every camera of every scene, in one result file
+uv run backseat-driver run --all-cameras
 ```
 
 Each scene's output line during the run looks like:
@@ -67,12 +71,12 @@ Compare how several models described the same scenes. Takes the JSON files writt
 model; default: every `*.json` in the output directory) and writes a single self-contained HTML page (images embedded, no server needed).
 
 ```bash
-uv run backseat-driver run --backend huggingface
-uv run backseat-driver run --backend ollama --model llava
+uv run backseat-driver run --camera CAM_FRONT --backend huggingface
+uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava
 uv run backseat-driver report        # every output/*.json -> output/report.html
 ```
 
-The page lets you filter by scene, model, and description text, shows every model's description
+The page lets you filter by scene, model, camera and description text. Each card is one scene seen through one camera and is labelled with the camera position (e.g. "Front left"); the camera filter appears when the results cover more than one. It shows every model's description
 next to the keyframe, and tabulates precision / recall / F1 / average length per model (recomputed
 for the scenes currently shown).
 

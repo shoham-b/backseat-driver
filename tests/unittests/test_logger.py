@@ -1,7 +1,7 @@
 import json
 import logging
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import pytest
 from loguru import logger
@@ -91,3 +91,15 @@ def test_stdlib_records_with_a_custom_level_name_still_log(capsys: pytest.Captur
     record = json.loads(capsys.readouterr().err.strip())["record"]
 
     assert record["message"] == "heads up"
+
+
+@pytest.mark.parametrize("emit", [lambda: logging.getLogger("x").info("hi"), lambda: logging.info("hi")])
+def test_stdlib_records_are_attributed_to_the_original_caller(
+    emit: Callable[[], None], capsys: pytest.CaptureFixture[str]
+) -> None:
+    setup_logging(LogFormat.JSON)
+
+    emit()
+    record = json.loads(capsys.readouterr().err.strip())["record"]
+
+    assert record["file"]["name"] == "test_logger.py"

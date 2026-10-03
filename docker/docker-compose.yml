@@ -39,6 +39,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: cli
     # The image runs as uid 10001, which can't write to a bind-mounted ./output that docker created as root.
     # Set LOCAL_UID/LOCAL_GID (e.g. `LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)`) to own the results as yourself.
@@ -58,6 +60,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: cli
     command: ["ui", "--no-open"]
     environment:
@@ -101,6 +105,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: cli
     command: ["db", "init"]
     environment:
@@ -114,6 +120,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: api
     ports:
       - "8080:8080"
@@ -138,6 +146,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: ingest-worker
 
   # Scale out with `just compose up --scale caption-worker=N`; each replica pulls from the same queue.
@@ -146,6 +156,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
       target: caption-worker
     deploy:
       replicas: 2
@@ -154,6 +166,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.systemtest
+      args:
+        - PYTHON_VERSION
     environment:
       API_URL: http://api:8080
     depends_on:
