@@ -154,7 +154,7 @@ backseat_driver/
 ├── captioning/     # Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel, build_captioner
 ├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
 ├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
-├── errors.py       # DomainError hierarchy
+├── errors.py       # BackseatDriverError hierarchy
 ├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)

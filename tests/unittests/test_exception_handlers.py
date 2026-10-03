@@ -5,11 +5,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from backseat_driver.api.errors import APIError
-from backseat_driver.api.exception_handlers import api_error_handler, domain_error_handler, unhandled_exception_handler
-from backseat_driver.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from backseat_driver.api.exception_handlers import (
+    api_error_handler,
+    backseat_driver_error_handler,
+    unhandled_exception_handler,
+)
+from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
 
 
-class _UnmappedDomainError(DomainError):
+class _UnmappedBackseatDriverError(BackseatDriverError):
     pass
 
 
@@ -17,14 +21,13 @@ class _UnmappedDomainError(DomainError):
     ("error", "status"),
     [
         (NotFoundError("gone"), HTTPStatus.NOT_FOUND),
-        (ConflictError("dupe"), HTTPStatus.CONFLICT),
         (UnprocessableError("bad"), HTTPStatus.UNPROCESSABLE_ENTITY),
-        (DomainError("generic"), HTTPStatus.BAD_REQUEST),
-        (_UnmappedDomainError("new kind"), HTTPStatus.BAD_REQUEST),
+        (BackseatDriverError("generic"), HTTPStatus.BAD_REQUEST),
+        (_UnmappedBackseatDriverError("new kind"), HTTPStatus.BAD_REQUEST),
     ],
 )
-async def test_domain_errors_map_to_their_http_status(error: DomainError, status: HTTPStatus) -> None:
-    response = await domain_error_handler(MagicMock(), error)
+async def test_errors_map_to_their_http_status(error: BackseatDriverError, status: HTTPStatus) -> None:
+    response = await backseat_driver_error_handler(MagicMock(), error)
 
     assert response.status_code == status
     expected = {"error": {"code": status, "status": status.phrase, "message": str(error)}}

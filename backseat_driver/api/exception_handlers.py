@@ -5,13 +5,12 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from backseat_driver.api.errors import APIError
-from backseat_driver.errors import ConflictError, DomainError, NotFoundError, UnprocessableError
+from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
 
-# Maps each concrete DomainError subclass to its HTTP status code.
-# Add entries here as new domain errors are introduced in errors.py.
-_DOMAIN_STATUS: dict[type[DomainError], HTTPStatus] = {
+# Maps each concrete BackseatDriverError subclass to its HTTP status code.
+# Add entries here as new errors are introduced in errors.py.
+_ERROR_STATUS: dict[type[BackseatDriverError], HTTPStatus] = {
     NotFoundError: HTTPStatus.NOT_FOUND,
-    ConflictError: HTTPStatus.CONFLICT,
     UnprocessableError: HTTPStatus.UNPROCESSABLE_ENTITY,
 }
 
@@ -23,8 +22,8 @@ def _json_error(status: HTTPStatus, message: str) -> JSONResponse:
     )
 
 
-async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
-    status = _DOMAIN_STATUS.get(type(exc), HTTPStatus.BAD_REQUEST)
+async def backseat_driver_error_handler(request: Request, exc: BackseatDriverError) -> JSONResponse:
+    status = _ERROR_STATUS.get(type(exc), HTTPStatus.BAD_REQUEST)
     return _json_error(status, str(exc))
 
 
