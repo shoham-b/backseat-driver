@@ -113,7 +113,7 @@ Four layers, matching the "structure it as if this was a production project" ask
 
 ```bash
 just test          # unit + integration, with coverage (coverage floor enforced in CI)
-just test-compose  # full system test via Docker Compose
+just test-system  # full system test via Docker Compose
 ```
 
 The CLI pipeline itself (`cli/run.py`) is exercised through its unit-tested building blocks rather than

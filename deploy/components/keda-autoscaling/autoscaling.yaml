@@ -18,14 +18,22 @@ spec:
     name: caption-worker
   minReplicaCount: 1 # a replica loads the model on start; scaling to zero would add that delay to the first job
   maxReplicaCount: 8
-  cooldownPeriod: 120
+  # A new replica must load the model before it helps, so a low per-replica target or fast ramp-up adds
+  # cold starts for queues that would have drained anyway.
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          policies: [{type: Pods, value: 2, periodSeconds: 60}]
+        scaleDown:
+          stabilizationWindowSeconds: 300
   triggers:
     - type: rabbitmq
       metadata:
         protocol: http
         queueName: backseat_driver.caption
         mode: QueueLength
-        value: "4" # one replica per 4 waiting scenes
+        value: "20" # one replica per 20 waiting scenes
       authenticationRef: {name: rabbitmq-management}
 ---
 apiVersion: keda.sh/v1alpha1
@@ -37,7 +45,6 @@ spec:
     name: ingest-worker
   minReplicaCount: 1
   maxReplicaCount: 3
-  cooldownPeriod: 120
   triggers:
     - type: rabbitmq
       metadata:

@@ -1,6 +1,6 @@
 # CLI Reference
 
-All commands are run via `uv run backseat-driver <command>`.
+All commands are run via `uv run backseat-driver <command>`. `bd` is a shorter alias for the same entry point, so `uv run bd <command>` works too.
 
 Global help: `uv run backseat-driver --help`
 
