@@ -34,8 +34,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - `backseat_driver/config.py` — Pydantic-settings `Settings` class; all configuration comes from environment variables prefixed with `BACKSEAT_DRIVER_`.
 - `backseat_driver/logger.py` — Loguru setup; call `setup_logging()` once per process entry-point.
-- `tests/unittests/` — Fast, isolated unit tests (no I/O).
-- `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`.
+- `tests/unittests/` — Fast, isolated unit tests (no I/O), one function or method under test at a time.
+- `tests/integrationtests/` — In-process tests using `httpx.AsyncClient` with `ASGITransport`, plus in-process worker tests.
 - `tests/smoketests/` — Black-box HTTP tests against a running service.
 - `tests/systemtests/` — Full Docker Compose end-to-end tests.
 - `tests/uitests/` — Selenium tests that drive the model-comparison UI (the real `ui` server) in headless Chrome. Run with `just test-ui`; set `CHROME_BIN`/`CHROMEDRIVER` to use a specific browser.
@@ -79,8 +79,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 
 - **Scope constraint**: Only test and lint files you actually modified. Do not run a full-suite ruff or mypy pass over unmodified files.
 - **Test layers** (fastest → slowest):
-  1. `tests/unittests/` — pure logic, no network, no filesystem.
-  2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`.
+  1. `tests/unittests/` — pure logic, no network, no filesystem. Each test exercises a single unit (one function or method) in isolation; replace its collaborators with fakes or stubs instead of running them. A test that drives several real units together belongs in `tests/integrationtests/`.
+  2. `tests/integrationtests/` — in-process FastAPI via `httpx.ASGITransport`, and the `jobs/` workers (`IngestWorker`/`CaptionWorker`) run in-process the same way: real worker, queue and store wired together, with only the platform edges (Celery/RabbitMQ, Postgres, models) swapped for in-memory implementations.
   3. `tests/smoketests/` — live HTTP; requires a running service (set `API_URL` to override target).
   4. `tests/uitests/` — Selenium + headless Chrome against the real `ui` server.
   5. `tests/systemtests/` — Docker Compose, runs everything containerised.
