@@ -73,6 +73,7 @@ def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
         "BACKSEAT_DRIVER_NUSCENES_VERSION": VERSION,
         "BACKSEAT_DRIVER_VLM_BACKEND": "ollama",
         "BACKSEAT_DRIVER_OLLAMA_URL": ollama_url,
+        "BACKSEAT_DRIVER_OLLAMA_MODEL_NAME": "llava",
         "BACKSEAT_DRIVER_OUTPUT_DIR": str(tmp_path / "output"),
     }
 
@@ -125,6 +126,18 @@ def test_run_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str,
     result = runner.invoke(app, ["run", "--camera", "CAM_FRONT", "--output", str(tmp_path / "x.json")], env=unreachable)
 
     assert result.exit_code != 0
+    assert not (tmp_path / "x.json").exists()
+
+
+def test_run_requires_a_model(cli_env: dict[str, str], tmp_path: Path) -> None:
+    without_model = {**cli_env, "BACKSEAT_DRIVER_OLLAMA_MODEL_NAME": ""}
+
+    result = runner.invoke(
+        app, ["run", "--camera", "CAM_FRONT", "--output", str(tmp_path / "x.json")], env=without_model
+    )
+
+    assert result.exit_code != 0
+    assert "No model chosen for the ollama backend" in str(result.exception)
     assert not (tmp_path / "x.json").exists()
 
 
