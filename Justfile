@@ -1,7 +1,8 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-set windows-shell := ["bash", "-c"]
+# Git Bash by full path: a bare `bash` resolves to WSL's C:\Windows\System32\bash.exe, which has no `uv`.
+set windows-shell := ["C:/Program Files/Git/usr/bin/bash.exe", "-c"]
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
 compose := "docker compose -f docker/docker-compose.yml --project-directory ."
