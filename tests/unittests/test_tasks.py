@@ -122,7 +122,7 @@ def test_ingest_worker_is_built_from_settings_and_cached(monkeypatch: pytest.Mon
     get_settings.cache_clear()
 
     assert first is second
-    loader_cls.assert_called_once_with(dataroot="/data/nu", version="v1.0-trainval", camera_channel="CAM_BACK")
+    loader_cls.assert_called_once_with(dataroot="/data/nu", version="v1.0-trainval", camera_channels=["CAM_BACK"])
     queue_cls.assert_called_once_with("amqp://broker/")
     store_cls.assert_called_once_with("postgresql+psycopg://db/x")
 

@@ -73,8 +73,7 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
     return files
 
 
-@pytest.fixture(scope="session")
-def ui_url(result_files: list[Path]) -> Iterator[str]:
+def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
     env = {**os.environ, "BACKSEAT_DRIVER_UI_PORT": str(port)}  # exercises the Settings -> command wiring too
     command = [sys.executable, "-m", "backseat_driver.cli", "ui", "--no-open", *map(str, result_files)]
@@ -128,4 +127,46 @@ def page(_driver: "WebDriver", ui_url: str) -> "WebDriver":
     _driver.set_window_size(*DESKTOP)
     _driver.get(ui_url)
     _driver.get_log("browser")  # reading drains it, so a test only sees errors from its own interactions
+    return _driver
+
+
+@pytest.fixture(scope="session")
+def ui_url(result_files: list[Path]) -> Iterator[str]:
+    yield from _serve_ui(result_files)
+
+
+@pytest.fixture(scope="session")
+def multi_camera_result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
+    """One model describing the first scene through the front and the back-left cameras."""
+    root = tmp_path_factory.mktemp("ui-multi-camera")
+    name, reference = SCENES[0]
+    rows = []
+    for index, channel in enumerate(["CAM_FRONT", "CAM_BACK_LEFT"]):
+        image = root / f"{channel}.jpg"
+        Image.new("RGB", (64, 36), (40 + index * 90, 90, 140)).save(image)
+        rows.append(
+            SceneDescription(
+                scene_token="token-0",
+                scene_name=name,
+                camera_channel=channel,
+                image_path=str(image),
+                description=f"a view from {channel}",
+                model_name="blip-base",
+                reference_description=reference,
+            ).model_dump(mode="json")
+        )
+    path = root / "blip-base.json"
+    path.write_text(json.dumps(rows))
+    return [path]
+
+
+@pytest.fixture(scope="session")
+def multi_camera_url(multi_camera_result_files: list[Path]) -> Iterator[str]:
+    yield from _serve_ui(multi_camera_result_files)
+
+
+@pytest.fixture
+def multi_camera_page(_driver: "WebDriver", multi_camera_url: str) -> "WebDriver":
+    _driver.set_window_size(*DESKTOP)
+    _driver.get(multi_camera_url)
     return _driver

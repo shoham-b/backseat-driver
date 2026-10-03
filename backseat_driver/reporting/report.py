@@ -30,8 +30,11 @@ class ModelEntry(BaseModel):
 
 
 class SceneRow(BaseModel):
+    """One scene seen through one camera, with every model's description of it."""
+
     scene_token: str
     scene_name: str
+    camera_channel: str
     image_path: str
     reference: str | None
     entries: list[ModelEntry]
@@ -52,33 +55,39 @@ class ModelSummary(BaseModel):
 class Report(BaseModel):
     scenes: list[SceneRow]
     models: list[ModelSummary]
+    cameras: list[str]
 
 
 def build_report(descriptions: list[SceneDescription]) -> Report:
-    """Group `descriptions` by scene and score each against its reference.
+    """Group `descriptions` by scene and camera and score each against its reference.
 
-    Raises ValueError when one model described the same scene twice (two runs mixed up).
+    Raises ValueError when one model described the same scene through the same camera twice (two runs mixed up).
     """
-    by_scene: dict[str, list[SceneDescription]] = {}
+    by_view: dict[tuple[str, str], list[SceneDescription]] = {}
     for d in descriptions:
-        by_scene.setdefault(d.scene_token, []).append(d)
+        by_view.setdefault((d.scene_token, d.camera_channel), []).append(d)
 
-    rows = [_scene_row(group) for group in by_scene.values()]
-    rows.sort(key=lambda r: r.scene_name)
+    rows = [_scene_row(group) for group in by_view.values()]
+    rows.sort(key=lambda r: (r.scene_name, r.camera_channel))
     model_names = sorted({d.model_name for d in descriptions})
-    return Report(scenes=rows, models=[_summarise(name, rows) for name in model_names])
+    cameras = sorted({d.camera_channel for d in descriptions})
+    return Report(scenes=rows, models=[_summarise(name, rows) for name in model_names], cameras=cameras)
 
 
 def _scene_row(group: list[SceneDescription]) -> SceneRow:
     first = group[0]
     names = [d.model_name for d in group]
     if len(set(names)) != len(names):
-        raise ValueError(f"scene {first.scene_name!r} was described more than once by the same model: {names}")
+        raise ValueError(
+            f"scene {first.scene_name!r} ({first.camera_channel}) was described more than once "
+            f"by the same model: {names}"
+        )
     reference = next((d.reference_description for d in group if d.reference_description), None)
     entries = sorted((_entry(d, reference) for d in group), key=lambda e: e.model_name)
     return SceneRow(
         scene_token=first.scene_token,
         scene_name=first.scene_name,
+        camera_channel=first.camera_channel,
         image_path=first.image_path,
         reference=reference,
         entries=entries,

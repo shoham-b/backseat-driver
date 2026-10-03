@@ -42,6 +42,10 @@ TEMPLATE = r"""<!doctype html>
   .scene { display: grid; grid-template-columns: minmax(220px, 340px) 1fr; gap: 16px; }
   .scene img { width: 100%; border-radius: 8px; display: block; }
   .scene h3 { margin: 0 0 4px; font-size: 16px; }
+  .title { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 4px; }
+  .title h3 { margin: 0; }
+  .camera { padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted); }
   .ref { color: var(--muted); margin: 0 0 12px; }
   .entry { border-top: 1px solid var(--border); padding: 10px 0; }
   .entry:first-of-type { border-top: 0; }
@@ -69,6 +73,7 @@ TEMPLATE = r"""<!doctype html>
     <div><label for="scene">Scene</label><br><select id="scene"></select></div>
     <div><label for="search">Search descriptions</label><br><input id="search" type="search" placeholder="e.g. pedestrian"></div>
     <div><label>Models</label><div class="chips" id="models"></div></div>
+    <div id="cameras-filter" hidden><label>Cameras</label><div class="chips" id="cameras"></div></div>
   </section>
   <section class="card">
     <h2>Metrics by model <span class="sub" id="metrics-scope"></span></h2>
@@ -103,11 +108,27 @@ function node(tag, props = {}, ...children) {
   return n;
 }
 
-el("subtitle").textContent = `${report.scenes.length} scenes · ${report.models.length} model(s)`;
+// "CAM_FRONT_LEFT" -> "Front left": where on the vehicle the picture was taken.
+const cameraLabel = channel => { const w = channel.replace(/^CAM_/, "").toLowerCase().replaceAll("_", " "); return w[0].toUpperCase() + w.slice(1); };
+const enabledCameras = new Set(report.cameras);
+const sceneCount = new Set(report.scenes.map(s => s.scene_token)).size;
+
+el("subtitle").textContent = `${sceneCount} scenes · ${report.models.length} model(s)` + (report.cameras.length > 1 ? ` · ${report.cameras.length} cameras` : "");
 
 const sceneSelect = el("scene");
 sceneSelect.append(node("option", { value: "", textContent: "All scenes" }));
-for (const s of report.scenes) sceneSelect.append(node("option", { value: s.scene_token, textContent: s.scene_name }));
+for (const s of report.scenes.filter((s, i, all) => all.findIndex(o => o.scene_token === s.scene_token) === i))
+  sceneSelect.append(node("option", { value: s.scene_token, textContent: s.scene_name }));
+
+// A single camera needs no filter; every card still names it.
+if (report.cameras.length > 1) {
+  el("cameras-filter").hidden = false;
+  for (const c of report.cameras) {
+    const box = node("input", { type: "checkbox", checked: true });
+    box.addEventListener("change", () => { box.checked ? enabledCameras.add(c) : enabledCameras.delete(c); render(); });
+    el("cameras").append(node("label", {}, box, cameraLabel(c)));
+  }
+}
 
 for (const m of report.models) {
   const box = node("input", { type: "checkbox", checked: true });
@@ -120,7 +141,7 @@ el("search").addEventListener("input", render);
 function visibleScenes() {
   const token = sceneSelect.value, q = el("search").value.trim().toLowerCase();
   return report.scenes
-    .filter(s => !token || s.scene_token === token)
+    .filter(s => (!token || s.scene_token === token) && enabledCameras.has(s.camera_channel))
     .map(s => ({ ...s, entries: s.entries.filter(e => enabled.has(e.model_name) && (!q || e.description.toLowerCase().includes(q))) }))
     .filter(s => s.entries.length);
 }
@@ -169,10 +190,12 @@ function render() {
   const root = el("scenes"); root.replaceChildren();
   if (!scenes.length) { root.append(node("div", { className: "card empty", textContent: "No descriptions match the current filters." })); return; }
   for (const s of scenes) {
-    const body = node("div", {}, node("h3", { textContent: s.scene_name }),
+    const title = node("div", { className: "title" }, node("h3", { textContent: s.scene_name }),
+      node("span", { className: "camera", textContent: cameraLabel(s.camera_channel) }));
+    const body = node("div", {}, title,
       node("p", { className: "ref", textContent: s.reference ? `Reference: ${s.reference}` : "No reference label" }),
       ...s.entries.map(renderEntry));
-    root.append(node("section", { className: "card scene" }, node("img", { src: s.image, alt: `Keyframe of ${s.scene_name}`, loading: "lazy" }), body));
+    root.append(node("section", { className: "card scene" }, node("img", { src: s.image, alt: `${cameraLabel(s.camera_channel)} camera keyframe of ${s.scene_name}`, loading: "lazy" }), body));
     root.lastChild.style.marginBottom = "20px";
   }
 }
