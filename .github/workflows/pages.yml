@@ -22,7 +22,6 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync --group docs
       - run: uv run mkdocs build -f docs/mkdocs.yml
-      # The committed demo results stand in for a nuScenes run; no API URL, so the live-inference card is left out.
       - run: uv run backseat-driver report demo/*.json --output site/ui/index.html
       - uses: actions/upload-pages-artifact@v3
         with:
