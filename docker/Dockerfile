@@ -116,10 +116,10 @@ COPY --from=build-api /app/backseat_driver /app/backseat_driver
 RUN useradd --system --uid 10001 --create-home app
 USER 10001
 # The image binds all interfaces (the config default, 127.0.0.1, is unreachable from outside the container);
-# override with -e. Exec-form CMD doesn't expand env vars, hence the shell, and exec keeps fastapi as PID 1.
+# override with -e.
 ENV PATH=/app/.venv/bin:$PATH \
     HF_HOME=/home/app/.cache/huggingface \
     BACKSEAT_DRIVER_API_HOST=0.0.0.0 \
     BACKSEAT_DRIVER_API_PORT=8080
 EXPOSE 8080
-CMD ["sh", "-c", "exec fastapi run backseat_driver/api/app.py --host $BACKSEAT_DRIVER_API_HOST --port $BACKSEAT_DRIVER_API_PORT"]
+CMD ["python", "-m", "backseat_driver.api"]
