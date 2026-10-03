@@ -107,7 +107,8 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 - **hypothesis**: Use for property-based tests on pure functions — especially config parsing, model validation, and domain logic in `scenes/`/`jobs/`. Import `from hypothesis import given, strategies as st`. See `tests/unittests/test_config.py` for examples.
 - **Heavy deps (transformers/torch/nuscenes-devkit) stay behind lazy imports**: `captioning/huggingface_backend.py` and `scenes/nuscenes_scene_loader.py` import them inside methods, not at module scope, so unit tests can monkeypatch them without a model download or a dataset on disk. See `tests/unittests/test_huggingface_backend.py` and `test_nuscenes_scene_loader.py` for the pattern.
 - **schemathesis**: Automatically fuzzes all OpenAPI operations declared in the schema. Tests live in `tests/integrationtests/test_schema.py`. Run with `just test` — it's part of the normal integration test suite.
-- **Comments**: Comment the *why*, not the *what*. Delete any comment that merely restates what the code already says.
+- **Comments**: Only write a comment that tells the reader something new: the *why*, a constraint, or a non-obvious consequence. Never describe what the code plainly does, and delete any existing comment that merely restates it.
+- **PR review comments**: Always reply to every review comment on the PR, even when the reply is just "done" to show you accept it. Reply in the comment's own thread; for a fix, include the commit SHA.
 - **Scratch files**: Place any temporary debug or exploration scripts under `scratch/` (gitignored). Do not leave them in the project root or any package directory.
 
 ---
