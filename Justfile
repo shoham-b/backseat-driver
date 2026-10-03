@@ -43,10 +43,16 @@ typecheck:
 test:
     uv run pytest tests/unittests tests/integrationtests --cov --cov-report=term-missing
 
-# System tests via Docker Compose — builds images, runs system + smoke tests against containerised API
-test-compose:
-    {{compose}} --profile test run --build --rm systemtest
-    {{compose}} --profile test down
+# System tests: builds the Docker Compose stack and runs system + smoke tests against it. With API_URL set, skips Docker and runs the system tests against that running API instead
+test-system:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "${API_URL:-}" ]; then
+        uv run pytest tests/systemtests -v
+    else
+        trap '{{compose}} --profile test down' EXIT
+        {{compose}} --profile test run --build --rm systemtest
+    fi
 
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
@@ -60,13 +66,8 @@ test-smoke:
 test-ui:
     uv run pytest tests/uitests -v
 
-# System tests against a running API (`just infra` + `just dev`, or `just up`; API_URL overrides the target)
-test-system:
-    uv run pytest tests/systemtests -v
-
-# All non-smoke tests
-test-all:
-    uv run pytest tests/unittests tests/integrationtests tests/systemtests -v --cov
+# Unit + integration tests, then the containerised system tests
+test-all: test test-system
 
 # Same variables the app reads, so the host-run API listens where `test-smoke` and .env expect it.
 set dotenv-load
