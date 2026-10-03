@@ -8,7 +8,7 @@ from loguru import logger
 from backseat_driver.api.errors import APIError
 from backseat_driver.api.exception_handlers import (
     api_error_handler,
-    domain_error_handler,
+    backseat_driver_error_handler,
     unhandled_exception_handler,
 )
 from backseat_driver.api.middleware import RequestIDMiddleware
@@ -17,7 +17,7 @@ from backseat_driver.api.routers.health import router as health_router
 from backseat_driver.api.routers.jobs import router as jobs_router
 from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import get_settings
-from backseat_driver.errors import DomainError
+from backseat_driver.errors import BackseatDriverError
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.logger import LogFormat, setup_logging
 
@@ -43,7 +43,7 @@ app = FastAPI(title="Backseat Driver", lifespan=lifespan)
 app.add_middleware(RequestIDMiddleware)
 # Middleware is built at import time, before the lifespan runs, so settings are read here.
 app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_methods=["GET", "POST"])
-app.add_exception_handler(DomainError, domain_error_handler)  # type: ignore
+app.add_exception_handler(BackseatDriverError, backseat_driver_error_handler)  # type: ignore
 app.add_exception_handler(APIError, api_error_handler)  # type: ignore
 app.add_exception_handler(Exception, unhandled_exception_handler)
 app.include_router(health_router)

@@ -112,7 +112,7 @@ No dependencies    implementations + logic         pipeline; api/routers/describ
 Each layer only imports from layers to its left:
 
 - **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`, `Job`). No imports from any other package.
-- **`errors.py`** — the `DomainError` hierarchy, shared by every capability and mapped to HTTP codes by `api/`.
+- **`errors.py`** — the `BackseatDriverError` hierarchy, shared by every capability and mapped to HTTP codes by `api/`.
 - **Capability packages** — each one holds an abstract port *and* its concrete implementations, so everything about one concern lives in one place:
   - **`captioning/`** — `Captioner` port; `CaptionBackend` (`HuggingFaceBackend`, `OllamaBackend`, `AnthropicBackend`) + `CaptionModel`, combined by `BackendCaptioner`; `build_captioner` picks them from config.
   - **`scenes/`** — `SceneLoader` port; `NuScenesSceneLoader`; `ScenePipeline` (loader → captioner) and `write_json`.
@@ -142,7 +142,7 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
 | [`backseat_driver.scenes`](../backseat_driver/scenes/) | `SceneLoader` port, `NuScenesSceneLoader`, `ScenePipeline`, `write_json` |
 | [`backseat_driver.jobs`](../backseat_driver/jobs/) | `JobQueue`/`JobStore` ports, Celery and Postgres implementations, `IngestWorker`/`CaptionWorker` |
-| [`backseat_driver.errors`](../backseat_driver/errors.py) | `DomainError` hierarchy |
+| [`backseat_driver.errors`](../backseat_driver/errors.py) | `BackseatDriverError` hierarchy |
 | [`backseat_driver.cli`](../backseat_driver/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
 | [`backseat_driver.api`](../backseat_driver/api/) | FastAPI app, routes, lifespan, exception handlers |
 | [`backseat_driver.config`](../backseat_driver/config.py) | `Settings` (pydantic-settings, env-var backed) |
