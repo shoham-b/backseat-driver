@@ -67,7 +67,7 @@ There are four test layers, from fastest to slowest:
 
 | Layer | Path | Infrastructure |
 |---|---|---|
-| Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are monkeypatched, no dataset or model download |
+| Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are replaced by injected fakes, no dataset or model download |
 | Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
 | Smoke | `tests/smoketests/` | running API (set `API_URL` to override) |
 | UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
@@ -80,7 +80,7 @@ uv run pytest tests/unittests -v
 ```
 
 No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_backend.py` import nuscenes-devkit and
-transformers lazily inside methods specifically so these tests can monkeypatch them out — see
+transformers lazily inside their default factories, which the loader and backend take as constructor arguments so these tests can pass a fake — see
 `tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_backend.py`.
 
 ### Integration tests
