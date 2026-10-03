@@ -43,7 +43,6 @@ class Settings(BaseSettings):
 
     # VLM captioning
     vlm_backend: VlmBackend = VlmBackend.HUGGINGFACE
-    # No default models: which one to run is the user's call, and each backend needs only its own.
     vlm_model_name: str | None = None
     ollama_model_name: str | None = None
     ollama_url: str = "http://localhost:11434"
