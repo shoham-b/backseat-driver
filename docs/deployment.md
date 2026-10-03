@@ -69,7 +69,7 @@ URL with credentials) from the overlay that uses it.
 
 | Deployment | Queue | Scale | Replicas |
 |---|---|---|---|
-| `caption-worker` | `backseat_driver.caption` | 1 per 4 waiting scenes | 1–8 |
+| `caption-worker` | `backseat_driver.caption` | 1 per 20 waiting scenes | 1–8 |
 | `ingest-worker` | `backseat_driver.ingest` | 1 per 2 waiting jobs | 1–3 |
 
 The minimum is 1, not 0: a new caption replica loads the model before consuming, and scaling to zero would add that to
