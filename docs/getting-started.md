@@ -22,7 +22,7 @@ data/sets/nuscenes/
 
 ```bash
 uv sync --group dev
-uv run backseat-driver run --camera CAM_FRONT
+uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
@@ -33,7 +33,7 @@ just docker-run --camera CAM_FRONT
 
 Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, and write
 `output/<backend>__<model>.json` (inferred from the backend and model). The first run downloads the VLM weights
-(`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
+(e.g. `Salesforce/blip-image-captioning-base`, ~1GB) from HuggingFace and caches them.
 
 **Useful options** (`uv run backseat-driver run --help` for the full list):
 
@@ -43,7 +43,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 | `--version` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | required (or `--all-cameras`) | Camera channel used as the representative frame, e.g. `CAM_FRONT` (repeatable); `--all-cameras` runs all six |
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
-| `--model` | per backend | HuggingFace model, Ollama model (default `llava`) or Claude model (default `claude-haiku-4-5-20251001`) |
+| `--model` | **required** | Model for the backend, e.g. `Salesforce/blip-image-captioning-base` (HuggingFace), `llava` (Ollama) or `claude-haiku-4-5-20251001` (Claude); or set the matching `BACKSEAT_DRIVER_*_MODEL_NAME` |
 | `--output` | `output/<backend>__<model>.json` | Where to write the JSON results (inferred from the backend and model) |
 | `--max-scenes` | (all) | Only process the first N scenes — handy for a quick smoke run |
 
@@ -96,10 +96,10 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
 | `BACKSEAT_DRIVER_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
 | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
-| `BACKSEAT_DRIVER_VLM_MODEL_NAME` | `Salesforce/blip-image-captioning-base` | HuggingFace image-to-text model |
-| `BACKSEAT_DRIVER_OLLAMA_MODEL_NAME` | `llava` | Ollama model, when backend is `ollama` |
+| `BACKSEAT_DRIVER_VLM_MODEL_NAME` | required for `huggingface` | HuggingFace image-to-text model, e.g. `Salesforce/blip-image-captioning-base` |
+| `BACKSEAT_DRIVER_OLLAMA_MODEL_NAME` | required for `ollama` | Ollama model, e.g. `llava` |
 | `BACKSEAT_DRIVER_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
-| `BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME` | `claude-haiku-4-5-20251001` | Claude model, when backend is `anthropic` |
+| `BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME` | required for `anthropic` | Claude model, e.g. `claude-haiku-4-5-20251001` |
 | `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
 | `BACKSEAT_DRIVER_OUTPUT_DIR` | `output` | Directory for result files and the report |
 | `BACKSEAT_DRIVER_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |

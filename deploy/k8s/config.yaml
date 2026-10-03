@@ -10,6 +10,8 @@ data:
   BACKSEAT_DRIVER_NUSCENES_DATAROOT: /app/data/sets/nuscenes
   BACKSEAT_DRIVER_OUTPUT_DIR: /app/output
   BACKSEAT_DRIVER_VLM_BACKEND: huggingface
+  # No built-in default model; the API and caption workers fail at startup without one.
+  BACKSEAT_DRIVER_VLM_MODEL_NAME: Salesforce/blip-image-captioning-base
 ---
 # Development credentials only — replace this Secret (and the RabbitMQ URL above) before exposing the cluster.
 # For the anthropic backend, add BACKSEAT_DRIVER_ANTHROPIC_API_KEY here and set VLM_BACKEND=anthropic above.

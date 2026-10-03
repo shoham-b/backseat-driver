@@ -33,7 +33,7 @@ uv run backseat-driver run [OPTIONS]
 | `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera channel used as the representative frame, e.g. `CAM_FRONT`. Repeat it (`--camera CAM_FRONT --camera CAM_BACK`) to describe several cameras |
 | `--all-cameras` | — | — | Describe all six cameras (`CAM_FRONT`, `CAM_FRONT_RIGHT`, `CAM_BACK_RIGHT`, `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_FRONT_LEFT`) of every scene. Cannot be combined with `--camera` |
 | `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
-| `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` | `Salesforce/blip-image-captioning-base` / `llava` | Model for the chosen backend |
+| `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` / `..._ANTHROPIC_MODEL_NAME` | **required** (no default) | Model for the chosen backend, e.g. `Salesforce/blip-image-captioning-base`, `llava`, `claude-haiku-4-5-20251001`. Fails fast if neither the flag nor the variable is set |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
 | `--max-scenes` | — | (all scenes) | Only process the first N scenes (all of a scene's cameras count as one) |
 
@@ -41,20 +41,20 @@ uv run backseat-driver run [OPTIONS]
 
 ```bash
 # Full v1.0-mini run on the front camera
-uv run backseat-driver run --camera CAM_FRONT
+uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
 
 # Pick the backend and model; the output file is inferred
 uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava:13b
 # -> output/ollama__llava-13b.json
 
 # Quick check against the first 2 scenes only
-uv run backseat-driver run --camera CAM_FRONT --max-scenes 2
+uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base --max-scenes 2
 
 # Different dataset location and camera
-uv run backseat-driver run --dataroot /mnt/nuscenes --camera CAM_BACK
+uv run backseat-driver run --dataroot /mnt/nuscenes --camera CAM_BACK --model Salesforce/blip-image-captioning-base
 
 # Every camera of every scene, in one result file
-uv run backseat-driver run --all-cameras
+uv run backseat-driver run --all-cameras --model Salesforce/blip-image-captioning-base
 ```
 
 Each scene's output line during the run looks like:
@@ -71,7 +71,7 @@ Compare how several models described the same scenes. Takes the JSON files writt
 model; default: every `*.json` in the output directory) and writes a single self-contained HTML page (images embedded, no server needed).
 
 ```bash
-uv run backseat-driver run --camera CAM_FRONT --backend huggingface
+uv run backseat-driver run --camera CAM_FRONT --backend huggingface --model Salesforce/blip-image-captioning-base
 uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava
 uv run backseat-driver report        # every output/*.json -> output/report.html
 ```

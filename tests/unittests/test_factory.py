@@ -9,11 +9,11 @@ from backseat_driver.config import Settings, VlmBackend
 
 
 def test_settings_backend_is_used_when_none_is_given() -> None:
-    settings = Settings(vlm_backend=VlmBackend.OLLAMA)
+    settings = Settings(vlm_backend=VlmBackend.OLLAMA, ollama_model_name="llava")
 
     captioner = build_captioner(settings)
 
-    assert captioner.model_name == settings.ollama_model_name
+    assert captioner.model_name == "llava"
 
 
 def test_huggingface_uses_configured_model_and_override() -> None:
@@ -44,7 +44,7 @@ def test_anthropic_uses_configured_model_and_override() -> None:
 
 
 def test_anthropic_requires_api_key() -> None:
-    settings = Settings(anthropic_api_key=None)
+    settings = Settings(anthropic_api_key=None, anthropic_model_name="claude-a")
 
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         build_captioner(settings, backend=VlmBackend.ANTHROPIC)
@@ -73,4 +73,4 @@ def test_unknown_backend_fails_fast() -> None:
 def test_every_declared_backend_is_buildable(backend: VlmBackend) -> None:
     settings = Settings(anthropic_api_key=SecretStr("k"))
 
-    assert build_captioner(settings, backend=backend).model_name
+    assert build_captioner(settings, backend=backend, model_name="some-model").model_name == "some-model"
