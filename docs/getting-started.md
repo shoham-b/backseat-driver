@@ -22,16 +22,16 @@ data/sets/nuscenes/
 
 ```bash
 uv sync --group dev
-uv run backseat-driver run
+uv run backseat-driver run --camera CAM_FRONT
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
 
 ```bash
-just docker-run
+just docker-run --camera CAM_FRONT
 ```
 
-Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and write
+Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, and write
 `output/<backend>__<model>.json` (inferred from the backend and model). The first run downloads the VLM weights
 (`Salesforce/blip-image-captioning-base` by default, ~1GB) from HuggingFace and caches them.
 
@@ -41,7 +41,7 @@ Both read `data/sets/nuscenes`, describe every scene's `CAM_FRONT` keyframe, and
 |---|---|---|
 | `--dataroot` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `v1.0-mini` | nuScenes dataset version |
-| `--camera` | `CAM_FRONT` | Camera channel used as the representative frame |
+| `--camera` | required (or `--all-cameras`) | Camera channel used as the representative frame, e.g. `CAM_FRONT` (repeatable); `--all-cameras` runs all six |
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `--model` | per backend | HuggingFace model, Ollama model (default `llava`) or Claude model (default `claude-haiku-4-5-20251001`) |
 | `--output` | `output/<backend>__<model>.json` | Where to write the JSON results (inferred from the backend and model) |

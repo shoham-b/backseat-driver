@@ -81,14 +81,14 @@ uv sync --group dev
 #    data/sets/nuscenes/{maps,samples,sweeps,v1.0-mini}
 
 # 3. Run the pipeline
-uv run backseat-driver run
+uv run backseat-driver run --camera CAM_FRONT
 # → output/huggingface__Salesforce-blip-image-captioning-base.json
 ```
 
 Or fully containerized, no local Python required:
 
 ```bash
-just docker-run
+just docker-run --camera CAM_FRONT
 ```
 
 Full setup instructions (including the optional HTTP API) are in

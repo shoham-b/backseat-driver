@@ -98,3 +98,24 @@ def test_ui_bind_address_is_read_from_the_environment(monkeypatch: pytest.Monkey
     s = Settings()
 
     assert (s.ui_host, s.ui_port) == ("0.0.0.0", 9000)
+
+
+def test_allowed_origins_default_to_the_ui_page() -> None:
+    s = Settings()
+
+    assert s.cors_origins == ["http://127.0.0.1:8081", "http://localhost:8081"]
+
+
+def test_allowed_origins_follow_the_ui_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_HOST", "0.0.0.0")
+    monkeypatch.setenv("BACKSEAT_DRIVER_UI_PORT", "9000")
+
+    s = Settings()
+
+    assert s.cors_origins == ["http://127.0.0.1:9000", "http://localhost:9000", "http://0.0.0.0:9000"]
+
+
+def test_cors_origins_override_the_derived_origins() -> None:
+    s = Settings(cors_origins=["https://example.com"])
+
+    assert s.cors_origins == ["https://example.com"]

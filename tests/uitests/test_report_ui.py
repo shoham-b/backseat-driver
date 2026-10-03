@@ -137,3 +137,29 @@ def test_phone_layout_stacks_the_image_above_the_text(page: WebDriver) -> None:
     image, heading = scene.find_element(By.TAG_NAME, "img"), scene.find_element(By.TAG_NAME, "h3")
 
     assert heading.location["y"] > image.location["y"] + image.size["height"] - 1
+
+
+def _camera_badges(page: WebDriver) -> list[str]:
+    return [b.text for b in page.find_elements(By.CSS_SELECTOR, "#scenes .scene .camera")]
+
+
+def test_every_scene_card_names_the_camera_position(page: WebDriver) -> None:
+    assert _camera_badges(page) == ["Front"] * len(SCENES)
+    assert not page.find_element(By.ID, "cameras-filter").is_displayed()
+
+
+def test_several_cameras_of_a_scene_get_their_own_cards_and_a_filter(multi_camera_page: WebDriver) -> None:
+    page = multi_camera_page
+
+    assert page.find_element(By.ID, "subtitle").text == "1 scenes · 1 model(s) · 2 cameras"
+    assert _scene_titles(page) == [SCENES[0][0]] * 2
+    assert _camera_badges(page) == ["Back left", "Front"]
+    assert len(page.find_elements(By.CSS_SELECTOR, "#scene option")) == 2  # "All scenes" + one scene
+
+
+def test_the_camera_filter_hides_the_unticked_cameras(multi_camera_page: WebDriver) -> None:
+    page = multi_camera_page
+
+    page.find_element(By.XPATH, "//div[@id='cameras']//label[normalize-space()='Front']/input").click()
+
+    assert _camera_badges(page) == ["Back left"]

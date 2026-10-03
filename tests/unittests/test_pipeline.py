@@ -53,3 +53,18 @@ def test_description_carries_keyframe_fields_through() -> None:
     assert description.camera_channel == keyframe.camera_channel
     assert description.image_path == keyframe.image_path
     assert description.description == f"a caption for {keyframe.image_path}"
+
+
+def test_max_scenes_counts_scenes_not_cameras() -> None:
+    keyframes = [
+        _keyframe(1).model_copy(update={"camera_channel": channel}) for channel in ("CAM_FRONT", "CAM_BACK")
+    ] + [_keyframe(2), _keyframe(3)]
+    pipeline = ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner())
+
+    descriptions = pipeline.run(max_scenes=2)
+
+    assert [(d.scene_name, d.camera_channel) for d in descriptions] == [
+        ("scene-1", "CAM_FRONT"),
+        ("scene-1", "CAM_BACK"),
+        ("scene-2", "CAM_FRONT"),
+    ]

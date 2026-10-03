@@ -1,4 +1,3 @@
-import contextlib
 import logging
 import sys
 from enum import StrEnum
@@ -15,11 +14,19 @@ class _InterceptHandler(logging.Handler):
     """Forwards stdlib `logging` records (Celery, SQLAlchemy, ...) into loguru so they share its sinks and format."""
 
     def emit(self, record: logging.LogRecord) -> None:
-        level: str | int = record.levelno
-        with contextlib.suppress(ValueError):  # a level loguru doesn't know falls back to the numeric one
+        level: str | int
+        try:
             level = logger.level(record.levelname).name
-        # depth skips the logging module's own frames so loguru reports the original caller.
-        logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
+        except ValueError:
+            level = record.levelno  # custom stdlib level that loguru has no name for; log by number
+
+        # Walk out of the logging module's own frames (their count varies with the call path:
+        # logging.info(), LoggerAdapter, warnings capture) so loguru reports the original caller.
+        frame, depth = logging.currentframe(), 0
+        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
+            frame = frame.f_back
+            depth += 1
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
 def setup_logging(fmt: LogFormat = LogFormat.COLORED, service: str = "backseat_driver") -> None:

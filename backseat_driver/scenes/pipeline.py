@@ -38,7 +38,9 @@ class ScenePipeline:
     def run(self, max_scenes: int | None = None) -> list[SceneDescription]:
         keyframes = self._loader.load_keyframes()
         if max_scenes is not None:
-            keyframes = keyframes[:max_scenes]
+            # Count scenes, not keyframes: a multi-camera run has several keyframes per scene.
+            kept = set(list(dict.fromkeys(k.scene_token for k in keyframes))[:max_scenes])
+            keyframes = [k for k in keyframes if k.scene_token in kept]
 
         descriptions: list[SceneDescription] = []
         for keyframe in keyframes:
