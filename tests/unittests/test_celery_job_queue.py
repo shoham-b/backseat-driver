@@ -1,10 +1,9 @@
-from unittest import mock
+from typing import Any
 from uuid import uuid4
 
 import pytest
 from kombu.exceptions import OperationalError as KombuOperationalError
 
-from backseat_driver.jobs import celery_job_queue
 from backseat_driver.jobs.celery_job_queue import (
     CAPTION_QUEUE,
     CAPTION_TASK,
@@ -15,16 +14,13 @@ from backseat_driver.jobs.celery_job_queue import (
     make_celery_app,
 )
 from backseat_driver.models import CaptionTask, IngestTask
-from tests.fakes import make_keyframe
+from tests.fakes import FakeCeleryApp, FakeCeleryConnection, make_keyframe
 
 BROKER = "amqp://guest:guest@broker:5672/"
 
 
-@pytest.fixture
-def fake_app(monkeypatch: pytest.MonkeyPatch) -> mock.MagicMock:
-    app = mock.MagicMock()
-    monkeypatch.setattr(celery_job_queue, "make_celery_app", lambda broker_url: app)
-    return app
+def _queue(app: FakeCeleryApp) -> CeleryJobQueue:
+    return CeleryJobQueue(BROKER, make_app=lambda broker_url: app)
 
 
 def test_celery_app_is_configured_for_durable_at_least_once_delivery() -> None:
@@ -57,71 +53,78 @@ def test_max_retries_is_bounded() -> None:
     assert MAX_RETRIES > 0
 
 
-def test_constructing_the_queue_never_builds_a_celery_app(monkeypatch: pytest.MonkeyPatch) -> None:
-    build = mock.MagicMock()
-    monkeypatch.setattr(celery_job_queue, "make_celery_app", build)
+def test_constructing_the_queue_never_builds_a_celery_app() -> None:
+    built: list[str] = []
 
-    CeleryJobQueue(BROKER)
+    CeleryJobQueue(BROKER, make_app=lambda broker_url: built.append(broker_url))
 
-    build.assert_not_called()
+    assert built == []
 
 
-def test_enqueue_ingest_publishes_a_json_payload_by_task_name(fake_app: mock.MagicMock) -> None:
+def test_enqueue_ingest_publishes_a_json_payload_by_task_name() -> None:
+    app = FakeCeleryApp()
     task = IngestTask(job_id=uuid4(), transaction_id="tx-1", max_scenes=2)
 
-    CeleryJobQueue(BROKER).enqueue_ingest(task)
+    _queue(app).enqueue_ingest(task)
 
-    fake_app.send_task.assert_called_once_with(INGEST_TASK, args=[task.model_dump(mode="json")])
-    [payload] = fake_app.send_task.call_args.kwargs["args"]
+    assert app.sent == [(INGEST_TASK, [task.model_dump(mode="json")])]
+    [(_, [payload])] = app.sent
     assert payload["job_id"] == str(task.job_id)  # JSON-safe, not a UUID object
 
 
-def test_enqueue_caption_publishes_a_json_payload_by_task_name(fake_app: mock.MagicMock) -> None:
+def test_enqueue_caption_publishes_a_json_payload_by_task_name() -> None:
+    app = FakeCeleryApp()
     task = CaptionTask(job_id=uuid4(), transaction_id="tx-1", keyframe=make_keyframe(1))
 
-    CeleryJobQueue(BROKER).enqueue_caption(task)
+    _queue(app).enqueue_caption(task)
 
-    fake_app.send_task.assert_called_once_with(CAPTION_TASK, args=[task.model_dump(mode="json")])
+    assert app.sent == [(CAPTION_TASK, [task.model_dump(mode="json")])]
 
 
-def test_app_is_built_once_and_reused(monkeypatch: pytest.MonkeyPatch) -> None:
-    build = mock.MagicMock()
-    monkeypatch.setattr(celery_job_queue, "make_celery_app", build)
-    queue = CeleryJobQueue(BROKER)
+def test_app_is_built_once_and_reused() -> None:
+    built: list[str] = []
+    app = FakeCeleryApp()
+
+    def make_app(broker_url: str) -> Any:
+        built.append(broker_url)
+        return app
+
+    queue = CeleryJobQueue(BROKER, make_app=make_app)
 
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="a"))
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="b"))
     queue.healthcheck()
 
-    build.assert_called_once_with(BROKER)
+    assert built == [BROKER]
 
 
-def test_publish_failures_are_not_swallowed(fake_app: mock.MagicMock) -> None:
-    fake_app.send_task.side_effect = KombuOperationalError("broker down")
+def test_publish_failures_are_not_swallowed() -> None:
+    app = FakeCeleryApp(publish_error=KombuOperationalError("broker down"))
 
     with pytest.raises(KombuOperationalError):
-        CeleryJobQueue(BROKER).enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
+        _queue(app).enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
 
 
-def test_healthcheck_is_true_when_the_broker_accepts_a_connection(fake_app: mock.MagicMock) -> None:
-    healthy = CeleryJobQueue(BROKER).healthcheck()
+def test_healthcheck_is_true_when_the_broker_accepts_a_connection() -> None:
+    app = FakeCeleryApp()
 
-    connection = fake_app.connection_for_write.return_value.__enter__.return_value
+    healthy = _queue(app).healthcheck()
+
     assert healthy is True
-    connection.ensure_connection.assert_called_once_with(max_retries=1)
+    assert app.connection.ensure_calls == [1]
 
 
 @pytest.mark.parametrize(
     "error", [KombuOperationalError("refused"), ConnectionRefusedError("refused"), OSError("down")]
 )
-def test_healthcheck_is_false_when_the_broker_is_unreachable(fake_app: mock.MagicMock, error: Exception) -> None:
-    fake_app.connection_for_write.return_value.__enter__.return_value.ensure_connection.side_effect = error
+def test_healthcheck_is_false_when_the_broker_is_unreachable(error: Exception) -> None:
+    app = FakeCeleryApp(connection=FakeCeleryConnection(error=error))
 
-    assert CeleryJobQueue(BROKER).healthcheck() is False
+    assert _queue(app).healthcheck() is False
 
 
-def test_healthcheck_propagates_unexpected_errors(fake_app: mock.MagicMock) -> None:
-    fake_app.connection_for_write.side_effect = RuntimeError("bug")
+def test_healthcheck_propagates_unexpected_errors() -> None:
+    app = FakeCeleryApp(connection=FakeCeleryConnection(error=RuntimeError("bug")))
 
     with pytest.raises(RuntimeError, match="bug"):
-        CeleryJobQueue(BROKER).healthcheck()
+        _queue(app).healthcheck()

@@ -5,10 +5,12 @@ Never connects until first used.
 """
 
 import threading
+from collections.abc import Callable
 from uuid import UUID
 
 from loguru import logger
 from sqlalchemy import create_engine, func, select, update
+from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -17,11 +19,21 @@ from sqlalchemy.orm import Session, sessionmaker
 from backseat_driver.jobs.orm import Base, JobRow, SceneDescriptionRow
 
 
+def description_insert(job_id: UUID, values: dict) -> Insert:
+    """The idempotent insert of one scene description (Postgres `ON CONFLICT DO NOTHING`)."""
+    return (
+        pg_insert(SceneDescriptionRow)
+        .values(job_id=job_id, **values)
+        .on_conflict_do_nothing(index_elements=["job_id", "scene_token"])
+    )
+
+
 class JobStorage:
     """`database_url` must name the psycopg 3 driver, e.g. `postgresql+psycopg://...`."""
 
-    def __init__(self, database_url: str) -> None:
+    def __init__(self, database_url: str, engine_factory: Callable[..., Engine] = create_engine) -> None:
         self._database_url = database_url
+        self._engine_factory = engine_factory
         self._engine: Engine | None = None
         self._sessions: sessionmaker[Session] | None = None
         self._lock = threading.Lock()
@@ -47,13 +59,8 @@ class JobStorage:
 
     def insert_description(self, job_id: UUID, values: dict) -> None:
         """Idempotent: a redelivered scene is ignored."""
-        statement = (
-            pg_insert(SceneDescriptionRow)
-            .values(job_id=job_id, **values)
-            .on_conflict_do_nothing(index_elements=["job_id", "scene_token"])
-        )
         with self._session() as session, session.begin():
-            session.execute(statement)
+            session.execute(description_insert(job_id, values))
 
     def fetch_job(self, job_id: UUID) -> tuple[JobRow, int] | None:
         """The job row and its completed-scene count, or None when no such job exists."""
@@ -94,7 +101,7 @@ class JobStorage:
         # create_engine is lazy: no connection is opened until first use. The connect timeout keeps
         # ping and startup failing fast against an unreachable host.
         if self._engine is None:
-            self._engine = create_engine(
+            self._engine = self._engine_factory(
                 self._database_url,
                 pool_size=4,
                 max_overflow=0,

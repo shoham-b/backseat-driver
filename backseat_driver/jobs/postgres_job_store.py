@@ -9,8 +9,8 @@ from backseat_driver.models import Job, SceneDescription
 
 
 class PostgresJobStore(JobStore):
-    def __init__(self, database_url: str) -> None:
-        self._storage = JobStorage(database_url)
+    def __init__(self, storage: JobStorage) -> None:
+        self._storage = storage
 
     def ensure_schema(self) -> None:
         self._storage.ensure_schema()

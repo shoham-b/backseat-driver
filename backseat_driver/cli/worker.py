@@ -28,10 +28,10 @@ def ingest() -> None:
 def caption() -> None:
     """Consume caption tasks: run each scene's keyframe through the VLM and record the result."""
     from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
-    from backseat_driver.tasks import caption_worker, celery_app
+    from backseat_driver.tasks import celery_app, workers
 
     setup_logging(LogFormat(get_settings().log_format), service="caption-worker")
     # Load the model before consuming, not on the first message: a model that can't load should
     # fail the worker at startup, not leave it pulling messages it would fail every time.
-    caption_worker()
+    _ = workers.caption_worker
     celery_app.worker_main(["worker", "-Q", CAPTION_QUEUE, "-n", "caption@%h", "--pool=solo", *_NO_CLUSTER])

@@ -156,3 +156,37 @@ class FakeHttpClient(HttpClient):
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         self.probes.append(Probe(url, headers, timeout))
         return self._reachable
+
+
+class FakeCeleryConnection:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.ensure_calls: list[int] = []
+        self._error = error
+
+    def __enter__(self) -> "FakeCeleryConnection":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        return None
+
+    def ensure_connection(self, max_retries: int) -> None:
+        self.ensure_calls.append(max_retries)
+        if self._error:
+            raise self._error
+
+
+class FakeCeleryApp:
+    """Duck-types the slice of `celery.Celery` that `CeleryJobQueue` uses, recording what was published."""
+
+    def __init__(self, publish_error: Exception | None = None, connection: FakeCeleryConnection | None = None) -> None:
+        self.sent: list[tuple[str, list[Any]]] = []
+        self.connection = connection or FakeCeleryConnection()
+        self._publish_error = publish_error
+
+    def send_task(self, name: str, args: list[Any]) -> None:
+        if self._publish_error:
+            raise self._publish_error
+        self.sent.append((name, args))
+
+    def connection_for_write(self) -> FakeCeleryConnection:
+        return self.connection
