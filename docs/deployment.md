@@ -24,7 +24,7 @@ Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount
 | Batch run → `./output/*.json` | `just compose --profile cli run --rm cli` |
 | Model-comparison UI on <http://localhost:8081> | `just compose --profile ui up ui` |
 | API + RabbitMQ + Postgres + workers | `just compose up --build` (API on <http://localhost:8080>) |
-| Containerised system + smoke tests | `just test-compose` |
+| Containerised system + smoke tests | `just test-system` |
 
 The dataset is read from `./data` and results are written to `./output`. Because the image is non-root, a bind-mounted
 `./output` that Docker created as root is not writable; either `mkdir output` and run with
@@ -96,7 +96,7 @@ just k8s-down     # delete the cluster
 Run through this before tagging a release; each step lists what "good" looks like.
 
 1. `just lint typecheck test` — all green, coverage ≥ 95 %.
-2. `just test-compose` — system + smoke tests pass against the containerised stack.
+2. `just test-system` — system + smoke tests pass against the containerised stack.
 3. **Batch + UI**: `just test-ui` (Selenium), then `just run --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
    scores, working filters, no browser-console errors and no horizontal scrolling at phone width.
 4. **Distributed stack**: `just compose up --build`, then `curl localhost:8080/ready` → 200;

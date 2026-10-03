@@ -79,7 +79,7 @@ jobs:
       # Chrome and chromedriver come with the ubuntu-latest image; Selenium Manager locates them.
       - run: uv run pytest tests/uitests -v
 
-  test-compose:
+  test-system:
     runs-on: ubuntu-latest
     permissions:
       contents: read

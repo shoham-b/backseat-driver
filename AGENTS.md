@@ -58,7 +58,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
 | `just lint` | Ruff check + format check (CI mode, no fixes) |
 | `just fmt` | Auto-fix and reformat |
 | `just typecheck` | ty type check |
-| `just test-compose` | Full system test via Docker Compose |
+| `just test-system` | Full system test via Docker Compose |
 | `just test-smoke` | Smoke tests against a running service |
 | `just docs` | Build HTML docs with MkDocs |
 
