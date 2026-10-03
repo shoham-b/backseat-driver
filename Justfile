@@ -71,6 +71,9 @@ test-all:
 # Same variables the app reads, so the host-run API listens where `test-smoke` and .env expect it.
 set dotenv-load
 
+# Single source of truth for the Python version; compose and docker builds pick it up from the environment.
+export PYTHON_VERSION := trim(read(justfile_directory() / ".python-version"))
+
 api_host := env("BACKSEAT_DRIVER_API_HOST", "127.0.0.1")
 api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
 
@@ -142,7 +145,7 @@ k8s-up:
     mkdir -p data
     kind get clusters | grep -qx {{kind_cluster}} || kind create cluster --config deploy/kind/cluster.yaml
     for target in api ingest-worker caption-worker cli; do \
-        docker build -f docker/Dockerfile --target $target -t backseat-driver-$target:local . || exit 1; \
+        docker build -f docker/Dockerfile --build-arg PYTHON_VERSION --target $target -t backseat-driver-$target:local . || exit 1; \
         kind load docker-image --name {{kind_cluster}} backseat-driver-$target:local || exit 1; \
     done
     {{kubectl}} apply --server-side -f https://github.com/kedacore/keda/releases/download/v{{keda_version}}/keda-{{keda_version}}.yaml
