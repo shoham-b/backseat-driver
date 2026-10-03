@@ -84,6 +84,9 @@ jobs:
       - name: Read Python version
         run: echo "PYTHON_VERSION=$(cat .python-version)" >> "$GITHUB_ENV"
       - run: docker compose -f docker/docker-compose.yml --project-directory . --profile test run --build --rm systemtest
+        env:
+          # Compose has no default model, and CI has no .env to supply one.
+          BACKSEAT_DRIVER_VLM_MODEL_NAME: Salesforce/blip-image-captioning-base
       - if: always()
         run: docker compose -f docker/docker-compose.yml --project-directory . --profile test down
 

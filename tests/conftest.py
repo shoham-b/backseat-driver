@@ -4,6 +4,8 @@ import pytest
 
 from backseat_driver.config import Settings
 
+os.environ.setdefault("BACKSEAT_DRIVER_VLM_MODEL_NAME", "fake-model")
+
 
 @pytest.fixture(scope="session")
 def settings() -> Settings:

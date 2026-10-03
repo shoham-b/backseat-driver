@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -14,7 +15,6 @@ def test_defaults() -> None:
     assert s.nuscenes_dataroot == "data/sets/nuscenes"
     assert s.nuscenes_version == "v1.0-mini"
     assert s.camera_channel == "CAM_FRONT"
-    assert s.vlm_model_name == "Salesforce/blip-image-captioning-base"
     assert s.output_dir == "output"
 
 
@@ -62,23 +62,31 @@ def test_api_url_includes_host(host: str) -> None:
 
 
 def test_default_output_path_is_inferred_from_backend_and_configured_model() -> None:
-    s = Settings()
+    s = Settings(vlm_model_name="Salesforce/blip-image-captioning-base")
 
     assert s.output_path_for() == "output/huggingface__Salesforce-blip-image-captioning-base.json"
 
 
 def test_output_path_follows_selected_backend_and_model() -> None:
-    s = Settings(output_dir="results")
+    s = Settings(output_dir="results", anthropic_model_name="claude-haiku-4-5-20251001")
 
     assert s.output_path_for(VlmBackend.OLLAMA, "llava:13b") == "results/ollama__llava-13b.json"
     assert s.output_path_for(VlmBackend.ANTHROPIC) == "results/anthropic__claude-haiku-4-5-20251001.json"
 
 
 def test_model_name_for_prefers_explicit_override() -> None:
-    s = Settings()
+    s = Settings(ollama_model_name="llava")
 
     assert s.model_name_for(VlmBackend.OLLAMA) == "llava"
     assert s.model_name_for(VlmBackend.OLLAMA, "bakllava") == "bakllava"
+
+
+@pytest.mark.parametrize("backend", list(VlmBackend))
+def test_model_name_for_fails_fast_when_no_model_is_chosen(backend: VlmBackend) -> None:
+    s = Settings(vlm_model_name=None, ollama_model_name=None, anthropic_model_name=None)
+
+    with pytest.raises(ValueError, match=f"No model chosen for the {backend.value} backend"):
+        s.model_name_for(backend)
 
 
 @given(model=st.text(min_size=1))

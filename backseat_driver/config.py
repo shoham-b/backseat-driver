@@ -43,10 +43,10 @@ class Settings(BaseSettings):
 
     # VLM captioning
     vlm_backend: VlmBackend = VlmBackend.HUGGINGFACE
-    vlm_model_name: str = "Salesforce/blip-image-captioning-base"
-    ollama_model_name: str = "llava"
+    vlm_model_name: str | None = None
+    ollama_model_name: str | None = None
     ollama_url: str = "http://localhost:11434"
-    anthropic_model_name: str = "claude-haiku-4-5-20251001"
+    anthropic_model_name: str | None = None
     anthropic_api_key: SecretStr | None = None
 
     # How the API runs `/jobs`. Monolith by default so local dev needs nothing else running; docker compose
@@ -66,12 +66,16 @@ class Settings(BaseSettings):
         if model_name:
             return model_name
         if backend is VlmBackend.HUGGINGFACE:
-            return self.vlm_model_name
-        if backend is VlmBackend.OLLAMA:
-            return self.ollama_model_name
-        if backend is VlmBackend.ANTHROPIC:
-            return self.anthropic_model_name
-        raise ValueError(f"Unknown captioner backend {backend!r}")
+            configured, variable = self.vlm_model_name, "BACKSEAT_DRIVER_VLM_MODEL_NAME"
+        elif backend is VlmBackend.OLLAMA:
+            configured, variable = self.ollama_model_name, "BACKSEAT_DRIVER_OLLAMA_MODEL_NAME"
+        elif backend is VlmBackend.ANTHROPIC:
+            configured, variable = self.anthropic_model_name, "BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME"
+        else:
+            raise ValueError(f"Unknown captioner backend {backend!r}")
+        if not configured:
+            raise ValueError(f"No model chosen for the {backend.value} backend: pass --model or set {variable}")
+        return configured
 
     def output_path_for(self, backend: VlmBackend | None = None, model_name: str | None = None) -> str:
         """Default result file for a backend/model pair, so runs of different models never overwrite each other."""

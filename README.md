@@ -24,7 +24,7 @@ generic scaffold.
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene (the front camera
    by default, at the midpoint of the scene rather than the first frame).
 2. **Runs a VLM** — [`captioning/huggingface_backend.py`](backseat_driver/captioning/huggingface_backend.py) passes that image through
-   a small HuggingFace image-captioning model (`Salesforce/blip-image-captioning-base` by default, CPU-only)
+   a small HuggingFace image-captioning model (e.g. `Salesforce/blip-image-captioning-base`, CPU-only)
    to produce a short natural-language description.
 3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
    per scene to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
@@ -81,7 +81,7 @@ uv sync --group dev
 #    data/sets/nuscenes/{maps,samples,sweeps,v1.0-mini}
 
 # 3. Run the pipeline
-uv run backseat-driver run --camera CAM_FRONT
+uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
 # → output/huggingface__Salesforce-blip-image-captioning-base.json
 ```
 
