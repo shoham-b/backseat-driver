@@ -13,12 +13,14 @@ from typing import Annotated
 import typer
 
 from backseat_driver.cli import app
-from backseat_driver.config import VlmBackend, get_settings
-from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.cli.context import cli_context
+from backseat_driver.config import VlmBackend
+from backseat_driver.logger import LogFormat
 
 
 @app.command()
 def run(
+    ctx: typer.Context,
     dataroot: Annotated[
         str | None, typer.Option(help="Cache directory for the nuScenes dataset (downloaded here if missing)")
     ] = None,
@@ -37,12 +39,10 @@ def run(
     ] = None,
 ) -> None:
     """Describe every scene in the dataset and write results to a JSON file."""
-    settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="cli")
+    deps = cli_context(ctx)
+    settings = deps.settings
+    deps.configure_logging(LogFormat(settings.log_format), "cli")
 
-    from backseat_driver.captioning.factory import build_captioner
-    from backseat_driver.scenes.nuscenes_dataset import ensure_nuscenes_dataset
-    from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
     from backseat_driver.scenes.pipeline import ScenePipeline
     from backseat_driver.scenes.writer import write_json
 
@@ -51,9 +51,9 @@ def run(
     camera = camera or settings.camera_channel
     output = output or settings.output_path_for(backend, model)
 
-    ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
-    loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channel=camera)
-    captioner = build_captioner(settings, backend=backend, model_name=model)
+    deps.dataset_cache.ensure(dataroot, version)
+    loader = deps.build_loader(dataroot, version, camera)
+    captioner = deps.build_captioner(settings, backend, model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
     typer.secho(f"Loading scenes from {dataroot!r} ({version})", fg=typer.colors.CYAN)

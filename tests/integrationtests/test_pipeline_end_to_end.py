@@ -5,20 +5,28 @@ Unit tests monkeypatch the devkit, so this is what proves the pieces still fit t
 
 import json
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from typer.testing import CliRunner
 
-from backseat_driver.captioning import factory
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
+from backseat_driver.cli.context import CliContext, default_context
 from backseat_driver.config import get_settings
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import IngestTask
 from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
+from tests.fakes import (
+    FakeCaptioner,
+    FakeCaptionerFactory,
+    FakeDatasetCache,
+    FakeJobQueue,
+    FakeJobStore,
+    FakeLogging,
+)
 from tests.nuscenes_dataset import SCENE_LABELS, VERSION, build_nuscenes_dataset, middle_image
 
 pytest.importorskip("nuscenes.nuscenes", reason="nuscenes-devkit (and its OpenCV libraries) is not installed")
@@ -39,18 +47,29 @@ def dataroot(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def captioner(monkeypatch: pytest.MonkeyPatch) -> FakeCaptioner:
-    fake = FakeCaptioner("a parked truck near construction")
-    monkeypatch.setattr(factory, "build_captioner", lambda *args, **kwargs: fake)
-    return fake
+def captioner() -> FakeCaptioner:
+    return FakeCaptioner("a parked truck near construction")
+
+
+@pytest.fixture
+def context(captioner: FakeCaptioner) -> CliContext:
+    """The real loader over the fixture dataset; only the model, the (network) dataset cache and logging are faked."""
+    return replace(
+        default_context(),
+        configure_logging=FakeLogging(),
+        dataset_cache=FakeDatasetCache(),
+        build_captioner=FakeCaptionerFactory(captioner),
+    )
 
 
 def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_label(
-    dataroot: Path, captioner: FakeCaptioner, tmp_path: Path
+    dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path
 ) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--dataroot", str(dataroot), "--version", VERSION, "--output", str(output)])
+    result = runner.invoke(
+        app, ["run", "--dataroot", str(dataroot), "--version", VERSION, "--output", str(output)], obj=context
+    )
     written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
@@ -61,21 +80,23 @@ def test_run_describes_every_scene_from_the_middle_frame_with_its_reference_labe
     assert captioner.seen_paths == [d["image_path"] for d in written]
 
 
-def test_run_honours_max_scenes(dataroot: Path, captioner: FakeCaptioner, tmp_path: Path) -> None:
+def test_run_honours_max_scenes(dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--dataroot", str(dataroot), "--max-scenes", "1", "--output", str(output)])
+    result = runner.invoke(
+        app, ["run", "--dataroot", str(dataroot), "--max-scenes", "1", "--output", str(output)], obj=context
+    )
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text())) == 1
 
 
 def test_run_then_report_scores_the_descriptions_against_the_labels(
-    dataroot: Path, captioner: FakeCaptioner, tmp_path: Path
+    dataroot: Path, captioner: FakeCaptioner, context: CliContext, tmp_path: Path
 ) -> None:
     result_file = tmp_path / "result.json"
     html_file = tmp_path / "report.html"
-    runner.invoke(app, ["run", "--dataroot", str(dataroot), "--output", str(result_file)])
+    runner.invoke(app, ["run", "--dataroot", str(dataroot), "--output", str(result_file)], obj=context)
 
     result = runner.invoke(app, ["report", str(result_file), "--output", str(html_file)])
     html = html_file.read_text()
@@ -86,8 +107,10 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(
     assert "data:image/jpeg;base64," in html  # images are inlined, so the page works without the dataset
 
 
-def test_run_fails_clearly_when_the_dataset_is_missing(captioner: FakeCaptioner, tmp_path: Path) -> None:
-    result = runner.invoke(app, ["run", "--dataroot", str(tmp_path / "nowhere"), "--output", str(tmp_path / "x.json")])
+def test_run_fails_clearly_when_the_dataset_is_missing(context: CliContext, tmp_path: Path) -> None:
+    result = runner.invoke(
+        app, ["run", "--dataroot", str(tmp_path / "nowhere"), "--output", str(tmp_path / "x.json")], obj=context
+    )
 
     assert result.exit_code != 0
     assert not (tmp_path / "x.json").exists()

@@ -1,7 +1,5 @@
 import json
-import os
-import sys
-from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 from unittest import mock
 
@@ -9,29 +7,29 @@ import pytest
 from typer.testing import CliRunner
 
 from backseat_driver import __version__
-from backseat_driver.captioning import factory
+from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
-from backseat_driver.cli import db as db_cli
-from backseat_driver.cli import run as run_cli
 from backseat_driver.cli import test as test_cli
-from backseat_driver.cli import worker as worker_cli
-from backseat_driver.config import get_settings
-from backseat_driver.jobs import postgres_job_store
-from backseat_driver.scenes import nuscenes_scene_loader
-from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
+from backseat_driver.cli.context import CliContext, PytestNotInstalledError, default_context
+from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
+from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.scenes.nuscenes_dataset import NuScenesDatasetCache
+from tests.fakes import (
+    FakeCaptioner,
+    FakeCaptionerFactory,
+    FakeDatasetCache,
+    FakeLoaderFactory,
+    FakeLogging,
+    FakePytestRunner,
+    FakeSchemaInit,
+    FakeWorkerHost,
+    make_cli_context,
+    make_keyframe,
+    make_settings,
+)
 
 runner = CliRunner()
-
-
-@pytest.fixture(autouse=True)
-def _isolate_global_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Commands call `setup_logging`, which replaces loguru's sinks process-wide; keep that out of other tests."""
-    for module in (run_cli, db_cli, worker_cli):
-        monkeypatch.setattr(module, "setup_logging", mock.Mock())
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 def test_version_flag_prints_the_package_version_and_exits() -> None:
@@ -64,24 +62,46 @@ def test_unknown_command_is_a_usage_error() -> None:
     assert runner.invoke(app, ["nope"]).exit_code == 2
 
 
+def test_the_default_context_wires_the_real_adapters_without_connecting() -> None:
+    context = default_context()
+
+    assert isinstance(context.dataset_cache, NuScenesDatasetCache)
+    assert context.configure_logging is setup_logging
+
+
 # --- run -----------------------------------------------------------------------------------------------------------
 
 
-@pytest.fixture
-def pipeline_doubles(monkeypatch: pytest.MonkeyPatch) -> dict[str, mock.Mock]:
-    loader_cls = mock.Mock(return_value=FakeSceneLoader([make_keyframe(1), make_keyframe(2), make_keyframe(3)]))
-    build = mock.Mock(return_value=FakeCaptioner("a quiet street"))
-    monkeypatch.setattr(nuscenes_scene_loader, "NuScenesSceneLoader", loader_cls)
-    monkeypatch.setattr(factory, "build_captioner", build)
-    return {"loader_cls": loader_cls, "build": build}
+@dataclass
+class RunDoubles:
+    cache: FakeDatasetCache
+    loaders: FakeLoaderFactory
+    captioners: FakeCaptionerFactory
+    logging: FakeLogging
+
+    def context(self, **settings: str) -> CliContext:
+        return make_cli_context(
+            settings=make_settings(**settings),
+            configure_logging=self.logging,
+            dataset_cache=self.cache,
+            build_loader=self.loaders,
+            build_captioner=self.captioners,
+        )
 
 
-def test_run_writes_one_json_entry_per_scene_and_echoes_them(
-    tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]
-) -> None:
+def _doubles(keyframes: int = 3, captioner: Captioner | None = None) -> RunDoubles:
+    return RunDoubles(
+        FakeDatasetCache(),
+        FakeLoaderFactory([make_keyframe(n) for n in range(1, keyframes + 1)]),
+        FakeCaptionerFactory(captioner or FakeCaptioner("a quiet street")),
+        FakeLogging(),
+    )
+
+
+def test_run_writes_one_json_entry_per_scene_and_echoes_them(tmp_path: Path) -> None:
     output = tmp_path / "out" / "descriptions.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--output", str(output)], obj=_doubles().context())
 
     assert result.exit_code == 0, result.output
     written = json.loads(output.read_text(encoding="utf-8"))
@@ -90,27 +110,30 @@ def test_run_writes_one_json_entry_per_scene_and_echoes_them(
     assert "scene-0002: a quiet street" in result.output
 
 
-def test_run_defaults_come_from_settings(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]
-) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/env/root")
-    monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_VERSION", "v-env")
-    monkeypatch.setenv("BACKSEAT_DRIVER_CAMERA_CHANNEL", "CAM_ENV")
-    monkeypatch.setenv("BACKSEAT_DRIVER_OUTPUT_DIR", str(tmp_path))
+def test_run_configures_logging_from_the_settings(tmp_path: Path) -> None:
+    doubles = _doubles(keyframes=0)
 
-    result = runner.invoke(app, ["run"])
+    runner.invoke(app, ["run", "--output", str(tmp_path / "o.json")], obj=doubles.context(log_format="json"))
+
+    assert doubles.logging.calls == [(LogFormat.JSON, "cli")]
+
+
+def test_run_defaults_come_from_settings(tmp_path: Path) -> None:
+    doubles = _doubles()
+    context = doubles.context(
+        nuscenes_dataroot="/env/root", nuscenes_version="v-env", camera_channel="CAM_ENV", output_dir=str(tmp_path)
+    )
+
+    result = runner.invoke(app, ["run"], obj=context)
 
     assert result.exit_code == 0, result.output
-    pipeline_doubles["loader_cls"].assert_called_once_with(
-        dataroot="/env/root", version="v-env", camera_channel="CAM_ENV"
-    )
+    assert doubles.cache.ensured == [("/env/root", "v-env")]
+    assert doubles.loaders.calls == [("/env/root", "v-env", "CAM_ENV")]
     assert (tmp_path / "huggingface__Salesforce-blip-image-captioning-base.json").exists()
 
 
-def test_run_options_override_settings(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]
-) -> None:
-    monkeypatch.setenv("BACKSEAT_DRIVER_NUSCENES_DATAROOT", "/env/root")
+def test_run_options_override_settings(tmp_path: Path) -> None:
+    doubles = _doubles()
 
     result = runner.invoke(
         app,
@@ -123,61 +146,58 @@ def test_run_options_override_settings(
             "--model", "llava:7b",
             "--output", str(tmp_path / "o.json"),
         ],
+        obj=doubles.context(nuscenes_dataroot="/env/root"),
     )  # fmt: skip
 
     assert result.exit_code == 0, result.output
-    pipeline_doubles["loader_cls"].assert_called_once_with(
-        dataroot="/cli/root", version="v-cli", camera_channel="CAM_BACK"
-    )
-    [(settings,), kwargs] = pipeline_doubles["build"].call_args
-    assert kwargs == {"backend": "ollama", "model_name": "llava:7b"}
+    assert doubles.cache.ensured == [("/cli/root", "v-cli")]
+    assert doubles.loaders.calls == [("/cli/root", "v-cli", "CAM_BACK")]
+    [(settings, backend, model)] = doubles.captioners.calls
+    assert (backend, model) == ("ollama", "llava:7b")
     assert settings.nuscenes_dataroot == "/env/root"
 
 
-def test_run_max_scenes_limits_the_work(tmp_path: Path, pipeline_doubles: dict[str, mock.Mock]) -> None:
+def test_run_max_scenes_limits_the_work(tmp_path: Path) -> None:
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--max-scenes", "2", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--max-scenes", "2", "--output", str(output)], obj=_doubles().context())
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text(encoding="utf-8"))) == 2
 
 
-def test_run_on_an_empty_dataset_writes_an_empty_array(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(nuscenes_scene_loader, "NuScenesSceneLoader", mock.Mock(return_value=FakeSceneLoader([])))
-    monkeypatch.setattr(factory, "build_captioner", mock.Mock(return_value=FakeCaptioner()))
+def test_run_on_an_empty_dataset_writes_an_empty_array(tmp_path: Path) -> None:
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(app, ["run", "--output", str(output)], obj=_doubles(keyframes=0).context())
 
     assert result.exit_code == 0, result.output
     assert json.loads(output.read_text(encoding="utf-8")) == []
     assert "Wrote 0 scene description(s)" in result.output
 
 
-def test_run_rejects_an_unknown_backend_before_doing_any_work(pipeline_doubles: dict[str, mock.Mock]) -> None:
-    result = runner.invoke(app, ["run", "--backend", "bogus"])
+def test_run_rejects_an_unknown_backend_before_doing_any_work() -> None:
+    doubles = _doubles()
+
+    result = runner.invoke(app, ["run", "--backend", "bogus"], obj=doubles.context())
 
     assert result.exit_code == 2
-    pipeline_doubles["loader_cls"].assert_not_called()
+    assert doubles.cache.ensured == []
+    assert doubles.loaders.calls == []
 
 
 def test_run_rejects_a_non_integer_max_scenes() -> None:
-    assert runner.invoke(app, ["run", "--max-scenes", "many"]).exit_code == 2
+    assert runner.invoke(app, ["run", "--max-scenes", "many"], obj=_doubles().context()).exit_code == 2
 
 
-def test_run_surfaces_a_failing_captioner_rather_than_writing_partial_output(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_surfaces_a_failing_captioner_rather_than_writing_partial_output(tmp_path: Path) -> None:
     captioner = mock.Mock(model_name="m")
     captioner.caption.side_effect = RuntimeError("model exploded")
-    monkeypatch.setattr(
-        nuscenes_scene_loader, "NuScenesSceneLoader", mock.Mock(return_value=FakeSceneLoader([make_keyframe(1)]))
-    )
-    monkeypatch.setattr(factory, "build_captioner", mock.Mock(return_value=captioner))
     output = tmp_path / "o.json"
 
-    result = runner.invoke(app, ["run", "--output", str(output)])
+    result = runner.invoke(
+        app, ["run", "--output", str(output)], obj=_doubles(keyframes=1, captioner=captioner).context()
+    )
 
     assert result.exit_code == 1
     assert isinstance(result.exception, RuntimeError)
@@ -187,24 +207,20 @@ def test_run_surfaces_a_failing_captioner_rather_than_writing_partial_output(
 # --- db ------------------------------------------------------------------------------------------------------------
 
 
-def test_db_init_creates_the_schema_in_the_configured_database(monkeypatch: pytest.MonkeyPatch) -> None:
-    store_cls = mock.Mock()
-    monkeypatch.setattr(postgres_job_store, "PostgresJobStore", store_cls)
-    monkeypatch.setenv("BACKSEAT_DRIVER_DATABASE_URL", "postgresql+psycopg://db/x")
+def test_db_init_creates_the_schema_in_the_configured_database() -> None:
+    schema = FakeSchemaInit()
+    context = make_cli_context(settings=make_settings(database_url="postgresql+psycopg://db/x"), init_schema=schema)
 
-    result = runner.invoke(app, ["db", "init"])
+    result = runner.invoke(app, ["db", "init"], obj=context)
 
     assert result.exit_code == 0, result.output
-    store_cls.assert_called_once_with("postgresql+psycopg://db/x")
-    store_cls.return_value.ensure_schema.assert_called_once_with()
+    assert schema.urls == ["postgresql+psycopg://db/x"]
 
 
-def test_db_init_fails_loudly_when_the_database_is_unreachable(monkeypatch: pytest.MonkeyPatch) -> None:
-    store_cls = mock.Mock()
-    store_cls.return_value.ensure_schema.side_effect = ConnectionError("no route to host")
-    monkeypatch.setattr(postgres_job_store, "PostgresJobStore", store_cls)
+def test_db_init_fails_loudly_when_the_database_is_unreachable() -> None:
+    context = make_cli_context(init_schema=FakeSchemaInit(error=ConnectionError("no route to host")))
 
-    result = runner.invoke(app, ["db", "init"])
+    result = runner.invoke(app, ["db", "init"], obj=context)
 
     assert result.exit_code == 1
     assert isinstance(result.exception, ConnectionError)
@@ -213,110 +229,101 @@ def test_db_init_fails_loudly_when_the_database_is_unreachable(monkeypatch: pyte
 # --- worker --------------------------------------------------------------------------------------------------------
 
 
-def test_ingest_worker_consumes_only_the_ingest_queue(monkeypatch: pytest.MonkeyPatch) -> None:
-    from backseat_driver import tasks
-    from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
+def test_ingest_worker_consumes_only_the_ingest_queue() -> None:
+    worker = FakeWorkerHost()
+    context = make_cli_context(load_caption_model=worker.load_model, start_worker=worker.start)
 
-    worker_main = mock.Mock()
-    monkeypatch.setattr(tasks.celery_app, "worker_main", worker_main)
-
-    result = runner.invoke(app, ["worker", "ingest"])
+    result = runner.invoke(app, ["worker", "ingest"], obj=context)
 
     assert result.exit_code == 0, result.output
-    [argv] = worker_main.call_args.args
-    assert argv[argv.index("-Q") + 1] == INGEST_QUEUE
-    assert "--pool=solo" in argv
-    assert {"--without-gossip", "--without-mingle", "--without-heartbeat"} <= set(argv)
+    assert worker.events == [INGEST_QUEUE]
+    assert "--pool=solo" in worker.argv
+    assert {"--without-gossip", "--without-mingle", "--without-heartbeat"} <= set(worker.argv)
 
 
-def test_caption_worker_loads_the_model_before_it_starts_consuming(monkeypatch: pytest.MonkeyPatch) -> None:
-    from backseat_driver import tasks
-    from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
+def test_caption_worker_loads_the_model_before_it_starts_consuming() -> None:
+    worker = FakeWorkerHost()
+    context = make_cli_context(load_caption_model=worker.load_model, start_worker=worker.start)
 
-    order: list[str] = []
-    monkeypatch.setattr(tasks, "caption_worker", lambda: order.append("load"))
-    monkeypatch.setattr(tasks.celery_app, "worker_main", lambda argv: order.append(argv[argv.index("-Q") + 1]))
-
-    result = runner.invoke(app, ["worker", "caption"])
+    result = runner.invoke(app, ["worker", "caption"], obj=context)
 
     assert result.exit_code == 0, result.output
-    assert order == ["load", CAPTION_QUEUE]
+    assert worker.events == ["load", CAPTION_QUEUE]
 
 
-def test_caption_worker_does_not_start_consuming_when_the_model_cannot_load(monkeypatch: pytest.MonkeyPatch) -> None:
-    from backseat_driver import tasks
+def test_caption_worker_does_not_start_consuming_when_the_model_cannot_load() -> None:
+    worker = FakeWorkerHost(load_error=RuntimeError("cannot load model"))
+    context = make_cli_context(load_caption_model=worker.load_model, start_worker=worker.start)
 
-    worker_main = mock.Mock()
-    monkeypatch.setattr(tasks.celery_app, "worker_main", worker_main)
-    monkeypatch.setattr(tasks, "caption_worker", mock.Mock(side_effect=RuntimeError("cannot load model")))
-
-    result = runner.invoke(app, ["worker", "caption"])
+    result = runner.invoke(app, ["worker", "caption"], obj=context)
 
     assert result.exit_code == 1
-    worker_main.assert_not_called()
+    assert worker.events == []
 
 
 # --- test smoke ----------------------------------------------------------------------------------------------------
 
 
-def test_smoke_runs_the_smoketests_directory(monkeypatch: pytest.MonkeyPatch) -> None:
-    main = mock.Mock(return_value=pytest.ExitCode.OK)
-    monkeypatch.setattr(pytest, "main", main)
+def test_smoke_runs_the_smoketests_directory() -> None:
+    pytest_runner = FakePytestRunner()
 
-    result = runner.invoke(app, ["test", "smoke"])
+    result = runner.invoke(app, ["test", "smoke"], obj=make_cli_context(run_pytest=pytest_runner))
 
     assert result.exit_code == 0, result.output
-    [args] = main.call_args.args
-    assert args == [str(test_cli._PROJECT_ROOT / "tests" / "smoketests")]
+    assert pytest_runner.calls == [([str(test_cli._PROJECT_ROOT / "tests" / "smoketests")], None)]
     assert (test_cli._PROJECT_ROOT / "tests" / "smoketests").is_dir()
 
 
-def test_smoke_verbose_is_forwarded_to_pytest(monkeypatch: pytest.MonkeyPatch) -> None:
-    main = mock.Mock(return_value=pytest.ExitCode.OK)
-    monkeypatch.setattr(pytest, "main", main)
+def test_smoke_verbose_is_forwarded_to_pytest() -> None:
+    pytest_runner = FakePytestRunner()
 
-    runner.invoke(app, ["test", "smoke", "--verbose"])
+    runner.invoke(app, ["test", "smoke", "--verbose"], obj=make_cli_context(run_pytest=pytest_runner))
 
-    assert "-v" in main.call_args.args[0]
-
-
-def test_smoke_api_url_option_is_exported_for_the_tests(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("API_URL", "http://before")  # so monkeypatch restores it after the command overwrites it
-    monkeypatch.setattr(pytest, "main", mock.Mock(return_value=pytest.ExitCode.OK))
-
-    runner.invoke(app, ["test", "smoke", "--api-url", "http://svc:9"])
-
-    assert os.environ["API_URL"] == "http://svc:9"
+    assert "-v" in pytest_runner.calls[0][0]
 
 
-def test_smoke_api_url_falls_back_to_the_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("API_URL", "http://from-env:1")
-    monkeypatch.setattr(pytest, "main", mock.Mock(return_value=pytest.ExitCode.OK))
+def test_smoke_api_url_option_is_handed_to_the_runner() -> None:
+    pytest_runner = FakePytestRunner()
 
-    result = runner.invoke(app, ["test", "smoke"])
+    runner.invoke(app, ["test", "smoke", "--api-url", "http://svc:9"], obj=make_cli_context(run_pytest=pytest_runner))
+
+    assert pytest_runner.calls[0][1] == "http://svc:9"
+
+
+def test_smoke_api_url_falls_back_to_the_environment() -> None:
+    pytest_runner = FakePytestRunner()
+
+    result = runner.invoke(
+        app,
+        ["test", "smoke"],
+        env={"API_URL": "http://from-env:1"},  # the CLI's own envvar binding, scoped to this invocation
+        obj=make_cli_context(run_pytest=pytest_runner),
+    )
 
     assert result.exit_code == 0, result.output
+    assert pytest_runner.calls[0][1] == "http://from-env:1"
 
 
-def test_smoke_treats_no_collected_tests_as_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(pytest, "main", mock.Mock(return_value=pytest.ExitCode.NO_TESTS_COLLECTED))
+def test_smoke_treats_no_collected_tests_as_success() -> None:
+    context = make_cli_context(run_pytest=FakePytestRunner(exit_code=int(pytest.ExitCode.NO_TESTS_COLLECTED)))
 
-    assert runner.invoke(app, ["test", "smoke"]).exit_code == 0
+    assert runner.invoke(app, ["test", "smoke"], obj=context).exit_code == 0
 
 
 @pytest.mark.parametrize(
     "code", [pytest.ExitCode.TESTS_FAILED, pytest.ExitCode.INTERNAL_ERROR, pytest.ExitCode.USAGE_ERROR]
 )
-def test_smoke_propagates_a_failing_pytest_exit_code(monkeypatch: pytest.MonkeyPatch, code: pytest.ExitCode) -> None:
-    monkeypatch.setattr(pytest, "main", mock.Mock(return_value=code))
+def test_smoke_propagates_a_failing_pytest_exit_code(code: pytest.ExitCode) -> None:
+    context = make_cli_context(run_pytest=FakePytestRunner(exit_code=int(code)))
 
-    assert runner.invoke(app, ["test", "smoke"]).exit_code == int(code)
+    assert runner.invoke(app, ["test", "smoke"], obj=context).exit_code == int(code)
 
 
-def test_smoke_explains_how_to_install_pytest_when_it_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setitem(sys.modules, "pytest", None)  # makes `import pytest` raise ImportError
+def test_smoke_explains_how_to_install_pytest_when_it_is_missing() -> None:
+    missing = PytestNotInstalledError("pytest is not installed — run: uv sync --group dev")
+    context = make_cli_context(run_pytest=FakePytestRunner(error=missing))
 
-    result = runner.invoke(app, ["test", "smoke"])
+    result = runner.invoke(app, ["test", "smoke"], obj=context)
 
     assert result.exit_code == 1
     assert "uv sync --group dev" in result.output

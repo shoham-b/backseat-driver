@@ -1,19 +1,18 @@
 """Database commands for the distributed mode."""
 
+import typer
+from loguru import logger
+
 from backseat_driver.cli import db_app
-from backseat_driver.config import get_settings
-from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.cli.context import cli_context
+from backseat_driver.logger import LogFormat
 
 
 @db_app.command()
-def init() -> None:
+def init(ctx: typer.Context) -> None:
     """Create the job tables if they don't exist (idempotent). Run once before starting the API and workers."""
-    settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="db-init")
+    deps = cli_context(ctx)
+    deps.configure_logging(LogFormat(deps.settings.log_format), "db-init")
 
-    from loguru import logger
-
-    from backseat_driver.jobs.postgres_job_store import PostgresJobStore
-
-    PostgresJobStore(settings.database_url).ensure_schema()
+    deps.init_schema(deps.settings.database_url)
     logger.info("database schema ready")

@@ -1,13 +1,20 @@
-"""In-memory test doubles for the distributed mode — no broker, no database, no model."""
+"""In-memory test doubles — no broker, no database, no model, no network, no real server."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.cli.context import CliContext
+from backseat_driver.config import Settings, VlmBackend
 from backseat_driver.errors import NotFoundError
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore, derive_state
+from backseat_driver.logger import LogFormat
 from backseat_driver.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
+from backseat_driver.scenes.dataset_cache import DatasetCache
 from backseat_driver.scenes.scene_loader import SceneLoader
 
 
@@ -99,6 +106,130 @@ class FakeCaptioner(Captioner):
 
     def healthcheck(self) -> bool:
         return True
+
+
+class FakeDatasetCache(DatasetCache):
+    """Never touches the network or the disk; records which (dataroot, version) it was asked to ensure."""
+
+    def __init__(self) -> None:
+        self.ensured: list[tuple[str, str]] = []
+
+    def ensure(self, dataroot: str, version: str) -> None:
+        self.ensured.append((dataroot, version))
+
+
+class FakeLoaderFactory:
+    """Stands in for `CliContext.build_loader`: hands out a fake loader and records the arguments."""
+
+    def __init__(self, keyframes: list[SceneKeyframe]) -> None:
+        self._keyframes = keyframes
+        self.calls: list[tuple[str, str, str]] = []
+
+    def __call__(self, dataroot: str, version: str, camera_channel: str) -> SceneLoader:
+        self.calls.append((dataroot, version, camera_channel))
+        return FakeSceneLoader(self._keyframes)
+
+
+class FakeCaptionerFactory:
+    """Stands in for `CliContext.build_captioner`: hands out one captioner and records the arguments."""
+
+    def __init__(self, captioner: Captioner) -> None:
+        self._captioner = captioner
+        self.calls: list[tuple[Settings, VlmBackend | None, str | None]] = []
+
+    def __call__(self, settings: Settings, backend: VlmBackend | None, model_name: str | None) -> Captioner:
+        self.calls.append((settings, backend, model_name))
+        return self._captioner
+
+
+class FakeLogging:
+    """Stands in for `setup_logging`, which would replace loguru's sinks for the whole test process."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[LogFormat, str]] = []
+
+    def __call__(self, fmt: LogFormat, service: str) -> None:
+        self.calls.append((fmt, service))
+
+
+class FakeSchemaInit:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.urls: list[str] = []
+        self._error = error
+
+    def __call__(self, database_url: str) -> None:
+        self.urls.append(database_url)
+        if self._error:
+            raise self._error
+
+
+class FakeWorkerHost:
+    """Records what a worker command did, in order: model load, then the queue it started consuming."""
+
+    def __init__(self, load_error: Exception | None = None) -> None:
+        self.events: list[str] = []
+        self.argv: list[str] = []
+        self._load_error = load_error
+
+    def load_model(self) -> None:
+        if self._load_error:
+            raise self._load_error
+        self.events.append("load")
+
+    def start(self, argv: list[str]) -> None:
+        self.argv = argv
+        self.events.append(argv[argv.index("-Q") + 1])
+
+
+class FakePytestRunner:
+    def __init__(self, exit_code: int = 0, error: Exception | None = None) -> None:
+        self.calls: list[tuple[list[str], str | None]] = []
+        self._exit_code = exit_code
+        self._error = error
+
+    def __call__(self, args: list[str], api_url: str | None) -> int:
+        self.calls.append((args, api_url))
+        if self._error:
+            raise self._error
+        return self._exit_code
+
+
+class FakeServer:
+    """Stands in for the `ui` web server: keeps what it was asked to serve and the page, then returns (or Ctrl+C)."""
+
+    def __init__(self, interrupt: bool = True) -> None:
+        self.calls: list[tuple[str, int, str | None]] = []  # host, port, URL to open
+        self.html = ""
+        self._interrupt = interrupt
+
+    def __call__(self, directory: str, host: str, port: int, open_url: str | None) -> None:
+        self.calls.append((host, port, open_url))
+        self.html = (Path(directory) / "index.html").read_text(encoding="utf-8")  # the directory is temporary
+        if self._interrupt:
+            raise KeyboardInterrupt
+
+
+def make_settings(**overrides: Any) -> Settings:
+    """Settings straight from keyword arguments, ignoring any .env file, so tests never touch the environment."""
+    return Settings(_env_file=None, **overrides)
+
+
+def make_cli_context(**overrides: Any) -> CliContext:
+    """A `CliContext` of fakes; pass the pieces a test cares about (and wants to inspect) as keyword arguments."""
+    worker = FakeWorkerHost()
+    base = CliContext(
+        settings=make_settings(),
+        configure_logging=FakeLogging(),
+        dataset_cache=FakeDatasetCache(),
+        build_loader=FakeLoaderFactory([]),
+        build_captioner=FakeCaptionerFactory(FakeCaptioner()),
+        init_schema=FakeSchemaInit(),
+        load_caption_model=worker.load_model,
+        start_worker=worker.start,
+        run_pytest=FakePytestRunner(),
+        serve=FakeServer(),
+    )
+    return replace(base, **overrides)
 
 
 def make_keyframe(n: int) -> SceneKeyframe:
