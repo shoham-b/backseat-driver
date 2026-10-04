@@ -53,7 +53,6 @@ def run(
 ) -> None:
     """Describe every scene in the dataset and write results to a JSON file."""
     settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="cli")
 
     from backseat_driver.captioning.factory import build_captioner
     from backseat_driver.scenes.nuscenes_dataset import ensure_nuscenes_dataset
@@ -88,7 +87,7 @@ def run(
     captioner = build_captioner(settings, backend=backend, model_name=model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
-    typer.secho(f"Loading scenes from {dataroot!r} ({version})", fg=typer.colors.CYAN)
+    logger.info("loading scenes from {!r} ({})", dataroot, version)
     if interactive:
         with Progress(
             TextColumn("{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), transient=True
@@ -108,7 +107,7 @@ def run(
         descriptions = pipeline.run(max_scenes=max_scenes, on_progress=log_progress)
 
     write_json(descriptions, output)
-    typer.secho(f"Wrote {len(descriptions)} scene description(s) to {output}", fg=typer.colors.GREEN)
+    logger.info("wrote {} scene description(s) to {}", len(descriptions), output)
 
     for d in descriptions:
         typer.echo(f"  {d.scene_name} [{d.camera_channel}]: {d.description}")

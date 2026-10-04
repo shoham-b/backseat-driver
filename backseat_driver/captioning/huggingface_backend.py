@@ -19,6 +19,11 @@ PipelineFactory = Callable[[str], Callable[..., Any]]
 def transformers_pipeline(model_name: str) -> Callable[..., Any]:
     """Build the `image-to-text` pipeline for `model_name`; `transformers` is imported here, not at module scope."""
     from transformers import pipeline
+    from transformers.utils import logging as transformers_logging
+
+    # transformers logs to stderr through its own handler; propagate to the root handler so it matches our format.
+    transformers_logging.disable_default_handler()
+    transformers_logging.enable_propagation()
 
     return pipeline("image-to-text", model=model_name)
 
