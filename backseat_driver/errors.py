@@ -15,3 +15,16 @@ class NotFoundError(BackseatDriverError):
 
 class UnprocessableError(BackseatDriverError):
     """Input is syntactically valid but violates domain rules."""
+
+
+class HttpStatusError(RuntimeError):
+    """An HTTP call we made was answered with an error status.
+
+    It carries the status so the caller can pass it on: the report UI answers a missing image with a 404 instead of
+    reporting every upstream failure as a bad gateway. Not a `BackseatDriverError`, because it is not about the domain
+    and the API must not map it to a status of its own.
+    """
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status

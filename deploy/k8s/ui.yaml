@@ -1,5 +1,7 @@
-# Model-comparison report (`backseat-driver ui`) over the result files in the `results` volume. It exits at startup
-# when no result file exists yet, so Kubernetes restarts it until `backseat-driver run` has written one.
+# Model-comparison report (`backseat-driver ui`), built on every page load from the completed jobs on the API; images are
+# proxied from it too. It mounts nothing: it needs the API's address only, so it runs on any node and a job that finishes
+# shows up on the next refresh. The live-inference card is called by the browser, so --public-api-url is the address
+# the browser reaches the API at (here the usual `kubectl port-forward svc/api 8080:80`); set it for an ingress.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,26 +19,19 @@ spec:
         - name: ui
           image: ghcr.io/shoham-b/backseat-driver-cli
           imagePullPolicy: IfNotPresent
-          args: [ui, --no-open]
+          args: [ui, --no-open, --all-jobs, --api-url, "http://api", --public-api-url, "http://localhost:8080"]
           ports: [{containerPort: 8081, name: http}]
           envFrom:
             - configMapRef: {name: backseat-driver-config}
           env:
             - {name: BACKSEAT_DRIVER_UI_HOST, value: 0.0.0.0}  # reachable through the Service, not just loopback
+          # /healthz does not call the API, so a probe never depends on it (the page itself does).
           readinessProbe:
-            httpGet: {path: /, port: http}
+            httpGet: {path: /healthz, port: http}
             periodSeconds: 5
-          volumeMounts:
-            - {name: results, mountPath: /app/output, readOnly: true}
-            - {name: data, mountPath: /app/data, readOnly: true}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
           resources:
             requests: {cpu: 50m, memory: 128Mi}
-      volumes:
-        - name: results
-          persistentVolumeClaim: {claimName: results, readOnly: true}
-        - name: data
-          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
 ---
 apiVersion: v1
 kind: Service

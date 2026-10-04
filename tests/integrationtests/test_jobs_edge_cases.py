@@ -9,6 +9,7 @@ from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
 from backseat_driver.captioning.backend_captioner import BackendCaptioner
 from backseat_driver.config import RunMode, VlmBackend
+from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
 from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
@@ -154,6 +155,7 @@ def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
     assert isinstance(state.captioner, BackendCaptioner)
     assert isinstance(state.job_queue, CeleryJobQueue)
     assert isinstance(state.job_store, SqlJobStore)
+    assert isinstance(state.image_store, S3DatasetStore)
     assert health.status_code == HTTPStatus.OK
 
 

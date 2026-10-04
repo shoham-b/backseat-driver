@@ -303,3 +303,13 @@ def test_compose_ingest_waits_for_the_upload_and_every_worker_gets_the_bucket() 
         assert services[name]["environment"]["BACKSEAT_DRIVER_DATASET_BUCKET"], name
         assert services[name]["depends_on"]["s3"]["condition"] == "service_healthy", name
     assert services["ingest-worker"]["depends_on"]["dataset-upload"]["condition"] == "service_completed_successfully"
+
+
+def test_the_report_ui_mounts_no_volume_and_probes_without_the_api() -> None:
+    pods = dict(_pod_specs())
+    (ui,) = [c for name, c in _our_containers() if name == "ui"]
+
+    assert "volumes" not in pods["ui"]
+    assert "volumeMounts" not in ui
+    assert "--all-jobs" in ui["args"]
+    assert ui["readinessProbe"]["httpGet"]["path"] == "/healthz"

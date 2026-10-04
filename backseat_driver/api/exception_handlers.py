@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from backseat_driver.api.errors import APIError
+from backseat_driver.error_format import error_body
 from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
 
 # Maps each concrete BackseatDriverError subclass to its HTTP status code.
@@ -16,10 +17,7 @@ _ERROR_STATUS: dict[type[BackseatDriverError], HTTPStatus] = {
 
 
 def _json_error(status: HTTPStatus, message: str) -> JSONResponse:
-    return JSONResponse(
-        status_code=status,
-        content={"error": {"code": status, "status": status.phrase, "message": message}},
-    )
+    return JSONResponse(status_code=status, content=error_body(status, message))
 
 
 async def backseat_driver_error_handler(request: Request, exc: BackseatDriverError) -> JSONResponse:

@@ -7,10 +7,8 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
-import functools
 import http.server
 import json
-import tempfile
 import webbrowser
 from pathlib import Path
 from typing import Annotated
@@ -30,13 +28,19 @@ def report(
     output: Annotated[
         Path | None, typer.Option(help="Where to write the HTML report (default: <output dir>/report.html)")
     ] = None,
+    job: Annotated[
+        list[str] | None,
+        typer.Option(help="Completed job id to read from the API (repeatable; one job is one model's run)"),
+    ] = None,
+    api_url: Annotated[str | None, typer.Option(help="API to read --job from [default: the configured API]")] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
     from backseat_driver.config import get_settings
 
-    output = output or Path(get_settings().output_dir) / "report.html"
-    results = results or _default_results()
-    count = _write_report(results, output)
+    settings = get_settings()
+    output = output or Path(settings.output_dir) / "report.html"
+    results = results or ([] if job else _default_results())
+    count = _write_report(results, output, jobs=job or [], jobs_api_url=api_url or settings.api_url)
     typer.secho(f"Wrote report for {count} description(s) to {output}", fg=typer.colors.GREEN)
 
 
@@ -49,31 +53,52 @@ def ui(
     host: Annotated[str | None, typer.Option(help="Interface to serve on [default: BACKSEAT_DRIVER_UI_HOST]")] = None,
     port: Annotated[int | None, typer.Option(help="Port to serve on [default: BACKSEAT_DRIVER_UI_PORT]")] = None,
     open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the page in a browser")] = True,
+    job: Annotated[
+        list[str] | None,
+        typer.Option(help="Completed job id to read from the API (repeatable; one job is one model's run)"),
+    ] = None,
+    all_jobs: Annotated[
+        bool,
+        typer.Option(
+            "--all-jobs", help="Show every completed job on the API, re-read on each page load (newest per model)"
+        ),
+    ] = False,
     api_url: Annotated[
-        str | None, typer.Option(help="API serving /describe for the live-inference card (default: the configured API)")
+        str | None,
+        typer.Option(
+            help="API to read jobs and images from, and the live-inference card's target [default: configured]"
+        ),
+    ] = None,
+    public_api_url: Annotated[
+        str | None,
+        typer.Option(
+            help="Where the browser reaches the API for the live card, if not --api-url (e.g. a port-forward)"
+        ),
     ] = None,
 ) -> None:
-    """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
+    """Serve the model-comparison UI: from result files, and/or from the API's jobs (rebuilt on every page load)."""
     from backseat_driver.config import get_settings
+    from backseat_driver.reporting.api_source import ApiReportSource
+    from backseat_driver.reporting.ui_server import ReportPage, make_handler
 
     settings = get_settings()
     host = host or settings.ui_host
     port = port or settings.ui_port
-    results = results or _default_results()
+    results = results or ([] if job or all_jobs else _default_results())
     api_url = api_url or settings.api_url
+    source = ApiReportSource(api_url) if job or all_jobs else None
 
-    with tempfile.TemporaryDirectory() as tmp:
-        count = _write_report(results, Path(tmp) / "index.html", api_url)
-        handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=tmp)
-        url = f"http://{host}:{port}/"
-        typer.secho(f"Serving {count} description(s) from {len(results)} file(s) at {url} (Ctrl+C to stop)", fg="green")
-        with http.server.ThreadingHTTPServer((host, port), handler) as server:
-            if open_browser:
-                webbrowser.open(url)
-            try:
-                server.serve_forever()
-            except KeyboardInterrupt:
-                typer.echo("Stopped")
+    page = ReportPage(results, source, job, all_jobs, live_api_url=public_api_url or api_url)
+    _, count = page.render()  # fail now, not on the first request, if a source is unreadable
+    url = f"http://{host}:{port}/"
+    typer.secho(f"Serving {count} description(s) at {url} (Ctrl+C to stop)", fg="green")
+    with http.server.ThreadingHTTPServer((host, port), make_handler(page, source)) as server:
+        if open_browser:
+            webbrowser.open(url)
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            typer.echo("Stopped")
 
 
 def _default_results() -> list[Path]:
@@ -85,8 +110,15 @@ def _default_results() -> list[Path]:
     return found
 
 
-def _write_report(results: list[Path], output: Path, api_url: str | None = None) -> int:
-    from backseat_driver.reporting.html_report_writer import write_html
+def _write_report(
+    results: list[Path],
+    output: Path,
+    api_url: str | None = None,
+    jobs: list[str] | None = None,
+    jobs_api_url: str | None = None,
+) -> int:
+    from backseat_driver.reporting.api_source import ApiReportSource
+    from backseat_driver.reporting.html_report_writer import file_data_uri, write_html
     from backseat_driver.reporting.report import build_report
 
     descriptions = [
@@ -94,5 +126,16 @@ def _write_report(results: list[Path], output: Path, api_url: str | None = None)
         for path in results
         for item in json.loads(path.read_text(encoding="utf-8"))
     ]
-    write_html(build_report(descriptions), str(output), api_url)
+    source = ApiReportSource(jobs_api_url or "")
+    api_images: set[str] = set()
+    for job_id in jobs or []:
+        job_descriptions = source.descriptions(job_id)
+        api_images.update(d.image_path for d in job_descriptions)
+        descriptions += job_descriptions
+
+    def read_image(image_path: str) -> str:
+        # A job's image_path is a dataset key the API serves; a result file's is a local path.
+        return source.image(image_path) if image_path in api_images else file_data_uri(image_path)
+
+    write_html(build_report(descriptions), str(output), api_url, read_image)
     return len(descriptions)
