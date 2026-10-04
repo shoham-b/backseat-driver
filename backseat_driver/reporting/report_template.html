@@ -67,6 +67,9 @@
   .scene:hover img { transform: scale(1.04); }
   .title { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-bottom: 6px; }
   .title h3 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
+  button.tab { font: inherit; font-size: 12px; font-weight: 700; border: 1px solid transparent; cursor: pointer; }
+  button.tab:not(.active) { background: var(--bg); color: var(--muted); border-color: var(--border); }
+  button.tab:hover { border-color: var(--accent); }
   .camera { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
   .ref { color: var(--muted); margin: 0 0 14px; font-size: 14px; font-style: italic; }
   .entry { border: 1px solid var(--border); border-left: 4px solid var(--tone, var(--border)); border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: color-mix(in srgb, var(--bg) 55%, transparent); }
@@ -82,6 +85,16 @@
   button:active:not(:disabled) { transform: scale(.97); }
   button:disabled { opacity: .6; cursor: wait; }
   .empty { color: var(--muted); text-align: center; padding: 56px 24px; font-size: 16px; }
+  .legend { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 16px 0 0; font-size: 13.5px; }
+  .legend dt { font-weight: 700; }
+  .legend dd { margin: 0; color: var(--muted); }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--accent); }
+  .scene img { cursor: zoom-in; }
+  #lightbox { border: 0; padding: 0; background: transparent; max-width: 95vw; max-height: 95vh; }
+  #lightbox::backdrop { background: rgba(0,0,0,.8); }
+  #lightbox img { max-width: 95vw; max-height: 95vh; display: block; border-radius: 12px; cursor: zoom-out; }
+  th[title],.metric[title] { cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
   .note { font-size: 13px; color: var(--muted); margin: 14px 0 0; }
   @media (max-width: 700px) {
     .scene { grid-template-columns: 1fr; gap: 14px; }
@@ -104,6 +117,8 @@
 <main>
   <section class="card filters">
     <div><label for="scene">Scene</label><select id="scene"></select></div>
+    <div><label for="order">Sort scenes</label><select id="order">
+      <option value="name">By scene name</option><option value="worst">Lowest F1 first</option><option value="best">Highest F1 first</option></select></div>
     <div><label for="search">Search descriptions</label><input id="search" type="search" placeholder="e.g. pedestrian"></div>
     <div><span class="field-label">Models</span><div class="chips" id="models"></div></div>
     <div id="cameras-filter" hidden><span class="field-label">Cameras</span><div class="chips" id="cameras"></div></div>
@@ -111,9 +126,14 @@
   <section class="card">
     <h2>Metrics by model <span class="sub" id="metrics-scope"></span></h2>
     <div class="table-wrap"><table id="summary"></table></div>
-    <p class="note">Scored against the nuScenes scene label by content-word overlap (stopwords removed, plurals folded).
-      <b>Precision</b>: share of the model's words found in the label. <b>Recall</b>: share of the label's words the model mentioned.
-      Synonyms don't match, and verbose models are naturally low on precision — compare models with it in mind.</p>
+    <dl class="legend">
+      <dt>Precision</dt><dd>Of the meaningful words the model wrote, how many also appear in the reference label. Low means it said a lot the label doesn't mention.</dd>
+      <dt>Recall</dt><dd>Of the meaningful words in the reference label, how many the model mentioned. Low means it missed what the label says.</dd>
+      <dt>F1</dt><dd>One overall score combining precision and recall (higher is better; green ≥ 50%, amber ≥ 25%, red below).</dd>
+      <dt>Avg words</dt><dd>Average caption length, for context only; it isn't scored.</dd>
+    </dl>
+    <p class="note">Words are compared after removing filler words (a, the, on…) and folding plurals. Synonyms don't match, and the label
+      describes the whole scene rather than one camera, so scores are low in general. Compare models with each other, not against 100%.</p>
   </section>
   <section class="card" id="live" hidden>
     <h2>Try it live</h2>
@@ -126,6 +146,7 @@
     <p id="live-result" class="note"></p>
   </section>
   <div id="scenes" class="scenes"></div>
+  <dialog id="lightbox"><img id="lightbox-img" alt=""></dialog>
 </main>
 <script id="report-data" type="application/json">__REPORT_DATA__</script>
 <script>
@@ -169,6 +190,12 @@ for (const m of report.models) {
   el("models").append(node("label", {}, box, m.model_name));
 }
 sceneSelect.addEventListener("change", render);
+el("order").addEventListener("change", render);
+
+const lightbox = el("lightbox");
+lightbox.addEventListener("click", () => lightbox.close());
+let sort = { key: "f1", dir: -1 };
+const selectedCamera = new Map();
 el("search").addEventListener("input", render);
 
 function visibleScenes() {
@@ -176,7 +203,22 @@ function visibleScenes() {
   return report.scenes
     .filter(s => (!token || s.scene_token === token) && enabledCameras.has(s.camera_channel))
     .map(s => ({ ...s, entries: s.entries.filter(e => enabled.has(e.model_name) && (!q || e.description.toLowerCase().includes(q))) }))
-    .filter(s => s.entries.length);
+    .filter(s => s.entries.length)
+    .sort((a, b) => compareScenes(a, b));
+}
+
+// Scene order keeps a scene's cameras adjacent so the reference label is shown once per scene.
+function sceneF1(token) {
+  const scores = report.scenes.filter(s => s.scene_token === token).flatMap(s => s.entries).filter(e => e.score).map(e => e.score.f1);
+  return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : Infinity;
+}
+function compareScenes(a, b) {
+  const order = el("order").value;
+  if (order !== "name" && a.scene_token !== b.scene_token) {
+    const d = sceneF1(a.scene_token) - sceneF1(b.scene_token);
+    if (d) return order === "worst" ? d : -d;
+  }
+  return a.scene_name.localeCompare(b.scene_name) || a.scene_token.localeCompare(b.scene_token) || a.camera_channel.localeCompare(b.camera_channel);
 }
 
 // Metrics are recomputed from the visible scenes so the table follows the scene filter.
@@ -192,12 +234,27 @@ function summarise(scenes) {
 
 function renderSummary(scenes) {
   const t = el("summary"); t.replaceChildren();
-  const head = node("tr", {}, ...["Model", "Scenes", "Precision", "Recall", "F1", "Avg words"].map(h => node("th", { textContent: h })));
+  const help = {
+    Scenes: "Descriptions that had a reference label to score against / all descriptions",
+    Precision: "Share of the model's words that also appear in the reference label",
+    Recall: "Share of the reference label's words that the model mentioned",
+    F1: "Overall score combining precision and recall",
+    "Avg words": "Average caption length (not scored)",
+  };
+  const columns = { Model: "name", Scenes: "scored", Precision: "p", Recall: "r", F1: "f1", "Avg words": "words" };
+  const head = node("tr", {}, ...Object.entries(columns).map(([h, key]) => {
+    const th = node("th", { className: "sortable", textContent: h + (sort.key === key ? (sort.dir < 0 ? " ▼" : " ▲") : ""), title: `${help[h] ?? "Model name"} — click to sort` });
+    th.addEventListener("click", () => { sort = { key, dir: sort.key === key ? -sort.dir : (key === "name" ? 1 : -1) }; renderSummary(scenes); });
+    return th;
+  }));
   t.append(head);
-  const rows = summarise(scenes).sort((a, b) => (b.f1 ?? -1) - (a.f1 ?? -1));
+  const rows = summarise(scenes);
+  const value = r => r[sort.key] ?? -1;
+  rows.sort((a, b) => sort.key === "name" ? sort.dir * a.name.localeCompare(b.name) : sort.dir * (value(a) - value(b)));
+  const bestF1 = Math.max(...rows.map(r => r.f1 ?? -1));
   for (const r of rows) {
     const f1Cell = node("td", {}, node("span", { className: "bar" }, node("i", { style: `width:${Math.round((r.f1 ?? 0) * 100)}%;background:${tone(r.f1)}` })), pct(r.f1));
-    t.append(node("tr", { className: r === rows[0] && r.f1 != null && rows.length > 1 ? "best" : "" }, node("td", { textContent: r.name }), node("td", { textContent: `${r.scored}/${r.n} scored` }),
+    t.append(node("tr", { className: r.f1 != null && r.f1 === bestF1 && rows.length > 1 ? "best" : "" }, node("td", { textContent: r.name }), node("td", { textContent: `${r.scored}/${r.n} scored` }),
       node("td", { textContent: pct(r.p) }), node("td", { textContent: pct(r.r) }), f1Cell, node("td", { textContent: r.words.toFixed(1) })));
   }
   el("metrics-scope").textContent = sceneSelect.value ? "· selected scene" : "· all visible scenes";
@@ -209,8 +266,10 @@ function renderEntry(e) {
   const head = node("div", { className: "entry-head" }, node("span", { className: "model", textContent: e.model_name }));
   if (e.score) {
     head.append(
-      node("span", { className: "metric f1", style: `color:${tone(e.score.f1)}`, textContent: `F1 ${pct(e.score.f1)}` }),
-      node("span", { className: "metric", textContent: `P ${pct(e.score.precision)} · R ${pct(e.score.recall)} · ${e.score.word_count} words` }));
+      node("span", { className: "metric f1", style: `color:${tone(e.score.f1)}`, title: "Overall score combining precision and recall", textContent: `F1 ${pct(e.score.f1)}` }),
+      node("span", { className: "metric", title: "Share of this caption's words that appear in the reference label", textContent: `Precision ${pct(e.score.precision)}` }),
+      node("span", { className: "metric", title: "Share of the reference label's words this caption mentioned", textContent: `Recall ${pct(e.score.recall)}` }),
+      node("span", { className: "metric", textContent: `${e.score.word_count} words` }));
   } else {
     head.append(node("span", { className: "metric", textContent: `no reference label · ${e.description.split(/\s+/).length} words` }));
   }
@@ -224,14 +283,26 @@ function render() {
   renderSummary(scenes);
   const root = el("scenes"); root.replaceChildren();
   if (!scenes.length) { root.append(node("div", { className: "card empty", textContent: "No descriptions match the current filters." })); return; }
-  for (const s of scenes) {
-    const title = node("div", { className: "title" }, node("h3", { textContent: s.scene_name }),
-      node("span", { className: "camera", textContent: cameraLabel(s.camera_channel) }));
+  const byScene = new Map();
+  for (const s of scenes) byScene.set(s.scene_token, [...(byScene.get(s.scene_token) ?? []), s]);
+  for (const [token, views] of byScene) {
+    const view = views.find(v => v.camera_channel === selectedCamera.get(token)) ?? views[0];
+    // The nuScenes label describes the whole scene, not one camera, so it is shown once per scene.
+    const tabs = views.length > 1
+      ? views.map(v => {
+          const tab = node("button", { type: "button", className: "camera tab" + (v === view ? " active" : ""), textContent: cameraLabel(v.camera_channel) });
+          tab.setAttribute("aria-pressed", v === view);
+          tab.addEventListener("click", () => { selectedCamera.set(token, v.camera_channel); render(); });
+          return tab;
+        })
+      : [node("span", { className: "camera", textContent: cameraLabel(view.camera_channel) })];
+    const title = node("div", { className: "title" }, node("h3", { textContent: view.scene_name }), ...tabs);
     const body = node("div", {}, title,
-      node("p", { className: "ref", textContent: s.reference ? `Reference: ${s.reference}` : "No reference label" }),
-      ...s.entries.map(renderEntry));
-    const figure = node("div", { className: "figure" }, node("img", { src: s.image, alt: `${cameraLabel(s.camera_channel)} camera keyframe of ${s.scene_name}`, loading: "lazy" }));
-    root.append(node("section", { className: "card scene" }, figure, body));
+      node("p", { className: "ref", textContent: view.reference ? `Reference: ${view.reference}` : "No reference label" }),
+      ...view.entries.map(renderEntry));
+    const img = node("img", { src: view.image, alt: `${cameraLabel(view.camera_channel)} camera keyframe of ${view.scene_name}`, loading: "lazy", title: "Click to enlarge" });
+    img.addEventListener("click", () => { el("lightbox-img").src = img.src; lightbox.showModal(); });
+    root.append(node("section", { className: "card scene" }, node("div", { className: "figure" }, img), body));
   }
 }
 render();
