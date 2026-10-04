@@ -45,4 +45,4 @@ class DeadLetter(BaseModel):
 class JobDeadLetter(DeadLetter):
     """A dead letter listed across jobs, so it says which job it belongs to."""
 
-    job_id: UUID
+    job_id: UUID | None  # None for a task whose payload named no job

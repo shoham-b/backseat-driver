@@ -222,11 +222,15 @@ def test_a_failure_that_a_retry_fixes_leaves_no_dead_letter() -> None:
     assert store.get_job(job_id).state is not JobState.FAILED
 
 
-def test_a_failed_task_whose_payload_names_no_job_leaves_the_store_alone() -> None:
+def test_a_failed_task_whose_payload_names_no_job_is_kept_as_an_orphan_dead_letter() -> None:
     store = FakeJobStore()
+    payload = {"not": "a caption task"}
 
-    _register(store=store).caption.apply(args=[{"not": "a caption task"}])
+    _register(store=store).caption.apply(args=[payload])
 
+    [letter] = store.list_recent_dead_letters(limit=10)
+    assert (letter.job_id, letter.task, letter.payload) == (None, "caption", payload)
+    assert letter.error.startswith("ValidationError")
     assert store.list_jobs() == []
 
 

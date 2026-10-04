@@ -36,9 +36,10 @@ class JobStore(ABC):
         Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
+    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
         """Keep a task that ran out of retries, with its payload. Does not change the job's state: `fail_job` does.
-        Raises NotFoundError for an unknown job."""
+        `job_id` is None for a task whose payload named no job: it appears only in the cross-job listing.
+        Raises NotFoundError for a job id that is unknown."""
 
     @abstractmethod
     def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:

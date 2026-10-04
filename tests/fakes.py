@@ -55,9 +55,10 @@ class FakeJobStore(JobStore):
         self._dead_letters: dict[UUID, list[DeadLetter]] = {}
         self._recent: list[JobDeadLetter] = []
 
-    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
-        self._get(job_id)
-        self._dead_letters.setdefault(job_id, []).append(dead_letter)
+    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
+        if job_id is not None:
+            self._get(job_id)
+            self._dead_letters.setdefault(job_id, []).append(dead_letter)
         self._recent.append(JobDeadLetter(job_id=job_id, **dead_letter.model_dump()))
 
     def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:

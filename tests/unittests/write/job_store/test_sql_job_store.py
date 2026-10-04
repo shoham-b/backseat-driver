@@ -188,6 +188,17 @@ def test_recent_dead_letters_span_jobs_newest_first_up_to_the_limit(store: SqlJo
     assert [(letter.job_id, letter.task) for letter in recent] == [(first, "caption"), (second, "caption")]
 
 
+def test_an_orphan_dead_letter_is_kept_without_a_job_and_listed_only_across_jobs(store: SqlJobStore) -> None:
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx")
+
+    store.record_dead_letter(None, _dead_letter("ingest"))
+
+    [orphan] = store.list_recent_dead_letters(limit=10)
+    assert (orphan.job_id, orphan.task) == (None, "ingest")
+    assert store.list_dead_letters(job_id) == []
+
+
 def test_no_dead_letters_lists_none(store: SqlJobStore) -> None:
     assert store.list_recent_dead_letters(limit=10) == []
 

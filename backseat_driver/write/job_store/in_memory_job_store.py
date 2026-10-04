@@ -57,9 +57,10 @@ class InMemoryJobStore(JobStore):
             record = self._get(job_id)
             record.error = record.error or error
 
-    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
+    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
         with self._lock:
-            self._get(job_id).dead_letters.append(dead_letter)
+            if job_id is not None:
+                self._get(job_id).dead_letters.append(dead_letter)
             self._recent.append(JobDeadLetter(job_id=job_id, **dead_letter.model_dump()))
 
     def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:

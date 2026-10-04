@@ -35,8 +35,9 @@ class SqlJobStore(JobStore):
         if not self._storage.update_error(job_id, error):
             raise NotFoundError(f"job {job_id} not found")
 
-    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
-        self.get_job(job_id)  # raises NotFoundError rather than a foreign key violation
+    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
+        if job_id is not None:
+            self.get_job(job_id)  # raises NotFoundError rather than a foreign key violation
         self._storage.insert_dead_letter(job_id, dead_letter.model_dump())
 
     def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:

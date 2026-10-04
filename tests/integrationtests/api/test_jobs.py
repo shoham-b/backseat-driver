@@ -93,6 +93,18 @@ def test_recent_dead_letters_span_jobs_newest_first_and_name_their_job(client_wi
     assert [letter["job_id"] for letter in limited] == [str(second)]
 
 
+def test_an_orphan_dead_letter_is_listed_with_a_null_job_id(client_with: ClientFactory) -> None:
+    store = FakeJobStore()
+    store.record_dead_letter(
+        None, DeadLetter(task="caption", payload={"junk": 1}, error="ValidationError", failed_at=datetime.now(UTC))
+    )
+    client = client_with({get_job_store: lambda: store})
+
+    [letter] = client.get("/dead-letters").json()
+
+    assert (letter["job_id"], letter["payload"]) == (None, {"junk": 1})
+
+
 def test_recent_dead_letters_reject_a_limit_out_of_range(client: TestClient) -> None:
     response = client.get("/dead-letters", params={"limit": 0})
 

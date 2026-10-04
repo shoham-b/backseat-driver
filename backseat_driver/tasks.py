@@ -100,14 +100,17 @@ def register_tasks(
         def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
             # Celery calls this only once retries are exhausted, so a transient error that a retry fixes never
             # marks a job failed.
+            kind = "ingest" if self.name == INGEST_TASK else "caption"
+            job_store = store()
             try:
                 reference = JobReference.model_validate(args[0])
             except ValidationError:
+                # No job to mark failed, but the message is kept so it isn't lost without a trace.
                 logger.error("{} {} failed and its payload names no job: {}", self.name, task_id, exc)
+                payload = args[0] if isinstance(args[0], dict) else {"raw": repr(args[0])}
+                job_store.record_dead_letter(None, dead_letter_of(kind, payload, exc))
                 return
-            job_store = store()
             job_store.fail_job(reference.job_id, describe_failure(str(self.name), exc))
-            kind = "ingest" if self.name == INGEST_TASK else "caption"
             job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, args[0], exc))
 
     @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)

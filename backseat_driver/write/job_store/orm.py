@@ -32,7 +32,8 @@ class DeadLetterRow(Base):
     __tablename__ = "dead_letters"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), ForeignKey("jobs.job_id"), index=True)
+    # NULL for an orphan: a task whose payload named no job.
+    job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("jobs.job_id"), index=True)
     task: Mapped[str] = mapped_column(String)
     payload: Mapped[dict] = mapped_column(JSON)
     error: Mapped[str] = mapped_column(String)

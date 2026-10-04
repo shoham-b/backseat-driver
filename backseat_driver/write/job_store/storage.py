@@ -92,7 +92,7 @@ class JobStorage:
         with self._session() as session, session.begin():
             return session.execute(statement).first() is not None
 
-    def insert_dead_letter(self, job_id: UUID, values: dict) -> None:
+    def insert_dead_letter(self, job_id: UUID | None, values: dict) -> None:
         with self._session() as session, session.begin():
             session.add(DeadLetterRow(job_id=job_id, **values))
 
