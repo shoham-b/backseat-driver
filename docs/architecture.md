@@ -138,7 +138,7 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 
 | Package | Responsibility |
 |---|---|
-| [`backseat_driver.models`](../backseat_driver/models/__init__.py) | `SceneKeyframe`, `SceneDescription` — shared domain models (Pydantic) |
+| [`backseat_driver.models`](../backseat_driver/models/__init__.py) | Shared domain models (Pydantic), one module per subject: `scene.py` (`SceneKeyframe`, `SceneDescription`), `job.py` (`Job`, `JobState`, `JobReference`), `tasks.py` (`IngestTask`, `CaptionTask`) |
 | [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
 | [`backseat_driver.scenes`](../backseat_driver/scenes/) | `SceneLoader` port, `NuScenesSceneLoader`, `ScenePipeline`, `write_json` |
 | [`backseat_driver.jobs`](../backseat_driver/jobs/) | `JobQueue`/`JobStore` ports, Celery and Postgres implementations, `IngestWorker`/`CaptionWorker` |

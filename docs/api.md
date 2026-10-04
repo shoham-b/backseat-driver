@@ -2,7 +2,11 @@
 
 ## Models
 
-::: backseat_driver.models
+::: backseat_driver.models.scene
+
+::: backseat_driver.models.job
+
+::: backseat_driver.models.tasks
 
 ## Captioning
 
