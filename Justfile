@@ -1,8 +1,8 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-# `sh`, not `bash`: a bare `bash` on Windows resolves to WSL, which has no `uv`.
-set windows-shell := ["sh", "-cu"]
+# PowerShell on Windows, `sh` elsewhere. Recipes marked [unix] (system tests, distributed dev, kind) are POSIX-only.
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
 compose := "docker compose -f docker/docker-compose.yml --project-directory ."
@@ -43,16 +43,17 @@ typecheck:
 test:
     uv run pytest tests/unittests tests/integrationtests --cov --cov-report=term-missing
 
-# System tests: builds the Docker Compose stack and runs system + smoke tests against it. With API_URL set, skips Docker and runs the system tests against that running API instead
+# System tests: builds the Docker Compose stack and runs system + smoke tests against it
+[unix]
 test-system:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -n "${API_URL:-}" ]; then
-        uv run pytest tests/systemtests -v --api-url "$API_URL"
-    else
-        trap '{{compose}} --profile test down' EXIT
-        {{compose}} --profile test run --build --rm systemtest
-    fi
+    trap '{{compose}} --profile test down' EXIT
+    {{compose}} --profile test run --build --rm systemtest
+
+# System tests against an already running API (`just dev`, `just up`, a staging URL), no Docker: `just test-system-url http://localhost:8080`
+test-system-url url:
+    uv run pytest tests/systemtests -v --api-url {{url}}
 
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
@@ -67,6 +68,7 @@ test-ui:
     uv run pytest tests/uitests -v
 
 # Unit + integration tests, then the containerised system tests
+[unix]
 test-all: test test-system
 
 # Same variables the app reads, so the host-run API listens where `test-smoke` and .env expect it.
@@ -83,6 +85,7 @@ dev:
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
 # Same server as `dev`, but in distributed mode: /jobs goes through RabbitMQ + Postgres (`just infra`) to host workers (`just worker-ingest`, `just worker-caption`)
+[unix]
 dev-distributed: infra
     BACKSEAT_DRIVER_MODE=distributed uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
@@ -127,6 +130,7 @@ k8s-render:
     kubectl kustomize deploy/k8s
 
 # Validate the rendered manifests against the Kubernetes schemas (no cluster needed)
+[unix]
 k8s-validate:
     kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
     uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
@@ -141,6 +145,7 @@ kind_cluster := "backseat-driver"
 kubectl := "kubectl --context kind-" + kind_cluster
 
 # Local Kubernetes (kind): builds the images, loads them, installs KEDA and deploys with queue-depth autoscaling. API on :8080
+[unix]
 k8s-up:
     mkdir -p data
     kind get clusters | grep -qx {{kind_cluster}} || kind create cluster --config deploy/kind/cluster.yaml
@@ -181,6 +186,4 @@ check:
     uv run pre-commit run --all-files
 
 clean:
-    rm -rf dist/ site/ .pytest_cache/ htmlcov/ coverage.xml junit.xml
-    find . -type d -name __pycache__ -exec rm -rf {} +
-    find . -type f -name "*.pyc" -delete
+    uvx pyclean --debris cache coverage pytest --erase dist site junit.xml --yes .

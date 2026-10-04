@@ -117,11 +117,11 @@ Builds the images, starts the stack (API, RabbitMQ, Postgres), runs `tests/syste
 `systemtest` container, then tears everything down. Both `systemtest` and the `cli` service have
 `profiles` set (`test` / `cli`) so neither starts with a plain `just compose up`.
 
-To skip Docker and test an API that is already running (`just dev`, `just up`, a staging URL), set `API_URL`; only
+To skip Docker and test an API that is already running (`just dev`, `just up`, a staging URL), pass its URL; only
 `tests/systemtests/` runs, from the host:
 
 ```bash
-API_URL=http://localhost:8080 just test-system
+just test-system-url http://localhost:8080   # works on Windows too
 ```
 
 ### Coverage

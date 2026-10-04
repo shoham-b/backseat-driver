@@ -140,8 +140,8 @@ just typecheck    # type check
 just docs         # build docs
 ```
 
-The Justfile runs on Linux, macOS and Windows. On Windows it needs `sh` from Git for Windows, so put
-`C:\Program Files\Git\usr\bin` on your `PATH` (otherwise a bare `bash` would pick WSL, which has no `uv`).
+install. A few recipes are POSIX-only and absent on Windows: `test-system`, `test-all`, `dev-distributed`, `k8s-up` and
+`k8s-validate` (use WSL or Git Bash for those).
 
 See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
 codebase conventions.
