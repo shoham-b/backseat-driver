@@ -14,7 +14,7 @@ else, and none connects to anything until it is used.
 The captioner is the same at every rung, so it is built by `process.factory.build_captioner` wherever it is needed.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from backseat_driver.config import RunMode, Settings, VlmBackend
@@ -45,7 +45,7 @@ def pipeline(
     settings: Settings,
     dataroot: str,
     version: str,
-    cameras: list[str],
+    cameras: Sequence[str],
     backend: VlmBackend | None = None,
     model: str | None = None,
 ) -> ScenePipeline:

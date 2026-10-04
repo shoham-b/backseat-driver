@@ -74,6 +74,29 @@ There are five test layers, from fastest to slowest:
 | UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
 | System | `tests/systemtests/` | Docker Compose |
 
+### Where a test lives
+
+The unit and integration tests mirror the package layout, so a test sits where the code it covers sits, and the
+added layers are as visible in the tests as in the source:
+
+```
+tests/unittests/  (and tests/integrationtests/)
+├── read/               scene loaders, image stores          ← backseat_driver/read/
+│   └── s3/             bucket store, stored loader          ← backseat_driver/read/s3/
+├── process/            captioners and their backends        ← backseat_driver/process/
+├── write/              JSON writer                          ← backseat_driver/write/
+│   └── job_store/      job stores                           ← backseat_driver/write/job_store/
+├── transport/          queues, workers, the API job client  ← backseat_driver/transport/
+├── show/               report, metrics, report UI           ← backseat_driver/show/
+├── api/                routes, dependencies, handlers       ← backseat_driver/api/
+├── cli/                commands                             ← backseat_driver/cli/
+└── test_pipeline.py, test_stacks.py, test_layering.py ...   ← the core and cross-cutting checks
+```
+
+Tests for something that spans packages (the pipeline, the wiring in `stacks.py`, the import rules in
+`test_layering.py`, config, models) stay at the top of their layer. Fakes and fixtures shared by several folders
+live in `tests/fakes.py` and the layer's `conftest.py`.
+
 ### Unit tests
 
 ```bash
@@ -82,7 +105,7 @@ uv run pytest tests/unittests -v
 
 No I/O, no network, no GPU. `read/nuscenes_scene_loader.py` and `process/huggingface_backend.py` import nuscenes-devkit and
 transformers lazily inside their default factories, which the loader and backend take as constructor arguments so these tests can pass a fake — see
-`tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_backend.py`.
+`tests/unittests/read/test_nuscenes_scene_loader.py` and `tests/unittests/process/test_huggingface_backend.py`.
 
 ### Integration tests
 
@@ -166,8 +189,8 @@ backseat_driver/
 ├── config.py       # Settings (pydantic-settings, env-var backed)
 └── logger.py       # Loguru setup; LogFormat enum
 tests/
-├── unittests/
-├── integrationtests/
+├── unittests/          mirrors backseat_driver/: read/, process/, write/, transport/, show/, api/, cli/
+├── integrationtests/   the same folders, with real units wired together
 ├── smoketests/
 ├── uitests/
 └── systemtests/

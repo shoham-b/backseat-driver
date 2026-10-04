@@ -22,6 +22,16 @@ just describe --camera front        # = uv run backseat-driver describe ...
 
 `describe` loads the keyframes, calls `describe_keyframe` for each, and writes the list. Nothing is queued, stored or served. This is the whole program, and the code that runs it is [`pipeline.py`](../backseat_driver/pipeline.py).
 
+**Code, in reading order**
+
+| Step | Port | Adapter | Wired in |
+|---|---|---|---|
+| read | [`SceneLoader`](../backseat_driver/read/scene_loader.py) | [`NuScenesSceneLoader`](../backseat_driver/read/nuscenes_scene_loader.py) | [`stacks.pipeline`](../backseat_driver/stacks.py) |
+| process | [`Captioner`](../backseat_driver/process/captioner.py) | [`BackendCaptioner`](../backseat_driver/process/backend_captioner.py) over a [HuggingFace](../backseat_driver/process/huggingface_backend.py), [Ollama](../backseat_driver/process/ollama_backend.py) or [Anthropic](../backseat_driver/process/anthropic_backend.py) backend | [`process.factory`](../backseat_driver/process/factory.py) |
+| write | | [`write_json`](../backseat_driver/write/json_writer.py) | [`cli/describe.py`](../backseat_driver/cli/describe.py) |
+
+Tests: [`test_pipeline.py`](../tests/unittests/test_pipeline.py), [`tests/unittests/read/`](../tests/unittests/read), [`process/`](../tests/unittests/process), [`write/`](../tests/unittests/write), and the command itself in [`test_pipeline_end_to_end.py`](../tests/integrationtests/cli/test_pipeline_end_to_end.py).
+
 ## Rung 2: the seam
 
 ```
@@ -38,6 +48,19 @@ just dev            # POST /jobs on :8080
 ```
 
 The API turns the run into tasks. **Ingest** is the read step turned into a producer: it reads once and enqueues one task per image. The **caption worker** is the process and write steps run once per task. Both still run on a background thread inside the API process, so nothing extra is needed. The queue (`transport/`) is the only new thing, and it is a seam: a place where read and process could be pulled apart.
+
+**Code, in reading order**
+
+| What | Where |
+|---|---|
+| The seam, in one docstring | [`transport/__init__.py`](../backseat_driver/transport/__init__.py) |
+| The queue port and its in-process adapter | [`JobQueue`](../backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](../backseat_driver/transport/in_process_job_queue.py) |
+| Read as a producer; process and write per task | [`IngestWorker`, `CaptionWorker`](../backseat_driver/transport/workers.py), both reusing [`describe_keyframe`](../backseat_driver/pipeline.py) |
+| The job store the workers write to | [`JobStore`](../backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](../backseat_driver/write/job_store/in_memory_job_store.py) |
+| The front door | [`POST /jobs`](../backseat_driver/api/routers/jobs.py) |
+| Wired in | [`stacks.seam`](../backseat_driver/stacks.py) |
+
+Tests: [`tests/unittests/transport/`](../tests/unittests/transport), [`write/job_store/`](../tests/unittests/write/job_store), and the API end to end in [`tests/integrationtests/api/`](../tests/integrationtests/api).
 
 ## Rung 3: machines
 
@@ -61,6 +84,18 @@ Once the queue crosses machines, two things stop working, and the two remaining 
 |---|---|---|
 | Images are read from the local disk | The caption pod cannot see the ingest pod's disk | **S3**: `read/s3/` holds the dataset in a bucket, and each task carries the image's URI |
 | Descriptions are collected and written to one file | No process holds all of them | **A shared job store**: `write/job_store/` records one row per description in Postgres |
+
+**Code, in reading order**
+
+| What | Where |
+|---|---|
+| RabbitMQ as the queue | [`CeleryJobQueue`](../backseat_driver/transport/celery_job_queue.py), the tasks and worker entrypoints in [`tasks.py`](../backseat_driver/tasks.py), `worker ingest --once` in [`consume_one.py`](../backseat_driver/transport/consume_one.py) |
+| The dataset in a bucket | [`read/s3/`](../backseat_driver/read/s3): [`S3DatasetStore`](../backseat_driver/read/s3/s3_dataset_store.py), [`StoredSceneLoader`](../backseat_driver/read/s3/stored_scene_loader.py), the one-time [`DatasetUploader`](../backseat_driver/read/s3/uploader.py) |
+| Results in Postgres | [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) over [`orm.py`](../backseat_driver/write/job_store/orm.py) and [`storage.py`](../backseat_driver/write/job_store/storage.py) |
+| Submitting from the CLI | [`ApiJobClient`](../backseat_driver/transport/api_client.py) behind `describe --mode distributed` |
+| Wired in | [`stacks.machines`](../backseat_driver/stacks.py), `celery_queue`, `postgres_store`, `stored_loader` |
+
+Tests: [`tests/unittests/read/s3/`](../tests/unittests/read/s3), [`tests/integrationtests/read/s3/`](../tests/integrationtests/read/s3), [`tests/unittests/transport/`](../tests/unittests/transport) and [`tests/integrationtests/transport/`](../tests/integrationtests/transport).
 
 ## What changes, and what does not
 

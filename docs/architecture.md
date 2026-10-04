@@ -55,16 +55,16 @@ Each stage has one port, because each has a real reason to vary and a real reaso
 
 | Object | Kind | Role |
 |---|---|---|
-| `SceneKeyframe`, `SceneDescription` | Pydantic model | Value object: what goes in and what comes out, at every rung |
-| `SceneLoader` / `NuScenesSceneLoader` | Port / adapter | Isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
-| `ImageStore` / `LocalImageStore`, `S3DatasetStore` | Port / adapters | Where an image's bytes come from: the local disk, or a bucket |
-| `Captioner` / `BackendCaptioner` (`CaptionBackend` + `CaptionModel`) | Port / composition | Strategy: the runtime (HuggingFace/Ollama/Anthropic) and the model are swapped independently |
-| `ScenePipeline`, `describe_keyframe` | Class, function | Rung 1: loader to captioner. `describe_keyframe` is the unit the caption worker also calls |
-| `write_json` | Function | The monolith's write: the list, once, at the end |
-| `JobQueue` / `InProcessJobQueue`, `CeleryJobQueue` | Port / adapters | The seam between read and process |
-| `JobStore` / `InMemoryJobStore`, `SqlJobStore` | Port / adapters | The distributed write: one row per description |
-| `IngestWorker`, `CaptionWorker` | Classes | The read step as a producer, and process + write per task |
-| `Settings` | pydantic-settings class | Single typed source of config, read once per process |
+| [`SceneKeyframe`, `SceneDescription`](../backseat_driver/models/scene.py) | Pydantic model | Value object: what goes in and what comes out, at every rung |
+| [`SceneLoader`](../backseat_driver/read/scene_loader.py) / [`NuScenesSceneLoader`](../backseat_driver/read/nuscenes_scene_loader.py) | Port / adapter | Isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
+| [`ImageStore`](../backseat_driver/read/image_store.py) / [`LocalImageStore`](../backseat_driver/read/local_image_store.py), [`S3DatasetStore`](../backseat_driver/read/s3/s3_dataset_store.py) | Port / adapters | Where an image's bytes come from: the local disk, or a bucket |
+| [`Captioner`](../backseat_driver/process/captioner.py) / [`BackendCaptioner`](../backseat_driver/process/backend_captioner.py) (`CaptionBackend` + `CaptionModel`) | Port / composition | Strategy: the runtime (HuggingFace/Ollama/Anthropic) and the model are swapped independently |
+| [`ScenePipeline`, `describe_keyframe`](../backseat_driver/pipeline.py) | Class, function | Rung 1: loader to captioner. `describe_keyframe` is the unit the caption worker also calls |
+| [`write_json`](../backseat_driver/write/json_writer.py) | Function | The monolith's write: the list, once, at the end |
+| [`JobQueue`](../backseat_driver/transport/job_queue.py) / [`InProcessJobQueue`](../backseat_driver/transport/in_process_job_queue.py), [`CeleryJobQueue`](../backseat_driver/transport/celery_job_queue.py) | Port / adapters | The seam between read and process |
+| [`JobStore`](../backseat_driver/write/job_store/job_store.py) / [`InMemoryJobStore`](../backseat_driver/write/job_store/in_memory_job_store.py), [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) | Port / adapters | The distributed write: one row per description |
+| [`IngestWorker`, `CaptionWorker`](../backseat_driver/transport/workers.py) | Classes | The read step as a producer, and process + write per task |
+| [`Settings`](../backseat_driver/config.py) | pydantic-settings class | Single typed source of config, read once per process |
 
 ## Layer design
 
@@ -81,7 +81,7 @@ Each layer only imports from layers to its left:
 - **The core** (`read/`, `process/`, `write/`, `pipeline.py`): each package holds a port and its adapters. `pipeline.py` and the other orchestration code depend only on the ports through constructor injection and never import nuscenes-devkit, transformers, torch, Celery or SQLAlchemy. Those stay inside the adapter modules, behind lazy imports where heavy.
 - **The added layers** (`transport/`, `read/s3/`, `write/job_store/`): everything that exists only because the process step can run on another machine. The core never imports them, and `tests/unittests/test_layering.py` enforces it.
 - **`api/`**: the HTTP layer. Imports the ports and `models`. Owns request validation, response serialization and error mapping.
-- **`stacks.py`**: the wiring: which adapter each rung plugs into each port, in one file. The CLI, the API and the workers call it instead of choosing adapters themselves.
+- **[`stacks.py`](../backseat_driver/stacks.py)**: the wiring: which adapter each rung plugs into each port, in one file. The CLI, the API and the workers call it instead of choosing adapters themselves.
 - **`cli/`**: Typer commands, thin entry points that build the real collaborators (through `stacks.py`) and call the classes above.
 - **`show/`**: the report and UI. Reads descriptions, never writes them.
 
