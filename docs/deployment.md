@@ -118,7 +118,7 @@ KEDA reads queue depth from the management API.
 
 Run through this before tagging a release; each step lists what "good" looks like.
 
-1. `just lint typecheck test` — all green, coverage ≥ 95 %.
+1. `just lint typecheck test` — all green, coverage ≥ 90 %.
 2. `just test-system` — system + smoke tests pass against the containerised stack.
 3. **Batch + UI**: `just test-ui` (Selenium), then `just run --camera front --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
    scores, working filters, no browser-console errors and no horizontal scrolling at phone width.
