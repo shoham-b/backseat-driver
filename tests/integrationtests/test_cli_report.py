@@ -48,7 +48,7 @@ def test_report_defaults_to_every_result_in_the_output_dir(output_dir: Path) -> 
     result = runner.invoke(app, ["report"], env={"BACKSEAT_DRIVER_OUTPUT_DIR": str(output_dir)})
 
     assert result.exit_code == 0, result.output
-    assert "Wrote report for 2 description(s)" in result.output
+    assert "wrote report for 2 description(s)" in result.output
     html = (output_dir / "report.html").read_text(encoding="utf-8")
     assert "model-a" in html
     assert "model-b" in html
@@ -60,7 +60,7 @@ def test_report_accepts_explicit_files_and_output(output_dir: Path, tmp_path: Pa
     result = runner.invoke(app, ["report", str(output_dir / "model-a.json"), "--output", str(target)])
 
     assert result.exit_code == 0, result.output
-    assert "Wrote report for 1 description(s)" in result.output
+    assert "wrote report for 1 description(s)" in result.output
     assert "model-b" not in target.read_text(encoding="utf-8")
 
 
