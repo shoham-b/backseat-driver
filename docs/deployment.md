@@ -26,7 +26,7 @@ Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount
 | API + RabbitMQ + Postgres + workers | `just compose up --build` (API on <http://localhost:8080>) |
 | Containerised system + smoke tests | `just test-system` |
 
-The dataset is read from `./data` by the one-shot `dataset-upload` service only, which copies it into the `s3` service (a development S3 store started with the stack); the workers read it from there. Results are written to `./output`. Because the image is non-root, a bind-mounted
+Of the distributed services only the one-shot `dataset-upload` reads `./data`: it copies the dataset into the `s3` service (a development S3 store started with the stack) and the workers read it from there. The `cli` and `ui` services also mount `./data`, read-only, for the batch run. Results are written to `./output`. Because the image is non-root, a bind-mounted
 `./output` that Docker created as root is not writable; either `mkdir output` and run with
 `LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)`, or leave both unset to run as root as before.
 
@@ -91,7 +91,7 @@ just k8s-down     # delete the cluster
 
 `k8s-up` builds the four image targets, loads them into the cluster, installs a pinned KEDA release and applies
 `deploy/kind`: local `:local` image tags, one API replica, the API as NodePort 30080 (mapped to host port 8080), the repo's
-`./data` exposed to the `dataset-upload` Job (and the UI) through a hostPath volume (`deploy/kind/cluster.yaml`), and development credentials. Every
+`./data` exposed to the `dataset-upload` Job through a hostPath volume (`deploy/kind/cluster.yaml`), and development credentials. Every
 `kubectl` call is pinned to the `kind-backseat-driver` context. Try it with `curl -X POST localhost:8080/jobs`, then
 `just k8s-status` while the caption queue drains.
 

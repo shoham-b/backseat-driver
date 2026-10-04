@@ -41,7 +41,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 ## 3. (Optional) Run the HTTP API
 
 The same captioning logic is also exposed as a small on-demand service — see
-[Architecture → Deployment](architecture.md#deployment) for why this exists alongside the CLI.
+[Technology → Deployment shapes](technology.md#deployment-shapes) for why this exists alongside the CLI.
 
 ```bash
 just dev            # on the host, monolith mode: /jobs runs inside the API, nothing else needed
@@ -70,7 +70,7 @@ Open `http://127.0.0.1:8080/docs` for interactive Swagger UI.
 | [just](https://github.com/casey/just) | `cargo install just` / `brew install just` | Dev task runner |
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/shoham-b/backseat-driver.git
 cd backseat-driver
 uv sync --group dev         # install all deps including dev tools
 uv run pre-commit install   # register git hooks (ruff + ty on every commit)
@@ -99,4 +99,4 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 | `BACKSEAT_DRIVER_UI_HOST` / `_UI_PORT` | `127.0.0.1` / `8081` | Bind address of the UI (`just ui`); containers bind `0.0.0.0` through the `fastapi run` command |
 | `BACKSEAT_DRIVER_LOG_FORMAT` | `colored` | Log output: `colored` (ANSI, for terminals) or `json` (log aggregators) |
 
-See [`backseat_driver/config.py`](../backseat_driver/config.py) for the full settings class.
+See [`backseat_driver/config.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/config.py) for the full settings class.

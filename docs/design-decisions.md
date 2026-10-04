@@ -1,6 +1,6 @@
 # Design Decisions
 
-This page records the design questions that came up while shaping this pipeline, the options considered for each, and the decision actually taken. It complements [Architecture](architecture.md), which describes the system as built — this page explains *why* it was built that way, and which alternatives were deliberately not chosen.
+This page records the design questions that came up while shaping this pipeline, the options considered for each, and the decision actually taken. It complements [Technology](technology.md), which describes the system as built — this page explains *why* it was built that way, and which alternatives were deliberately not chosen.
 
 The read → process → write shape is fixed by the assignment. Nearly all the real design space lives inside "process" (how a scene becomes a caption) and at the seams between the three stages. Each decision below is recorded as: the question, the options, and the choice — with the condition that would flip it.
 
@@ -10,9 +10,9 @@ These three came up independently from two different sources (this design conver
 
 | Decision | Choice | Why |
 |---|---|---|
-| VLM backend seam | `Captioner` as an abstract class, `HuggingFaceCaptioner` as the concrete implementation (Strategy) | The one thing stated up front as likely to change (local BLIP → hosted API VLM later) and the one thing slow enough to be worth faking in tests |
+| VLM backend seam | `Captioner` as an abstract class, `BackendCaptioner` pairing a `CaptionBackend` (HuggingFace, Ollama, Anthropic) with a `CaptionModel` (Strategy) | The one thing stated up front as likely to change (local BLIP → hosted API VLM later) and the one thing slow enough to be worth faking in tests |
 | Dataset access seam | `NuScenesSceneLoader` wraps `nuscenes-devkit` behind `SceneLoader` (Adapter) | Isolates the rest of the codebase from the devkit's dict/token-graph API; a devkit version bump only touches this one file |
-| Wiring | Constructor injection — `ScenePipeline(loader, captioner, model_name)`, concrete instances built at the CLI entry point, not inside the pipeline | Makes `ScenePipeline` importable and unit-testable without ever importing `nuscenes-devkit` or `transformers` |
+| Wiring | Constructor injection — `ScenePipeline(loader, captioner)`, concrete instances built at the CLI entry point, not inside the pipeline | Makes `ScenePipeline` importable and unit-testable without ever importing `nuscenes-devkit` or `transformers` |
 
 ## Open questions, decided
 
@@ -20,7 +20,7 @@ These three came up independently from two different sources (this design conver
 
 **Options:** `load_keyframes() -> list[SceneKeyframe]` (current) vs. `Iterator[SceneKeyframe]`.
 
-**Decision: keep the list.** The object being held in memory is `SceneKeyframe` — four short strings, not image bytes; the actual image is opened lazily, one at a time, inside `HuggingFaceCaptioner.caption()`. For v1.0-mini (10 scenes) or even the full ~850-scene dataset, the list is kilobytes. A generator is the right instinct for a dataset large enough that even enumerating *metadata* is expensive (e.g., paging through a remote catalog) — that's not this dataset.
+**Decision: keep the list.** The object being held in memory is `SceneKeyframe` — a few short strings, not image bytes; the actual image is opened lazily, one at a time, inside the captioner's `caption()`. For v1.0-mini (10 scenes) or even the full ~850-scene dataset, the list is kilobytes. A generator is the right instinct for a dataset large enough that even enumerating *metadata* is expensive (e.g., paging through a remote catalog) — that's not this dataset.
 
 **Revisit if:** the loader starts reading image bytes eagerly, or the scene catalog itself becomes large enough that building the full list up front is measurably slow.
 
@@ -191,5 +191,3 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 - **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
 - **Nothing expires the uploaded dataset.** It is the source of truth, so it stays until deleted; give the bucket whatever lifecycle rule suits the dataset.
-- **Old queued messages are rejected.** `CaptionTask.image_uri` is required, so tasks queued by an earlier version fail validation.
-- **The full Docker stack and a real cluster were not run for this change.** Unit and integration tests, the rendered manifests, `docker compose config`, a boto3 round trip against S3Mock and the RabbitMQ `basic_get` check were.
