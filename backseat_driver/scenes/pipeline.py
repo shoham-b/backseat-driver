@@ -8,11 +8,14 @@ Both dependencies are abstract ports, so the pipeline is unit-testable with fake
 and never imports nuscenes-devkit, transformers, or torch directly.
 """
 
-from loguru import logger
+from collections.abc import Callable
 
 from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.scenes.scene_loader import SceneLoader
+
+# Called before each keyframe is captioned with (1-based index, total, keyframe).
+ProgressCallback = Callable[[int, int, SceneKeyframe], None]
 
 
 def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner) -> SceneDescription:
@@ -35,7 +38,7 @@ class ScenePipeline:
         self._loader = loader
         self._captioner = captioner
 
-    def run(self, max_scenes: int | None = None) -> list[SceneDescription]:
+    def run(self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None) -> list[SceneDescription]:
         keyframes = self._loader.load_keyframes()
         if max_scenes is not None:
             # Count scenes, not keyframes: a multi-camera run has several keyframes per scene.
@@ -43,7 +46,8 @@ class ScenePipeline:
             keyframes = [k for k in keyframes if k.scene_token in kept]
 
         descriptions: list[SceneDescription] = []
-        for keyframe in keyframes:
-            logger.bind(scene=keyframe.scene_name).info("describing scene")
+        for index, keyframe in enumerate(keyframes, start=1):
+            if on_progress:
+                on_progress(index, len(keyframes), keyframe)
             descriptions.append(describe_keyframe(keyframe, self._captioner))
         return descriptions
