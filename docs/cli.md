@@ -106,7 +106,7 @@ just ui                      # all JSON files in output/
 
 ## `worker`
 
-`backseat-driver worker ingest|caption` run the distributed queue workers.
+`backseat-driver worker ingest|caption` run the distributed queue workers. `worker ingest --once` handles a single queued ingest task and exits, for the Kubernetes Job that KEDA starts per task.
 
 | Option | Default | Description |
 |---|---|---|

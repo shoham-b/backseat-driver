@@ -2,6 +2,7 @@
 # dataset-upload Job puts it in the dataset bucket (object-store.yaml in development), ingest reads only its metadata
 # tables from there and the caption workers fetch single images, so both can run on any node.
 # Scale caption-worker with `kubectl scale` or let KEDA do it (deploy/components/keda-autoscaling); replicas share one queue.
+# With KEDA the ingest-worker Deployment is replaced by a Job per queued ingest task.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
