@@ -60,7 +60,7 @@ These three came up independently from two different sources (this design conver
 
 **Options:** BLIP's unconditional `image-to-text` pipeline (produces a generic caption) vs. a prompt-capable VLM steered toward driving-specific detail ("note hazards, traffic, pedestrians").
 
-**Decision: both, behind one `CaptionModel`.** The HuggingFace backend captions unconditionally, which matches the assignment's ask of "a short natural-language description of the scene". The Ollama and Claude backends are prompt-driven and share one driving-scene prompt (`DETAILED_SCENE_PROMPT`), so their output is comparable with each other, and the report scores all of them against the same nuScenes label. The prompt is part of the model, so it changes without touching the pipeline.
+**Decision: both, behind one `CaptionModel`.** The HuggingFace backend captions unconditionally, which matches the assignment's ask of "a short natural-language description of the scene". The Ollama and Claude backends are prompt-driven and share one driving-scene prompt (`SCENE_PROMPT`) that asks for a single short sentence, so their output is comparable with each other, and the report scores all of them against the same nuScenes label. The prompt is part of the model, so it changes without touching the pipeline.
 
 **Revisit if:** the description's actual consumer needs driving-specific structure (hazards, traffic state) rather than a general caption — at that point it's a prompt/model change behind the same `Captioner` interface, not a pipeline redesign.
 

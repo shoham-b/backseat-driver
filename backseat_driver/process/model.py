@@ -8,9 +8,9 @@ serves many models.
 from dataclasses import dataclass
 
 # Prompt shared by the prompt-capable models so their output is comparable.
-DETAILED_SCENE_PROMPT = (
-    "Describe this driving scene from the vehicle's front camera in detail: the road layout, "
-    "traffic and pedestrians, weather and lighting, and any hazards."
+SCENE_PROMPT = (
+    "Describe this driving scene from the vehicle's front camera in one short sentence of at most "
+    "20 words. Mention only the most important elements: road, traffic or pedestrians, weather."
 )
 
 
@@ -23,4 +23,4 @@ class CaptionModel:
     """
 
     name: str
-    prompt: str = DETAILED_SCENE_PROMPT
+    prompt: str = SCENE_PROMPT
