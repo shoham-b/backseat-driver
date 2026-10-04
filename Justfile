@@ -1,8 +1,8 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-# Git Bash by full path: a bare `bash` resolves to WSL's C:\Windows\System32\bash.exe, which has no `uv`.
-set windows-shell := ["C:/Program Files/Git/usr/bin/bash.exe", "-c"]
+# `sh`, not `bash`: a bare `bash` on Windows resolves to WSL, which has no `uv`.
+set windows-shell := ["sh", "-cu"]
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
 compose := "docker compose -f docker/docker-compose.yml --project-directory ."
@@ -36,7 +36,6 @@ lint:
     uv run ruff check .
     uv run ruff format --check .
 
-# Type check
 typecheck:
     uv run ty check backseat_driver tests
 
@@ -120,7 +119,6 @@ up:
 up-dev:
     {{compose}} -f docker/docker-compose.dev.yml up --build
 
-# Stop the distributed stack
 down:
     {{compose}} down
 
@@ -169,7 +167,6 @@ k8s-down:
 k8s-delete:
     kubectl delete -k deploy/k8s
 
-# Build HTML docs
 docs:
     uv run --group docs mkdocs build -f docs/mkdocs.yml
 
@@ -177,15 +174,12 @@ docs:
 docs-open:
     uv run --group docs mkdocs serve -f docs/mkdocs.yml
 
-# Install pre-commit hooks
 hooks:
     uv run pre-commit install
 
-# Run pre-commit on all files
 check:
     uv run pre-commit run --all-files
 
-# Remove build artifacts and cache
 clean:
     rm -rf dist/ site/ .pytest_cache/ htmlcov/ coverage.xml junit.xml
     find . -type d -name __pycache__ -exec rm -rf {} +
