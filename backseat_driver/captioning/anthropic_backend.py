@@ -21,6 +21,11 @@ _MEDIA_TYPES_BY_SUFFIX = {
     ".gif": "image/gif",
     ".webp": "image/webp",
 }
+# Claude otherwise pads answers with preambles and markdown, which breaks the one-line caption contract.
+_SYSTEM_PROMPT = (
+    "You caption images. Reply with a single short phrase describing the scene, "
+    "with no preamble, no markdown and no line breaks."
+)
 
 
 class AnthropicBackend(CaptionBackend):
@@ -54,6 +59,7 @@ class AnthropicBackend(CaptionBackend):
         payload = {
             "model": model.name,
             "max_tokens": self._max_tokens,
+            "system": _SYSTEM_PROMPT,
             "messages": [
                 {
                     "role": "user",
