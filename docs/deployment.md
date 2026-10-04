@@ -45,12 +45,12 @@ The `ui` service exits at startup when `./output` has no result files yet — ru
 | `postgres` StatefulSet, `rabbitmq` Deployment | evaluation-grade; point `BACKSEAT_DRIVER_DATABASE_URL` / `_RABBITMQ_URL` at managed services in production |
 | `s3` Deployment + Service | development-only S3 store (in memory, any credentials) with the `nuscenes` bucket; in production delete `object-store.yaml` and set `BACKSEAT_DRIVER_DATASET_BUCKET`, the `AWS_*` credentials and (for non-AWS stores) `BACKSEAT_DRIVER_S3_ENDPOINT_URL` |
 | `ui` Deployment + Service | the model-comparison report, built on every load from the completed jobs on the API (`BACKSEAT_DRIVER_UI_ALL_JOBS`) with images proxied from it; mounts no volume and needs only the API's address. `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where the browser reaches the API for the live card (a `port-forward` by default) |
-| `nuscenes-data`, `results` PVCs | the dataset (read-only; mounted by the `dataset-upload` Job and the example run job, by no worker and not by the UI) and the result JSON files the example run job writes |
+| `nuscenes-data` PVC | the dataset (read-only; mounted only by the `dataset-upload` Job: not by a worker, the UI or the example run job) |
 
 ```bash
 kubectl apply -k deploy/k8s
 # nuScenes can't be redistributed: copy data/sets/nuscenes into the nuscenes-data volume, e.g. with a throwaway pod.
-kubectl apply -f deploy/k8s/examples/run-job.yaml     # batch run -> results volume
+kubectl apply -f deploy/k8s/examples/run-job.yaml     # submit a job to the API, wait for the workers
 kubectl -n backseat-driver port-forward svc/api 8080:80
 kubectl -n backseat-driver port-forward svc/ui 8081:80
 ```
@@ -106,7 +106,7 @@ replicas), every caption to be recorded, and the workers to scale back to 1.
 `deploy/kind-ci` is `deploy/kind` plus a stub model server (no weights to download), small resource requests so many
 replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window). It leaves out the `cli`
 image and the `ui` Deployment to save build and load time: `db-init` runs on the API image, which has the same CLI, and
-`ui` only starts once a batch run has written results.
+`ui` only shows anything once a job has completed.
 The manifests, probes and ScaledObjects under test are otherwise the real ones. Like `test-system` and
 `deploy-config`, the job runs on every push to the main branch and on pull requests that touch `docker/` or `deploy/`
 (the `deployment` filter of the `changes` job).

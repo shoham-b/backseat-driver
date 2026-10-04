@@ -1,36 +1,31 @@
-# One-off batch run of the pipeline (`backseat-driver describe`) writing result JSON to the `results` volume that the
-# ui Deployment serves. Apply after the base: kubectl apply -f deploy/k8s/examples/run-job.yaml
-# Change the args to pick another backend or model; the API key for the anthropic backend comes from the Secret.
+# One-off batch run of the pipeline: `backseat-driver describe --mode distributed` submits a job to the API, waits for
+# the workers and writes the same JSON file as a local run. It mounts no volume: the dataset is read by the workers from
+# the bucket, and the ui Deployment shows the job from the API. The JSON copy goes to a scratch directory, so read it with
+# `kubectl logs` or copy it out before the pod is deleted. The model and camera are the workers' own settings.
+# Apply after the base: kubectl apply -f deploy/k8s/examples/run-job.yaml
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: run-huggingface
+  name: run-distributed
   namespace: backseat-driver
 spec:
   backoffLimit: 0
   template:
     spec:
       restartPolicy: Never
-      securityContext: {runAsNonRoot: true, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
       containers:
         - name: run
           image: ghcr.io/shoham-b/backseat-driver-cli:latest
           imagePullPolicy: IfNotPresent
-          args: [describe, --camera, front, --backend, huggingface]
+          args: [describe, --mode, distributed, --api-url, "http://api", --output, /app/output/cluster.json]
           envFrom:
             - configMapRef: {name: backseat-driver-config}
-            - secretRef: {name: backseat-driver-secrets}
           volumeMounts:
-            - {name: data, mountPath: /app/data, readOnly: true}
-            - {name: results, mountPath: /app/output}
-            - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
+            - {name: output, mountPath: /app/output}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
           resources:
-            requests: {cpu: "1", memory: 2Gi}
-            limits: {memory: 4Gi}
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {memory: 256Mi}
       volumes:
-        - name: data
-          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
-        - name: results
-          persistentVolumeClaim: {claimName: results}
-        - {name: hf-cache, emptyDir: {}}
+        - {name: output, emptyDir: {}}
