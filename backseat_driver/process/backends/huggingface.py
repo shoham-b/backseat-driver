@@ -10,7 +10,7 @@ first use. One pipeline is kept per model name.
 from collections.abc import Callable
 from typing import Any
 
-from backseat_driver.process.backend import CaptionBackend
+from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.model import CaptionModel
 
 PipelineFactory = Callable[[str], Callable[..., Any]]

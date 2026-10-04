@@ -9,7 +9,7 @@ more verbose and steerable.
 import base64
 from pathlib import Path
 
-from backseat_driver.process.backend import CaptionBackend
+from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
 
