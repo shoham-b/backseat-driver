@@ -1,12 +1,12 @@
 from collections.abc import Callable
 from datetime import UTC, datetime
-from unittest import mock
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.engine import Engine
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.jobs import storage
 from backseat_driver.jobs.postgres_job_store import PostgresJobStore
 from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import JobState, SceneDescription
@@ -14,9 +14,7 @@ from backseat_driver.models import JobState, SceneDescription
 
 @pytest.fixture
 def store(sqlite_storage: JobStorage) -> PostgresJobStore:
-    job_store = PostgresJobStore("postgresql+psycopg://unused")
-    job_store._storage = sqlite_storage
-    return job_store
+    return PostgresJobStore(sqlite_storage)
 
 
 def _description(n: int, text: str | None = None) -> SceneDescription:
@@ -32,10 +30,17 @@ def _description(n: int, text: str | None = None) -> SceneDescription:
 
 
 def test_constructing_the_store_never_connects() -> None:
-    with mock.patch.object(storage, "create_engine") as create_engine:
-        PostgresJobStore("postgresql+psycopg://host/db")
+    engines_created: list[object] = []
 
-    create_engine.assert_not_called()
+    def engine_factory(*args: object, **kwargs: object) -> Engine:
+        engines_created.append(args)
+        return create_engine("sqlite://")
+
+    job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=engine_factory)
+
+    PostgresJobStore(job_storage)
+
+    assert engines_created == []
 
 
 def test_new_job_is_pending(store: PostgresJobStore) -> None:
@@ -131,9 +136,13 @@ def test_unknown_job_is_not_found(
         operation(store, unknown)
 
 
+class _DownStorage(JobStorage):
+    def ping(self) -> bool:
+        return False
+
+
 def test_healthcheck_delegates_to_storage() -> None:
-    job_store = PostgresJobStore("postgresql+psycopg://host/db")
-    job_store._storage = mock.Mock(ping=mock.Mock(return_value=False))
+    job_store = PostgresJobStore(_DownStorage("postgresql+psycopg://host/db"))
 
     assert job_store.healthcheck() is False
 

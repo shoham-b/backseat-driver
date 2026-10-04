@@ -7,24 +7,33 @@ startup (so a readiness probe means something) or let `generate()` load lazily o
 first use. One pipeline is kept per model name.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 from backseat_driver.captioning.backend import CaptionBackend
 from backseat_driver.captioning.model import CaptionModel
 
+PipelineFactory = Callable[[str], Callable[..., Any]]
+
+
+def transformers_pipeline(model_name: str) -> Callable[..., Any]:
+    """Build the `image-to-text` pipeline for `model_name`; `transformers` is imported here, not at module scope."""
+    from transformers import pipeline
+
+    return pipeline("image-to-text", model=model_name)
+
 
 class HuggingFaceBackend(CaptionBackend):
     """Runs models through a local HuggingFace `image-to-text` pipeline."""
 
-    def __init__(self) -> None:
-        self._pipelines: dict[str, Any] = {}
+    def __init__(self, pipeline_factory: PipelineFactory = transformers_pipeline) -> None:
+        self._pipeline_factory = pipeline_factory
+        self._pipelines: dict[str, Callable[..., Any]] = {}
 
     def load(self, model: CaptionModel) -> None:
         if model.name in self._pipelines:
             return
-        from transformers import pipeline
-
-        self._pipelines[model.name] = pipeline("image-to-text", model=model.name)
+        self._pipelines[model.name] = self._pipeline_factory(model.name)
 
     def generate(self, image_path: str, model: CaptionModel) -> str:
         from PIL import Image

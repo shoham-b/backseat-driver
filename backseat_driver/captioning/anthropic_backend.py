@@ -6,11 +6,10 @@ key and network access at runtime, and each caption is a billed request.
 """
 
 import base64
-import urllib.request
 from pathlib import Path
 
-from backseat_driver.captioning._http import post_json
 from backseat_driver.captioning.backend import CaptionBackend
+from backseat_driver.captioning.http_client import HttpClient
 from backseat_driver.captioning.model import CaptionModel
 
 _API_VERSION = "2023-06-01"
@@ -29,6 +28,7 @@ class AnthropicBackend(CaptionBackend):
 
     def __init__(
         self,
+        http: HttpClient,
         api_key: str,
         base_url: str = "https://api.anthropic.com",
         max_tokens: int = 512,
@@ -36,6 +36,7 @@ class AnthropicBackend(CaptionBackend):
     ) -> None:
         if not api_key:
             raise ValueError("AnthropicBackend requires a non-empty api_key")
+        self._http = http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._max_tokens = max_tokens
@@ -63,17 +64,14 @@ class AnthropicBackend(CaptionBackend):
                 }
             ],
         }
-        body = post_json(f"{self._base_url}/v1/messages", payload, self._headers(), self._timeout, "Anthropic")
+        body = self._http.post_json(
+            f"{self._base_url}/v1/messages", payload, self._headers(), self._timeout, "Anthropic"
+        )
         return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()
 
     def healthcheck(self) -> bool:
         # Listing models is free and verifies both reachability and that the key is accepted.
-        request = urllib.request.Request(f"{self._base_url}/v1/models?limit=1", headers=self._headers())
-        try:
-            with urllib.request.urlopen(request, timeout=5) as response:
-                return response.status == 200
-        except OSError:
-            return False
+        return self._http.is_reachable(f"{self._base_url}/v1/models?limit=1", self._headers(), 5)
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": self._api_key, "anthropic-version": _API_VERSION}

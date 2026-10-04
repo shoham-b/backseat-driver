@@ -1,13 +1,13 @@
 """Monolith mode: the in-process queue and in-memory store that replace RabbitMQ and Postgres."""
 
 import threading
+import time
 from uuid import uuid4
 
 import pytest
 
 from backseat_driver.config import RunMode, Settings
 from backseat_driver.errors import NotFoundError
-from backseat_driver.jobs import factory
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
@@ -31,25 +31,22 @@ def test_distributed_mode_builds_celery_and_postgres() -> None:
     assert isinstance(store, PostgresJobStore)
 
 
-def test_monolith_job_runs_to_completion_without_a_broker(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_monolith_job_runs_to_completion_without_a_broker() -> None:
     keyframes = [make_keyframe(1), make_keyframe(2)]
-    monkeypatch.setattr(factory, "NuScenesSceneLoader", lambda **_: FakeSceneLoader(keyframes))
-    queue, store = build_job_backend(Settings(mode=RunMode.MONOLITH), FakeCaptioner())
+    queue, store = build_job_backend(
+        Settings(_env_file=None, mode=RunMode.MONOLITH),
+        FakeCaptioner(),
+        build_loader=lambda settings: FakeSceneLoader(keyframes),
+    )
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
-    done = threading.Event()
-    original = store.record_description
-
-    def record(job_id, description):
-        original(job_id, description)
-        if store.get_job(job_id).state is JobState.COMPLETED:
-            done.set()
-
-    monkeypatch.setattr(store, "record_description", record)
 
     queue.enqueue_ingest(IngestTask(job_id=job_id, transaction_id="tx"))
 
-    assert done.wait(timeout=5)
+    deadline = time.monotonic() + 5
+    while store.get_job(job_id).state is not JobState.COMPLETED and time.monotonic() < deadline:
+        time.sleep(0.01)
+
     assert [d.scene_name for d in store.list_descriptions(job_id)] == ["scene-0001", "scene-0002"]
 
 

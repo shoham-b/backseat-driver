@@ -1,10 +1,15 @@
 from collections.abc import Callable
-from unittest.mock import MagicMock
 
 import pytest
+from fastapi import FastAPI, Request
+from starlette.datastructures import State
 
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
+
+
+def _request_to(app: FastAPI) -> Request:
+    return Request({"type": "http", "app": app})
 
 
 @pytest.mark.parametrize(
@@ -18,18 +23,12 @@ from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
 def test_dependency_returns_the_object_the_lifespan_put_on_app_state(
     getter: Callable[..., object], attribute: str, instance: object
 ) -> None:
-    request = MagicMock()
-    setattr(request.app.state, attribute, instance)
+    app = FastAPI()
+    app.state = State({attribute: instance})
 
-    assert getter(request) is instance
+    assert getter(_request_to(app)) is instance
 
 
 def test_dependency_fails_fast_when_the_lifespan_never_ran() -> None:
-    class _EmptyState:
-        pass
-
-    request = MagicMock()
-    request.app.state = _EmptyState()
-
     with pytest.raises(AttributeError):
-        get_job_store(request)
+        get_job_store(_request_to(FastAPI()))

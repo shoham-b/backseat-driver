@@ -14,7 +14,7 @@ Usage::
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
@@ -29,6 +29,13 @@ if TYPE_CHECKING:
 ALL_CAMERA_CHANNELS = ("CAM_FRONT", "CAM_FRONT_RIGHT", "CAM_BACK_RIGHT", "CAM_BACK", "CAM_BACK_LEFT", "CAM_FRONT_LEFT")
 
 
+def open_nuscenes(version: str, dataroot: str) -> NuScenes:
+    """Open the dataset with the devkit; it is imported here, not at module scope, as it is heavy."""
+    from nuscenes.nuscenes import NuScenes
+
+    return NuScenes(version=version, dataroot=dataroot, verbose=False)
+
+
 class NuScenesSceneLoader(SceneLoader):
     """Reads scenes from a local nuScenes dataset via nuscenes-devkit."""
 
@@ -37,18 +44,18 @@ class NuScenesSceneLoader(SceneLoader):
         dataroot: str,
         version: str = "v1.0-mini",
         camera_channels: Sequence[str] = ("CAM_FRONT",),
+        open_dataset: Callable[[str, str], Any] = open_nuscenes,
     ) -> None:
         if not camera_channels:
             raise ValueError("camera_channels must name at least one camera")
         self._dataroot = dataroot
         self._version = version
         self._camera_channels = tuple(camera_channels)
+        self._open_dataset = open_dataset
 
     def load_keyframes(self) -> list[SceneKeyframe]:
         """Return one SceneKeyframe per scene and camera, in dataset order (a scene's cameras stay together)."""
-        from nuscenes.nuscenes import NuScenes
-
-        nusc = NuScenes(version=self._version, dataroot=self._dataroot, verbose=False)
+        nusc = self._open_dataset(self._version, self._dataroot)
         keyframes: list[SceneKeyframe] = []
         for scene in nusc.scene:
             sample = self._middle_sample(nusc, scene)
