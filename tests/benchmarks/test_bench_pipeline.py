@@ -14,7 +14,15 @@ from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
 from backseat_driver.scenes.pipeline import ScenePipeline
 from backseat_driver.scenes.writer import write_json
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
+from tests.fakes import (
+    FakeCaptioner,
+    FakeImageStore,
+    FakeJobQueue,
+    FakeJobStore,
+    FakeSceneLoader,
+    make_image_uri,
+    make_keyframe,
+)
 
 SCENE_COUNTS = [10, 500]
 
@@ -35,7 +43,7 @@ def test_ingest_worker_fan_out(benchmark: BenchmarkFixture, scenes: int) -> None
     store = FakeJobStore()
     job_id = uuid4()
     store.create_job(job_id, max_scenes=None, transaction_id="bench")
-    worker = IngestWorker(loader, queue, store)
+    worker = IngestWorker(loader, queue, store, FakeImageStore())
     task = IngestTask(job_id=job_id, transaction_id="bench")
 
     def run() -> None:
@@ -58,9 +66,11 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
         job_id = uuid4()
         store.create_job(job_id, max_scenes=None, transaction_id="bench")
         store.set_expected_scenes(job_id, scenes)
-        worker = CaptionWorker(captioner, store)
+        worker = CaptionWorker(captioner, store, FakeImageStore())
         for keyframe in keyframes:
-            worker.handle(CaptionTask(job_id=job_id, transaction_id="bench", keyframe=keyframe))
+            worker.handle(
+                CaptionTask(job_id=job_id, transaction_id="bench", keyframe=keyframe, image_uri="fake://bench")
+            )
         store.get_job(job_id)
         return store.list_descriptions(job_id)
 
@@ -85,7 +95,9 @@ def test_caption_task_round_trip(benchmark: BenchmarkFixture, scenes: int) -> No
     """Serialize and re-validate queue messages, the work done per message on the broker boundary."""
     job_id = uuid4()
     payloads = [
-        CaptionTask(job_id=job_id, transaction_id="bench", keyframe=make_keyframe(n)).model_dump(mode="json")
+        CaptionTask(
+            job_id=job_id, transaction_id="bench", keyframe=make_keyframe(n), image_uri=make_image_uri(n)
+        ).model_dump(mode="json")
         for n in range(scenes)
     ]
 

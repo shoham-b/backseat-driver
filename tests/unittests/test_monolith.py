@@ -15,7 +15,7 @@ from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
 from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import CaptionTask, IngestTask, JobState
 from backseat_driver.scenes.pipeline import describe_keyframe
-from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
+from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_image_uri, make_keyframe
 
 
 def test_mode_defaults_to_monolith() -> None:
@@ -23,16 +23,18 @@ def test_mode_defaults_to_monolith() -> None:
 
 
 def test_distributed_mode_builds_celery_and_postgres() -> None:
-    settings = Settings(mode=RunMode.DISTRIBUTED)
+    settings = Settings(_env_file=None, mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes")
 
-    queue, store = build_job_backend(settings, FakeCaptioner())
+    queue, store = build_job_backend(settings, FakeCaptioner(), FakeImageStore())
 
     assert isinstance(queue, CeleryJobQueue)
     assert isinstance(store, SqlJobStore)
 
 
 def test_monolith_keeps_jobs_in_memory_when_no_database_file_is_configured() -> None:
-    _, store = build_job_backend(Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""), FakeCaptioner())
+    _, store = build_job_backend(
+        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""), FakeCaptioner(), FakeImageStore()
+    )
 
     assert isinstance(store, InMemoryJobStore)
 
@@ -42,6 +44,7 @@ def test_monolith_job_runs_to_completion_without_a_broker() -> None:
     queue, store = build_job_backend(
         Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""),
         FakeCaptioner(),
+        FakeImageStore(),
         build_loader=lambda settings: FakeSceneLoader(keyframes),
     )
     job_id = uuid4()
@@ -81,7 +84,9 @@ def test_queue_runs_tasks_in_order_on_one_background_thread() -> None:
     queue.register(on_ingest, on_caption)
 
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
-    queue.enqueue_caption(CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1)))
+    queue.enqueue_caption(
+        CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
+    )
 
     assert done.wait(timeout=5)
     assert seen == [("ingest", "in-process-worker"), ("caption", "in-process-worker")]
@@ -97,7 +102,9 @@ def test_failing_task_does_not_stop_later_tasks() -> None:
     queue.register(on_ingest, lambda task: done.set())
 
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
-    queue.enqueue_caption(CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1)))
+    queue.enqueue_caption(
+        CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
+    )
 
     assert done.wait(timeout=5)
 
@@ -108,7 +115,9 @@ def test_enqueue_before_register_fails_fast() -> None:
     with pytest.raises(RuntimeError, match="register"):
         queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
     with pytest.raises(RuntimeError, match="register"):
-        queue.enqueue_caption(CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1)))
+        queue.enqueue_caption(
+            CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
+        )
 
 
 def test_queue_is_healthy_and_starts_no_thread_until_used() -> None:
@@ -151,4 +160,4 @@ def test_store_raises_not_found_for_unknown_job() -> None:
 
 def _description(n: int):
 
-    return describe_keyframe(make_keyframe(n), FakeCaptioner())
+    return describe_keyframe(make_keyframe(n), FakeCaptioner(), make_keyframe(n).image_path)

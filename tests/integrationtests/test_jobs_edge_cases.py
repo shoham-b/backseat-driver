@@ -144,7 +144,8 @@ def test_unsupported_methods_are_rejected(client: TestClient, method: str, path:
 def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
     # No dependency overrides: this is what a deployed process builds. The default broker and database URLs
     # point at nothing, so startup only succeeds if none of the adapters connects while being constructed.
-    service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED))
+    settings = make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes")
+    service = create_app(settings)
 
     with TestClient(service) as client:
         state = client.app.state
@@ -154,6 +155,11 @@ def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
     assert isinstance(state.job_queue, CeleryJobQueue)
     assert isinstance(state.job_store, SqlJobStore)
     assert health.status_code == HTTPStatus.OK
+
+
+def test_a_distributed_api_without_a_dataset_bucket_cannot_even_be_configured() -> None:
+    with pytest.raises(ValueError, match="DATASET_BUCKET"):
+        make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED)
 
 
 def test_lifespan_defaults_to_the_monolith_with_no_infrastructure() -> None:
