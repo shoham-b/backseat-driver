@@ -7,6 +7,7 @@ on the next page load.
 """
 
 import json
+from dataclasses import dataclass, field
 from http import HTTPStatus
 from pathlib import Path
 from typing import Annotated
@@ -29,22 +30,26 @@ _IMAGES = "/images/"
 _IMMUTABLE = "public, max-age=86400, immutable"
 
 
+@dataclass(frozen=True)
+class UiConfig:
+    """What the UI shows and where it reads from."""
+
+    result_files: list[Path] = field(default_factory=list)
+    job_ids: list[str] = field(default_factory=list)
+    all_jobs: bool = False
+    api_url: str | None = None  # the API to read jobs and images from; none: result files only
+    live_api_url: str | None = None  # where the browser reaches the API for the live-inference card
+
+
 class ReportPage:
     """Builds the report from its sources each time it is asked for."""
 
-    def __init__(
-        self,
-        result_files: list[Path],
-        source: ApiReportSource | None = None,
-        job_ids: list[str] | None = None,
-        all_jobs: bool = False,
-        live_api_url: str | None = None,
-    ) -> None:
-        self._result_files = result_files
+    def __init__(self, config: UiConfig, source: ApiReportSource | None) -> None:
+        self._result_files = config.result_files
+        self._job_ids = config.job_ids
+        self._all_jobs = config.all_jobs
+        self._live_api_url = config.live_api_url
         self._source = source
-        self._job_ids = job_ids or []
-        self._all_jobs = all_jobs
-        self._live_api_url = live_api_url
 
     def render(self) -> tuple[str, int]:
         """The page and how many descriptions it shows."""
@@ -69,12 +74,25 @@ class ReportPage:
         return render_html(build_report(descriptions), self._live_api_url, read_image), len(descriptions)
 
 
-def get_page(request: Request) -> ReportPage:
-    return request.app.state.page  # type: ignore[no-any-return]
+def get_config(request: Request) -> UiConfig:
+    return request.app.state.config  # type: ignore[no-any-return]
 
 
-def get_source(request: Request) -> ApiReportSource:
-    return request.app.state.source  # type: ignore[no-any-return]
+def get_source(config: Annotated[UiConfig, Depends(get_config)]) -> ApiReportSource | None:
+    return ApiReportSource(config.api_url) if config.api_url is not None else None
+
+
+def get_page(
+    config: Annotated[UiConfig, Depends(get_config)],
+    source: Annotated[ApiReportSource | None, Depends(get_source)],
+) -> ReportPage:
+    return ReportPage(config, source)
+
+
+def get_image_source(source: Annotated[ApiReportSource | None, Depends(get_source)]) -> ApiReportSource:
+    if source is None:
+        raise StarletteHTTPException(HTTPStatus.NOT_FOUND, "not found")
+    return source
 
 
 def _json_error(status: HTTPStatus, message: str) -> JSONResponse:
@@ -101,11 +119,10 @@ async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResp
     return _json_error(HTTPStatus(exc.status_code), str(exc.detail))
 
 
-def create_ui_app(page: ReportPage, source: ApiReportSource | None) -> FastAPI:
-    """The UI for `page`; `source` is the API the images come from (none: there is no `/images/` route)."""
+def create_ui_app(config: UiConfig) -> FastAPI:
+    """The UI for `config`; tests swap `get_source` through `dependency_overrides` instead of patching."""
     app = FastAPI(title="Backseat Driver report UI", docs_url=None, redoc_url=None, openapi_url=None)
-    app.state.page = page
-    app.state.source = source
+    app.state.config = config
     app.add_exception_handler(UnprocessableError, _unprocessable)  # type: ignore
     app.add_exception_handler(HttpStatusError, _upstream_status)  # type: ignore
     app.add_exception_handler(RuntimeError, _upstream_failure)  # type: ignore
@@ -124,12 +141,10 @@ def create_ui_app(page: ReportPage, source: ApiReportSource | None) -> FastAPI:
         html, _ = report_page.render()
         return HTMLResponse(html)
 
-    if source is not None:
-
-        @app.get("/images/{key:path}")
-        def image(key: str, api: Annotated[ApiReportSource, Depends(get_source)]) -> Response:
-            validate_image_key(key)
-            response = api.image_response(key)
-            return Response(response.body, media_type=response.content_type, headers={"Cache-Control": _IMMUTABLE})
+    @app.get("/images/{key:path}")
+    def image(key: str, api: Annotated[ApiReportSource, Depends(get_image_source)]) -> Response:
+        validate_image_key(key)
+        response = api.image_response(key)
+        return Response(response.body, media_type=response.content_type, headers={"Cache-Control": _IMMUTABLE})
 
     return app

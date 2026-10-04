@@ -79,21 +79,22 @@ def ui(
 ) -> None:
     """Serve the model-comparison UI: from result files, and/or from the API's jobs (rebuilt on every page load)."""
     from backseat_driver.reporting.api_source import ApiReportSource
-    from backseat_driver.reporting.ui_server import ReportPage, create_ui_app
+    from backseat_driver.reporting.ui_server import ReportPage, UiConfig, create_ui_app
 
     settings = get_settings()
     host = host or settings.ui_host
     port = port or settings.ui_port
     results = results or ([] if job or all_jobs else _default_results())
     api_url = api_url or settings.api_url
-    source = ApiReportSource(api_url) if job or all_jobs else None
+    reads_api = bool(job or all_jobs)
+    ui_config = UiConfig(results, job or [], all_jobs, api_url if reads_api else None, public_api_url or api_url)
 
-    page = ReportPage(results, source, job, all_jobs, live_api_url=public_api_url or api_url)
+    page = ReportPage(ui_config, ApiReportSource(api_url) if reads_api else None)
     _, count = page.render()  # fail now, not on the first request, if a source is unreadable
     url = f"http://{host}:{port}/"
     logger.info("serving {} description(s) at {} (Ctrl+C to stop)", count, url)
     # log_config=None leaves uvicorn's loggers to the stdlib-to-loguru bridge; the access log would only be noise.
-    config = uvicorn.Config(create_ui_app(page, source), host=host, port=port, log_config=None, access_log=False)
+    config = uvicorn.Config(create_ui_app(ui_config), host=host, port=port, log_config=None, access_log=False)
     _BrowserOpeningServer(config, url if open_browser else None).run()
     logger.info("stopped")
 

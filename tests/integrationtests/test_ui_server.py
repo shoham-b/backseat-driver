@@ -10,7 +10,7 @@ import pytest
 from backseat_driver.captioning.http_client import HttpResponse
 from backseat_driver.errors import HttpStatusError
 from backseat_driver.reporting.api_source import ApiReportSource
-from backseat_driver.reporting.ui_server import ReportPage, create_ui_app
+from backseat_driver.reporting.ui_server import UiConfig, create_ui_app, get_source
 from tests.fakes import FakeHttpClient
 
 API = "http://api"
@@ -54,10 +54,11 @@ def _http_with_jobs(*jobs: tuple[str, list[dict[str, object]]]) -> FakeHttpClien
     return http
 
 
-def _ui(http: FakeHttpClient) -> httpx.AsyncClient:
-    source = ApiReportSource(API, http)
-    page = ReportPage([], source, [], True, live_api_url="http://localhost:8080")
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=create_ui_app(page, source)), base_url="http://ui")
+def _ui(http: FakeHttpClient | None, api_url: str | None = API) -> httpx.AsyncClient:
+    app = create_ui_app(UiConfig(all_jobs=True, api_url=api_url, live_api_url="http://localhost:8080"))
+    if http is not None:
+        app.dependency_overrides[get_source] = lambda: ApiReportSource(API, http)
+    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ui")
 
 
 async def test_the_page_shows_the_completed_jobs_and_points_images_at_the_ui_itself() -> None:
@@ -163,8 +164,7 @@ async def test_unknown_paths_are_not_found_in_the_json_envelope() -> None:
 
 
 async def test_without_an_api_there_is_no_image_route() -> None:
-    app = create_ui_app(ReportPage([]), None)
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ui") as ui:
+    async with _ui(None, api_url=None) as ui:
         response = await ui.get(f"/images/{KEY}")
 
     assert response.status_code == HTTPStatus.NOT_FOUND
