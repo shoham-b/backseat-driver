@@ -4,22 +4,34 @@ A job's descriptions come from `GET /jobs/{id}/descriptions` and each scene's im
 report needs the API and nothing else: not the dataset, not the database, not the bucket.
 """
 
-import base64
 import json
+from collections.abc import Sequence
 from urllib.parse import quote
 
 from backseat_driver.models import Job, JobState, SceneDescription
 from backseat_driver.process.http_client import HttpClient, HttpResponse, UrllibHttpClient
+from backseat_driver.show.description_source import DescriptionSource
 
 _TIMEOUT_SECONDS = 30.0
 
+# The UI serves an image at the same path the API does, so a page can link to its own host.
+IMAGES_PATH = "/images/"
 
-class ApiReportSource:
-    def __init__(self, api_url: str, http: HttpClient | None = None) -> None:
+
+class ApiReportSource(DescriptionSource):
+    """The API as a source: the given jobs, or with no `job_ids` every completed job."""
+
+    def __init__(self, api_url: str, http: HttpClient | None = None, job_ids: Sequence[str] | None = None) -> None:
         self._api_url = api_url.rstrip("/")
         self._http = http or UrllibHttpClient()
+        self._job_ids = job_ids
 
-    def descriptions(self, job_id: str) -> list[SceneDescription]:
+    def descriptions(self) -> list[SceneDescription]:
+        if self._job_ids is None:
+            return self.all_descriptions()
+        return [d for job_id in self._job_ids for d in self.job_descriptions(job_id)]
+
+    def job_descriptions(self, job_id: str) -> list[SceneDescription]:
         """The finished job's descriptions; a job still running is an error, not a partial report."""
         job = Job.model_validate_json(self._get(f"/jobs/{quote(job_id)}").body)
         if job.state is not JobState.COMPLETED:
@@ -41,13 +53,11 @@ class ApiReportSource:
                     latest.append(description)
         return latest
 
-    def image_response(self, key: str) -> HttpResponse:
-        return self._get(f"/images/{quote(key)}")
+    def image(self, image_path: str) -> HttpResponse:
+        return self._get(f"{IMAGES_PATH}{quote(image_path)}")
 
-    def image(self, key: str) -> str:
-        """The scene image as a `data:` URI, so the report page is self-contained."""
-        response = self.image_response(key)
-        return f"data:{response.content_type};base64,{base64.b64encode(response.body).decode('ascii')}"
+    def image_link(self, image_path: str) -> str | None:
+        return f"{IMAGES_PATH}{quote(image_path)}"
 
     def _completed_jobs(self) -> list[Job]:
         body = self._get(f"/jobs?state={JobState.COMPLETED.value}&limit=500").body
