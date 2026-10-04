@@ -16,7 +16,6 @@ from loguru import logger
 
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
-from backseat_driver.logger import LogFormat, setup_logging
 
 
 @app.command()
@@ -46,7 +45,6 @@ def run(
 ) -> None:
     """Describe every scene in the dataset and write results to a JSON file."""
     settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="cli")
 
     from backseat_driver.captioning.factory import build_captioner
     from backseat_driver.scenes.nuscenes_dataset import ensure_nuscenes_dataset

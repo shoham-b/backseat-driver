@@ -20,7 +20,6 @@ from loguru import logger
 
 from backseat_driver.cli import app
 from backseat_driver.config import get_settings
-from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import SceneDescription
 
 
@@ -35,9 +34,7 @@ def report(
     ] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
-    settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="cli")
-    output = output or Path(settings.output_dir) / "report.html"
+    output = output or Path(get_settings().output_dir) / "report.html"
     results = results or _default_results()
     count = _write_report(results, output)
     logger.info("wrote report for {} description(s) to {}", count, output)
@@ -58,7 +55,6 @@ def ui(
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
     settings = get_settings()
-    setup_logging(LogFormat(settings.log_format), service="cli")
     host = host or settings.ui_host
     port = port or settings.ui_port
     results = results or _default_results()

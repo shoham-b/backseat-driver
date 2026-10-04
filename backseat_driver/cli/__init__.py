@@ -1,5 +1,8 @@
 import typer
 
+from backseat_driver.config import get_settings
+from backseat_driver.logger import LogFormat, setup_logging
+
 app = typer.Typer(
     name="backseat-driver",
     help="Generates short natural-language scene descriptions for nuScenes scenes using a VLM",
@@ -28,4 +31,5 @@ def _root(
         False, "--version", "-V", callback=_print_version, is_eager=True, help="Show version and exit"
     ),
 ) -> None:
-    pass
+    # Workers and `db init` call this again with their own service name.
+    setup_logging(LogFormat(get_settings().log_format), service="cli")
