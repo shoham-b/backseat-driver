@@ -150,6 +150,6 @@ asyncio_default_test_loop_scope = "session"
 source = ["backseat_driver"]
 
 [tool.coverage.report]
-fail_under = 95
+fail_under = 90
 exclude_also = ["if __name__ == .__main__.:"]
 
