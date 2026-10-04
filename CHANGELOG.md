@@ -5,6 +5,20 @@ All notable changes to Backseat Driver will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1](https://github.com/shoham-b/backseat-driver/compare/v0.2.0...v0.2.1) (2026-10-04)
+
+
+### Features
+
+* ask Ollama and Claude captioners for one short sentence ([#89](https://github.com/shoham-b/backseat-driver/issues/89)) ([523424b](https://github.com/shoham-b/backseat-driver/commit/523424bd2608489b4334608cd409607c9f8a2d24))
+* prompt captioners for a keyword list in the style of the nuScenes labels ([#92](https://github.com/shoham-b/backseat-driver/issues/92)) ([e8d6307](https://github.com/shoham-b/backseat-driver/commit/e8d63072b750d45c3ddbd490b39e45b7abce4363))
+
+
+### Bug Fixes
+
+* keep the reference label on stored jobs and stem report metrics ([#88](https://github.com/shoham-b/backseat-driver/issues/88)) ([0ce0300](https://github.com/shoham-b/backseat-driver/commit/0ce03003369c443a1ad425dcb4a82f5ce53fa5bf))
+* let Ctrl-C interrupt the describe command ([#93](https://github.com/shoham-b/backseat-driver/issues/93)) ([27a57de](https://github.com/shoham-b/backseat-driver/commit/27a57de624acd2052761fb301eadfb0646bc712e))
+
 ## [0.2.0](https://github.com/shoham-b/backseat-driver/compare/v0.1.0...v0.2.0) (2026-10-04)
 
 
