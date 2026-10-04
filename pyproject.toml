@@ -55,6 +55,11 @@ object-storage = [
     "boto3>=1.35",
 ]
 
+# Stemming for the report metrics (`reporting/metrics.py`).
+report = [
+    "snowballstemmer>=2.2",
+]
+
 # Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
 ingest-worker = [
     { include-group = "core" },
@@ -75,6 +80,7 @@ cli = [
     # The report UI is a FastAPI app run with `fastapi run` (see show/ui_server.py).
     "fastapi[standard]>=0.115",
     { include-group = "core" },
+    { include-group = "report" },
     { include-group = "vlm" },
     { include-group = "nuscenes" },
     { include-group = "jobs" },

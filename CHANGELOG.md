@@ -87,6 +87,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `scene_descriptions` has a nullable `reference_description` column, so a job's descriptions keep the nuScenes label and the report UI scores them (`report --job`, `ALL_JOBS`). `db init` does not alter an existing table: add the column (`ALTER TABLE scene_descriptions ADD COLUMN reference_description VARCHAR`) or recreate the database; the monolith's `output/jobs.db` can simply be deleted
+- Report metrics stem words (`-ing`, `-ed`, plurals, `buses`/`lorries`) and ignore caption boilerplate ("the image shows"), so "turning left" matches the label's "turn left" and verbose models are no longer penalised for their phrasing; scores differ from earlier reports
 - Distributed mode: no worker mounts the dataset any more; `describe_keyframe` takes the path to caption explicitly; `CaptionTask` has a required `image_uri`, so messages queued by the previous version are rejected
 - A distributed API now builds the dataset store at startup and refuses to start without `BACKSEAT_DRIVER_DATASET_BUCKET`; the `api` image includes the S3 client
 - `PostgresJobStore` is now `SqlJobStore` (it also runs over SQLite); `JobStore` gained `list_jobs`
