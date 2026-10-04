@@ -48,4 +48,13 @@ def caption() -> None:
     # Load the model before consuming, not on the first message: a model that can't load should
     # fail the worker at startup, not leave it pulling messages it would fail every time.
     _ = workers.caption_worker
-    celery_app.worker_main(["worker", "-Q", CAPTION_QUEUE, "-n", "caption@%h", "--pool=solo", *_NO_CLUSTER])
+    worker = celery_app.Worker(
+        queues=[CAPTION_QUEUE],
+        hostname="caption@%h",
+        pool_cls="solo",
+        without_gossip=True,
+        without_mingle=True,
+        without_heartbeat=True,
+    )
+    worker.start()
+    raise typer.Exit(worker.exitcode)
