@@ -12,6 +12,7 @@ import json
 import shutil
 import tarfile
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 from typing import IO
 
@@ -20,23 +21,38 @@ from loguru import logger
 _MARKER = ".nuscenes-cache.json"
 
 
-class _ProgressReader:
-    """File-like wrapper that logs download progress every 10%."""
+# Called after every read of the archive with (bytes downloaded so far, total bytes if the server sent them).
+DownloadProgress = Callable[[int, int | None], None]
 
-    def __init__(self, raw: IO[bytes], total: int | None) -> None:
+
+def log_every_ten_percent() -> DownloadProgress:
+    next_report = 10
+
+    def report(downloaded: int, total: int | None) -> None:
+        nonlocal next_report
+        if not total:
+            return
+        percent = downloaded * 100 // total
+        while percent >= next_report:
+            logger.info("nuScenes download {}%", next_report)
+            next_report += 10
+
+    return report
+
+
+class _ProgressReader:
+    """File-like wrapper that reports download progress."""
+
+    def __init__(self, raw: IO[bytes], total: int | None, on_progress: DownloadProgress) -> None:
         self._raw = raw
         self._total = total
+        self._on_progress = on_progress
         self._read = 0
-        self._next_report = 10
 
     def read(self, size: int = -1) -> bytes:
         data = self._raw.read(size)
         self._read += len(data)
-        if self._total:
-            percent = self._read * 100 // self._total
-            while percent >= self._next_report:
-                logger.info("nuScenes download {}%", self._next_report)
-                self._next_report += 10
+        self._on_progress(self._read, self._total)
         return data
 
 
@@ -49,8 +65,11 @@ def _remote_identity(url: str) -> dict[str, str]:
         return {"url": url, "etag": etag, "size": headers.get("Content-Length") or ""}
 
 
-def ensure_nuscenes_dataset(dataroot: str, version: str, url: str) -> None:
-    """Make ``dataroot`` hold the dataset at ``url``, downloading it when absent, incomplete or out of date."""
+def ensure_nuscenes_dataset(dataroot: str, version: str, url: str, on_progress: DownloadProgress | None = None) -> None:
+    """Make ``dataroot`` hold the dataset at ``url``, downloading it when absent, incomplete or out of date.
+
+    Download progress goes to ``on_progress``, or to the log every 10% when none is given.
+    """
     root = Path(dataroot)
     marker = root / _MARKER
     remote = _remote_identity(url)
@@ -63,7 +82,7 @@ def ensure_nuscenes_dataset(dataroot: str, version: str, url: str) -> None:
     scratch.mkdir(parents=True)
     with urllib.request.urlopen(url) as response:
         length = response.headers.get("Content-Length")
-        reader = _ProgressReader(response, int(length) if length else None)
+        reader = _ProgressReader(response, int(length) if length else None, on_progress or log_every_ten_percent())
         # Stream mode only ever calls read(); the stubs demand a seekable, writable file object regardless.
         with tarfile.open(fileobj=reader, mode="r|gz") as archive:  # type: ignore
             archive.extractall(scratch, filter="data")
