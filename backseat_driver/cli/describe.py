@@ -20,6 +20,7 @@ from loguru import logger
 from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progress, TextColumn, TimeRemainingColumn
 
 from backseat_driver.cli import app
+from backseat_driver.cli.interruptible import run_interruptibly
 from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import Camera, Job, SceneDescription, SceneKeyframe
@@ -100,12 +101,14 @@ def describe(
             )
         if output is None:
             raise typer.BadParameter("--output is required with --mode distributed: the model is chosen by the workers")
-        descriptions = _describe_on_workers(api_url or settings.api_url, max_scenes, timeout)
+        descriptions = run_interruptibly(lambda: _describe_on_workers(api_url or settings.api_url, max_scenes, timeout))
     else:
         if all_cameras == bool(camera):
             raise typer.BadParameter("pass exactly one of --camera (repeatable) or --all-cameras")
-        descriptions = _describe_here(
-            settings, dataroot, dataset_version, camera or [], all_cameras, backend, model, max_scenes
+        descriptions = run_interruptibly(
+            lambda: _describe_here(
+                settings, dataroot, dataset_version, camera or [], all_cameras, backend, model, max_scenes
+            )
         )
         output = output or settings.output_path_for(backend, model)
 
