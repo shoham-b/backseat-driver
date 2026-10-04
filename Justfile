@@ -1,7 +1,7 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-# PowerShell on Windows, `sh` elsewhere. Recipes marked [unix] (system tests, distributed dev, kind, clean) are POSIX-only.
+# PowerShell on Windows, `sh` elsewhere. Recipes marked [unix] (system tests, distributed dev, kind) are POSIX-only.
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
@@ -43,17 +43,17 @@ typecheck:
 test:
     uv run pytest tests/unittests tests/integrationtests --cov --cov-report=term-missing
 
-# System tests: builds the Docker Compose stack and runs system + smoke tests against it. With API_URL set, skips Docker and runs the system tests against that running API instead
+# System tests: builds the Docker Compose stack and runs system + smoke tests against it
 [unix]
 test-system:
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -n "${API_URL:-}" ]; then
-        uv run pytest tests/systemtests -v --api-url "$API_URL"
-    else
-        trap '{{compose}} --profile test down' EXIT
-        {{compose}} --profile test run --build --rm systemtest
-    fi
+    trap '{{compose}} --profile test down' EXIT
+    {{compose}} --profile test run --build --rm systemtest
+
+# System tests against an already running API (`just dev`, `just up`, a staging URL), no Docker: `just test-system-url http://localhost:8080`
+test-system-url url:
+    uv run pytest tests/systemtests -v --api-url {{url}}
 
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
@@ -185,8 +185,5 @@ hooks:
 check:
     uv run pre-commit run --all-files
 
-[unix]
 clean:
-    rm -rf dist/ site/ .pytest_cache/ htmlcov/ coverage.xml junit.xml
-    find . -type d -name __pycache__ -exec rm -rf {} +
-    find . -type f -name "*.pyc" -delete
+    uvx pyclean --debris cache coverage pytest --erase dist site junit.xml --yes .

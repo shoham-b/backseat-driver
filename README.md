@@ -140,8 +140,8 @@ just typecheck    # type check
 just docs         # build docs
 ```
 
-install. A few recipes are POSIX-only and absent on Windows: `test-system`, `test-all`, `dev-distributed`, `k8s-up`,
-`k8s-validate` and `clean` (use WSL or Git Bash for those).
+install. A few recipes are POSIX-only and absent on Windows: `test-system`, `test-all`, `dev-distributed`, `k8s-up` and
+`k8s-validate` (use WSL or Git Bash for those).
 
 See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
 codebase conventions.
