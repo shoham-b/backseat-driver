@@ -108,11 +108,12 @@ jobs:
           cluster_name: ${{ env.CLUSTER }}
           config: deploy/kind/cluster.yaml
 
+      # One call, so the layers the api, caption-worker and cli images share (torch) are exported and imported once.
       - name: Load images into the cluster
         run: |
-          for target in api ingest-worker caption-worker cli; do
-            kind load docker-image --name "$CLUSTER" "backseat-driver-${target}:local"
-          done
+          kind load docker-image --name "$CLUSTER" \
+            backseat-driver-api:local backseat-driver-ingest-worker:local \
+            backseat-driver-caption-worker:local backseat-driver-cli:local
 
       - name: Install KEDA
         run: |
