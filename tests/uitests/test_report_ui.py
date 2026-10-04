@@ -154,7 +154,7 @@ def test_several_cameras_of_a_scene_share_one_card_with_a_tab_each_and_a_filter(
     assert page.find_element(By.ID, "subtitle").text == "1 scenes · 1 model(s) · 2 cameras"
     assert _scene_titles(page) == [SCENES[0][0]]
     assert _camera_badges(page) == ["Back left", "Front"]
-    assert len(page.find_elements(By.CSS_SELECTOR, "#scene option")) == 2  # "All scenes" + one scene
+    assert len(page.find_elements(By.CSS_SELECTOR, "#scene optgroup[label='Single scene'] option")) == 1
 
 
 def test_the_camera_filter_hides_the_unticked_cameras(multi_camera_page: WebDriver) -> None:
