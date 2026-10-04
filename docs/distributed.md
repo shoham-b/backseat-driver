@@ -2,21 +2,18 @@
 
 This is rung 3 of [From pipeline to cluster](ladder.md). The batch CLI is the primary deliverable: one process, one flow, read → process → write. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The ingest worker is the read step turned into a producer, and the caption worker runs the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs. Across machines two more pieces appear because nothing is shared any more: the dataset moves to a bucket (`read/s3/`) and the results to a database (`write/job_store/`).
 
-```
-Client ──REST──▶ API ──(1) create job──▶ Postgres
-                  │
-                  └─(2) IngestTask──▶ RabbitMQ [backseat_driver.ingest]
-                                          ▼
-                              ingest-worker (StoredSceneLoader)
-                                 │ reads the metadata tables ◀── S3 bucket (dataset)
-                                 │ set expected_scenes, then one CaptionTask per scene
-                                 ▼
-                          RabbitMQ [backseat_driver.caption]
-                                 ▼
-                     caption-worker × N (fetches one image from the bucket,
-                                         BackendCaptioner, model loaded once)
-                                 ▼
-                      Postgres (scene_descriptions)  ◀── GET /jobs/{id}
+```mermaid
+flowchart TD
+    C[Client] -- REST --> API
+    API -- "(1) create job" --> PG[("Postgres")]
+    API -- "(2) IngestTask" --> QI(["RabbitMQ<br/>backseat_driver.ingest"])
+    QI --> IW["ingest-worker<br/>StoredSceneLoader"]
+    S3[("S3 bucket<br/>dataset")] -- "metadata tables" --> IW
+    IW -- "set expected_scenes,<br/>one CaptionTask per scene" --> QC(["RabbitMQ<br/>backseat_driver.caption"])
+    QC --> CW["caption-worker × N<br/>fetches one image from the bucket,<br/>BackendCaptioner, model loaded once"]
+    S3 -- "one image" --> CW
+    CW --> PGD[("Postgres<br/>scene_descriptions")]
+    PGD -. "GET /jobs/{id}" .-> C
 ```
 
 ## Microservices vs. monolith

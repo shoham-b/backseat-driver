@@ -12,7 +12,7 @@
 ## Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/shoham-b/backseat-driver.git
 cd backseat-driver
 uv sync --group dev         # install all deps + dev tools
 uv run pre-commit install   # register git hooks
@@ -48,7 +48,6 @@ Run `just --list` at any time to see all targets. The full table:
 | `just check` | Pre-commit on all files |
 | `just docs` | Build HTML docs with MkDocs |
 | `just docs-open` | Serve docs with live reload (`mkdocs serve`) |
-| `just sync` | `uv sync --group dev` |
 | `just hooks` | Install pre-commit hooks |
 
 ## Code quality
@@ -154,7 +153,7 @@ just test-system-url http://localhost:8080   # works on Windows too
 just test   # includes --cov; enforced in CI via `fail_under` in `pyproject.toml`
 ```
 
-Coverage is measured over `backseat_driver` excluding `cli/`.
+Coverage is measured over the whole `backseat_driver` package.
 
 ### Benchmarks
 
@@ -173,7 +172,7 @@ and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --cods
 
 ```
 backseat_driver/
-├── api/            # Optional FastAPI service (/describe, /health, /ready)
+├── api/            # FastAPI service (/describe, /jobs, /images, /health, /ready)
 │   └── routers/
 ├── pipeline.py     # ScenePipeline + describe_keyframe: read -> process, the spine (`describe` adds write)
 ├── read/           # 1. read: SceneLoader + nuScenes loader, ImageStore + local store
@@ -184,7 +183,7 @@ backseat_driver/
 ├── transport/      # (added) the seam between read and process: JobQueue, in-process + Celery queues, ingest/caption workers
 ├── show/           # separate role: report and UI over what was written
 ├── errors.py       # BackseatDriverError hierarchy
-├── cli/            # Typer CLI — `describe` (the pipeline) and `test smoke`
+├── cli/            # Typer CLI — describe, report, worker, db, dataset, test smoke
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
 └── logger.py       # Loguru setup; LogFormat enum
@@ -220,7 +219,7 @@ just up                  # API + RabbitMQ + Postgres + workers
 just test-system        # system tests
 ```
 
-Images are defined in `docker/Dockerfile` with named build targets: `cli` (default/primary) and `api`. See [Running it](running.md) for how every way of running the project fits together.
+Images are defined in `docker/Dockerfile` with one build target per service: `cli`, `api`, `ingest-worker` and `caption-worker`. See [Running it](running.md) for how every way of running the project fits together.
 
 ## Pre-commit hooks
 
