@@ -11,7 +11,7 @@ uv sync --group dev
 uv run pre-commit install
 
 # Run the pipeline; the nuScenes v1.0-mini demo dataset and the model are downloaded on first use:
-just run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
+just run --camera front --model Salesforce/blip-image-captioning-base
 ```
 
 Results are written to `output/<backend>__<model>.json` by default, so runs of different models sit side by side and never overwrite each other.

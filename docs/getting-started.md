@@ -13,13 +13,13 @@ location with `--dataroot` or `BACKSEAT_DRIVER_NUSCENES_DATAROOT`.
 
 ```bash
 uv sync --group dev
-uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
+uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
 
 ```bash
-just docker-run --camera CAM_FRONT
+just docker-run --camera front
 ```
 
 Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, and write
@@ -32,7 +32,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 |---|---|---|
 | `--dataroot` | `data/sets/nuscenes` | Cache directory for the dataset (downloaded here if missing) |
 | `--version` | `v1.0-mini` | nuScenes dataset version |
-| `--camera` | required (or `--all-cameras`) | Camera channel used as the representative frame, e.g. `CAM_FRONT` (repeatable); `--all-cameras` runs all six |
+| `--camera` | required (or `--all-cameras`) | Camera used as the representative frame, e.g. `front` or `back_left` (repeatable); `--all-cameras` runs all six |
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `--model` | **required** | Model for the backend, e.g. `Salesforce/blip-image-captioning-base` (HuggingFace), `llava` (Ollama) or `claude-haiku-4-5-20251001` (Claude); or set the matching `BACKSEAT_DRIVER_*_MODEL_NAME` |
 | `--output` | `output/<backend>__<model>.json` | Where to write the JSON results (inferred from the backend and model) |

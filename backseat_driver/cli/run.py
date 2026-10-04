@@ -4,7 +4,7 @@ Usage::
 
     backseat_driver run
     backseat_driver run --dataroot data/sets/nuscenes --version v1.0-mini \
-        --camera CAM_FRONT --backend ollama --model llava:13b
+        --camera front --backend ollama --model llava:13b
     # -> output/ollama__llava-13b.json
     backseat_driver run --all-cameras      # every scene from all six cameras
 """
@@ -19,7 +19,7 @@ from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progres
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
 from backseat_driver.logger import LogFormat
-from backseat_driver.models import CameraChannel, SceneKeyframe
+from backseat_driver.models import Camera, SceneKeyframe
 
 
 def log_progress(index: int, total: int, keyframe: SceneKeyframe) -> None:
@@ -33,8 +33,8 @@ def run(
     ] = None,
     version: Annotated[str | None, typer.Option(help="nuScenes dataset version, e.g. v1.0-mini")] = None,
     camera: Annotated[
-        list[CameraChannel] | None,
-        typer.Option(help="Camera channel to use as the representative frame; repeat to describe several cameras"),
+        list[Camera] | None,
+        typer.Option(help="Camera to use as the representative frame; repeat to describe several cameras"),
     ] = None,
     all_cameras: Annotated[
         bool, typer.Option("--all-cameras", help="Describe all six cameras of every scene (instead of --camera)")
@@ -62,7 +62,7 @@ def run(
 
     if all_cameras == bool(camera):
         raise typer.BadParameter("pass exactly one of --camera (repeatable) or --all-cameras")
-    cameras = list(ALL_CAMERA_CHANNELS) if all_cameras else camera or []
+    cameras = list(ALL_CAMERA_CHANNELS) if all_cameras else [c.channel for c in camera or []]
 
     dataroot = dataroot or settings.nuscenes_dataroot
     version = version or settings.nuscenes_version

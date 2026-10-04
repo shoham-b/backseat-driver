@@ -4,15 +4,20 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
-class CameraChannel(StrEnum):
+class Camera(StrEnum):
     """The six cameras on a nuScenes vehicle, front-centre first then clockwise."""
 
-    CAM_FRONT = "CAM_FRONT"
-    CAM_FRONT_RIGHT = "CAM_FRONT_RIGHT"
-    CAM_BACK_RIGHT = "CAM_BACK_RIGHT"
-    CAM_BACK = "CAM_BACK"
-    CAM_BACK_LEFT = "CAM_BACK_LEFT"
-    CAM_FRONT_LEFT = "CAM_FRONT_LEFT"
+    FRONT = "front"
+    FRONT_RIGHT = "front_right"
+    BACK_RIGHT = "back_right"
+    BACK = "back"
+    BACK_LEFT = "back_left"
+    FRONT_LEFT = "front_left"
+
+    @property
+    def channel(self) -> str:
+        """The name nuScenes gives this camera, e.g. `CAM_FRONT`."""
+        return f"CAM_{self.name}"
 
 
 class SceneKeyframe(BaseModel):
