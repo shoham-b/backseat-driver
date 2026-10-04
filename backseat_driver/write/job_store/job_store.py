@@ -2,7 +2,7 @@
 The SQL implementation (Postgres when distributed, SQLite for the monolith) lives next to it in `sql_job_store.py`.
 
 A job's state is derived from how many scenes it expects versus how many
-descriptions have been recorded, never stored. That removes the race a separate
+descriptions have been recorded (and whether an error was recorded), never stored. That removes the race a separate
 "mark complete" step would have between concurrent caption workers.
 """
 
@@ -16,11 +16,23 @@ class JobStore(ABC):
     """Anything that can track jobs and the scene descriptions produced for them."""
 
     @abstractmethod
-    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None: ...
+    def create_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
+        """Record a new job. The database rejects a second job under the same `idempotency_key`."""
+
+    @abstractmethod
+    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+        """The job created under this key, or None."""
 
     @abstractmethod
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         """Record how many scenes the job will produce. Raises NotFoundError for an unknown job."""
+
+    @abstractmethod
+    def fail_job(self, job_id: UUID, error: str) -> None:
+        """Mark the job failed. The first error is kept, so a later one can't hide the root cause.
+        Raises NotFoundError for an unknown job."""
 
     @abstractmethod
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
@@ -43,7 +55,9 @@ class JobStore(ABC):
         """True if the database is reachable."""
 
 
-def derive_state(expected_scenes: int | None, completed_scenes: int) -> JobState:
+def derive_state(expected_scenes: int | None, completed_scenes: int, error: str | None) -> JobState:
+    if error is not None:
+        return JobState.FAILED
     if expected_scenes is None:
         return JobState.PENDING
     if completed_scenes >= expected_scenes:

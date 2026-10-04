@@ -2,20 +2,21 @@
 
 `POST /jobs` only records the job and enqueues an ingest task, then returns 202;
 the ingest and caption workers do the actual work. Clients poll `GET /jobs/{id}`
-until its state is `completed`, then fetch the results.
+until its state is `completed` (or `failed`, with the reason in `error`), then fetch the results.
 """
 
 from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
-from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_request_id
+from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_transaction_id
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
 from backseat_driver.models import IngestTask, Job, JobState, SceneDescription
+from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
 
@@ -28,19 +29,38 @@ class CreateJobRequest(BaseModel):
 
 @router.post("/jobs", status_code=HTTPStatus.ACCEPTED)
 async def create_job(
-    transaction_id: Annotated[str, Depends(get_request_id)],
+    transaction_id: Annotated[str, Depends(get_transaction_id)],
     queue: Annotated[JobQueue, Depends(get_job_queue)],
     store: Annotated[JobStore, Depends(get_job_store)],
+    response: Response,
     body: CreateJobRequest | None = None,
+    idempotency_key: Annotated[
+        str | None,
+        Header(
+            pattern=r"^[A-Za-z0-9._-]+$",
+            max_length=128,
+            description="Retrying with the same key returns the job it created (200) instead of starting another.",
+        ),
+    ] = None,
 ) -> Job:
     """Start a job that describes every scene in the dataset."""
     max_scenes = body.max_scenes if body else None
     job_id = uuid4()
 
     # The store and queue clients are blocking, so keep them off the event loop like /describe does.
-    await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id)
+    if idempotency_key is not None:
+        existing = await run_in_threadpool(store.find_job_by_idempotency_key, idempotency_key)
+        if existing is not None:
+            response.status_code = HTTPStatus.OK
+            return existing
+    await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id, idempotency_key)
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
-    await run_in_threadpool(queue.enqueue_ingest, task)
+    try:
+        await run_in_threadpool(queue.enqueue_ingest, task)
+    except Exception as exc:
+        # Otherwise the row would sit `pending` forever, waiting for an ingest task that was never queued.
+        await run_in_threadpool(store.fail_job, job_id, describe_failure("enqueue", exc))
+        raise
     return await run_in_threadpool(store.get_job, job_id)
 
 

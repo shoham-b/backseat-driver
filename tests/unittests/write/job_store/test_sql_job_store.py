@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import JobState, SceneDescription
@@ -111,6 +112,44 @@ def test_a_description_keeps_its_reference_label(store: SqlJobStore) -> None:
     assert stored.reference_description == "Parked truck"
 
 
+def test_a_failed_job_keeps_the_first_error_and_its_progress(store: SqlJobStore) -> None:
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx")
+    store.set_expected_scenes(job_id, 2)
+    store.record_description(job_id, _description(1))
+
+    store.fail_job(job_id, "first")
+    store.fail_job(job_id, "second")
+
+    job = store.get_job(job_id)
+    assert (job.state, job.error, job.completed_scenes) == (JobState.FAILED, "first", 1)
+
+
+def test_a_job_is_found_by_its_idempotency_key(store: SqlJobStore) -> None:
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx", idempotency_key="key-1")
+
+    found = store.find_job_by_idempotency_key("key-1")
+
+    assert found is not None
+    assert found.job_id == job_id
+    assert store.find_job_by_idempotency_key("other") is None
+
+
+def test_the_database_rejects_a_second_job_under_the_same_key(store: SqlJobStore) -> None:
+    store.create_job(uuid4(), None, "tx", idempotency_key="key-1")
+
+    with pytest.raises(IntegrityError):
+        store.create_job(uuid4(), None, "tx", idempotency_key="key-1")
+
+
+def test_jobs_without_a_key_never_collide(store: SqlJobStore) -> None:
+    store.create_job(uuid4(), None, "tx")
+    store.create_job(uuid4(), None, "tx")
+
+    assert len(store.list_jobs()) == 2
+
+
 def test_a_job_with_no_descriptions_lists_none(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
@@ -123,9 +162,10 @@ def test_a_job_with_no_descriptions_lists_none(store: SqlJobStore) -> None:
     [
         lambda store, job_id: store.get_job(job_id),
         lambda store, job_id: store.set_expected_scenes(job_id, 3),
+        lambda store, job_id: store.fail_job(job_id, "boom"),
         lambda store, job_id: store.list_descriptions(job_id),
     ],
-    ids=["get_job", "set_expected_scenes", "list_descriptions"],
+    ids=["get_job", "set_expected_scenes", "fail_job", "list_descriptions"],
 )
 def test_unknown_job_is_not_found(store: SqlJobStore, operation: Callable[[SqlJobStore, UUID], object]) -> None:
     unknown = uuid4()

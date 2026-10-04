@@ -108,6 +108,71 @@ def test_a_broker_outage_surfaces_as_a_server_error_not_a_silent_accept(client_w
     assert response.json()["error"]["message"] == "internal server error"  # internals are not leaked
 
 
+def test_retrying_with_the_same_idempotency_key_returns_the_first_job(
+    isolated: tuple[TestClient, FakeJobQueue, FakeJobStore],
+) -> None:
+    client, queue, store = isolated
+    headers = {"Idempotency-Key": "order-1"}
+
+    first = client.post("/jobs", headers=headers)
+    second = client.post("/jobs", headers=headers)
+
+    assert (first.status_code, second.status_code) == (HTTPStatus.ACCEPTED, HTTPStatus.OK)
+    assert second.json()["job_id"] == first.json()["job_id"]
+    assert len(queue.ingest_tasks) == 1
+    assert len(store.list_jobs()) == 1
+
+
+def test_different_idempotency_keys_start_different_jobs(
+    isolated: tuple[TestClient, FakeJobQueue, FakeJobStore],
+) -> None:
+    client, queue, _ = isolated
+
+    ids = {client.post("/jobs", headers={"Idempotency-Key": key}).json()["job_id"] for key in ("a", "b")}
+
+    assert len(ids) == 2
+    assert len(queue.ingest_tasks) == 2
+
+
+@pytest.mark.parametrize("key", ["", "has space", "x" * 129])
+def test_a_malformed_idempotency_key_is_rejected(
+    isolated: tuple[TestClient, FakeJobQueue, FakeJobStore], key: str
+) -> None:
+    client, queue, _ = isolated
+
+    response = client.post("/jobs", headers={"Idempotency-Key": key})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert queue.ingest_tasks == []
+
+
+def test_a_job_that_could_not_be_enqueued_is_recorded_as_failed(client_with: ClientFactory) -> None:
+    class _BrokenQueue(FakeJobQueue):
+        def enqueue_ingest(self, task) -> None:
+            raise ConnectionError("broker down")
+
+    store = FakeJobStore()
+    client = client_with(
+        {get_job_queue: lambda: _BrokenQueue(), get_job_store: lambda: store}, raise_server_exceptions=False
+    )
+
+    client.post("/jobs")
+
+    (job,) = store.list_jobs()
+    assert job.state is JobState.FAILED
+    assert job.error == "enqueue failed: ConnectionError: broker down"
+
+
+def test_a_malformed_request_id_is_replaced_not_stored(isolated: tuple[TestClient, FakeJobQueue, FakeJobStore]) -> None:
+    client, queue, _ = isolated
+
+    response = client.post("/jobs", headers={REQUEST_ID_HEADER: "has spaces and ;"})
+
+    assert response.headers[REQUEST_ID_HEADER] != "has spaces and ;"
+    assert response.json()["transaction_id"] == response.headers[REQUEST_ID_HEADER]
+    assert queue.ingest_tasks[0].transaction_id == response.headers[REQUEST_ID_HEADER]
+
+
 @pytest.mark.parametrize("path", ["/jobs/not-a-uuid", "/jobs/123", "/jobs/not-a-uuid/descriptions"])
 def test_malformed_job_ids_are_validation_errors(client: TestClient, path: str) -> None:
     assert client.get(path).status_code == HTTPStatus.UNPROCESSABLE_ENTITY

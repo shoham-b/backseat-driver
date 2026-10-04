@@ -15,11 +15,12 @@ from typing import Any, NamedTuple
 
 from celery import Celery, Task
 from celery.signals import setup_logging as celery_setup_logging
+from loguru import logger
 from pydantic import ValidationError
 
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.logger import LogFormat, setup_logging
-from backseat_driver.models import CaptionTask, IngestTask
+from backseat_driver.models import CaptionTask, IngestTask, JobReference
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
 from backseat_driver.read.s3.dataset_store import DatasetStore
@@ -29,6 +30,7 @@ from backseat_driver.stacks import celery_queue, postgres_store, stored_loader
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, make_celery_app
 from backseat_driver.transport.ingest_worker import IngestWorker
+from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
 
@@ -86,17 +88,31 @@ _RETRY = {"autoretry_for": (Exception,), "dont_autoretry_for": (ValidationError,
 
 
 def register_tasks(
-    app: Celery, ingest_worker: Callable[[], IngestWorker], caption_worker: Callable[[], CaptionWorker]
+    app: Celery,
+    ingest_worker: Callable[[], IngestWorker],
+    caption_worker: Callable[[], CaptionWorker],
+    store: Callable[[], JobStore],
 ) -> Tasks:
     """Register the two tasks on `app`. Workers are looked up per call, after the payload validated, so garbage
-    never triggers a model or dataset load."""
+    never triggers a model or dataset load. A task that gives up marks its job failed in `store`."""
 
-    @app.task(name=INGEST_TASK, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
+    class FailJobWhenGivingUp(Task):
+        def on_failure(self, exc: Exception, task_id: str, args: tuple, kwargs: dict, einfo: Any) -> None:
+            # Celery calls this only once retries are exhausted, so a transient error that a retry fixes never
+            # marks a job failed.
+            try:
+                reference = JobReference.model_validate(args[0])
+            except ValidationError:
+                logger.error("{} {} failed and its payload names no job: {}", self.name, task_id, exc)
+                return
+            store().fail_job(reference.job_id, describe_failure(str(self.name), exc))
+
+    @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def ingest(self: Task, payload: dict[str, Any]) -> None:
         task = IngestTask.model_validate(payload)
         ingest_worker().handle(task)
 
-    @app.task(name=CAPTION_TASK, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
+    @app.task(name=CAPTION_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def caption(self: Task, payload: dict[str, Any]) -> None:
         task = CaptionTask.model_validate(payload)
         caption_worker().handle(task)
@@ -111,7 +127,9 @@ def configure_worker_logging(settings: Settings, setup: Callable[[LogFormat, str
 _settings = get_settings()
 celery_app = make_celery_app(_settings.rabbitmq_url)
 workers = Workers(_settings)
-ingest, caption = register_tasks(celery_app, lambda: workers.ingest_worker, lambda: workers.caption_worker)
+ingest, caption = register_tasks(
+    celery_app, lambda: workers.ingest_worker, lambda: workers.caption_worker, lambda: workers.store
+)
 
 
 @celery_setup_logging.connect

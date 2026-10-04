@@ -13,11 +13,12 @@ class JobReference(BaseModel):
 
 
 class JobState(StrEnum):
-    """Lifecycle of a job, derived from scene counts rather than stored."""
+    """Lifecycle of a job, derived from scene counts and the recorded error rather than stored."""
 
     PENDING = "pending"  # ingest hasn't reported how many scenes there are yet
     RUNNING = "running"
     COMPLETED = "completed"
+    FAILED = "failed"  # a task ran out of retries (or the job could not be enqueued); `Job.error` says why
 
 
 class Job(JobReference):
@@ -28,3 +29,4 @@ class Job(JobReference):
     expected_scenes: int | None
     completed_scenes: int
     created_at: datetime
+    error: str | None = None

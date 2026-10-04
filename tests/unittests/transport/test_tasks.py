@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from backseat_driver import tasks
 from backseat_driver.config import Settings
 from backseat_driver.logger import LogFormat
-from backseat_driver.models import CaptionTask, IngestTask
+from backseat_driver.models import CaptionTask, IngestTask, JobState
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.scene_loader import SceneLoader
@@ -61,11 +61,13 @@ class _WorkerProvider[W]:
 def _register(
     ingest_worker: Callable[[], IngestWorker] | None = None,
     caption_worker: Callable[[], CaptionWorker] | None = None,
+    store: FakeJobStore | None = None,
 ) -> tasks.Tasks:
     """The two tasks on a throwaway app, so each test wires its own workers."""
     ingest_worker = ingest_worker or _WorkerProvider(_FailingIngestWorker())
     caption_worker = caption_worker or _WorkerProvider(_FailingCaptionWorker())
-    return tasks.register_tasks(make_celery_app("memory://"), ingest_worker, caption_worker)
+    job_store = store or FakeJobStore()
+    return tasks.register_tasks(make_celery_app("memory://"), ingest_worker, caption_worker, lambda: job_store)
 
 
 def test_caption_task_validates_the_payload_and_hands_it_to_the_worker() -> None:
@@ -124,25 +126,59 @@ def test_malformed_caption_payload_never_asks_for_the_worker() -> None:
 
 
 def test_transient_ingest_failures_are_retried_up_to_the_limit_then_surface() -> None:
-    worker = _FailingIngestWorker()
-    payload = IngestTask(job_id=uuid4(), transaction_id="tx").model_dump(mode="json")
+    worker, job_id, store = _FailingIngestWorker(), uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
 
-    result = _register(ingest_worker=_WorkerProvider(worker)).ingest.apply(args=[payload])
+    result = _register(ingest_worker=_WorkerProvider(worker), store=store).ingest.apply(args=[payload])
 
     assert isinstance(result.result, ConnectionError)
     assert worker.calls == MAX_RETRIES + 1
 
 
 def test_transient_caption_failures_are_retried_up_to_the_limit_then_surface() -> None:
-    worker = _FailingCaptionWorker()
+    worker, job_id, store = _FailingCaptionWorker(), uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
     payload = CaptionTask(
-        job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+        job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
     ).model_dump(mode="json")
 
-    result = _register(caption_worker=_WorkerProvider(worker)).caption.apply(args=[payload])
+    result = _register(caption_worker=_WorkerProvider(worker), store=store).caption.apply(args=[payload])
 
     assert isinstance(result.result, ConnectionError)
     assert worker.calls == MAX_RETRIES + 1
+
+
+def test_ingest_task_that_gives_up_marks_its_job_failed() -> None:
+    job_id, store = uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
+
+    _register(store=store).ingest.apply(args=[payload])
+
+    job = store.get_job(job_id)
+    assert job.state is JobState.FAILED
+    assert job.error == "backseat_driver.ingest failed: ConnectionError: database down"
+
+
+def test_caption_task_that_gives_up_marks_its_job_failed() -> None:
+    job_id, store = uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    payload = CaptionTask(
+        job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+    ).model_dump(mode="json")
+
+    _register(store=store).caption.apply(args=[payload])
+
+    assert store.get_job(job_id).state is JobState.FAILED
+
+
+def test_a_failed_task_whose_payload_names_no_job_leaves_the_store_alone() -> None:
+    store = FakeJobStore()
+
+    _register(store=store).caption.apply(args=[{"not": "a caption task"}])
+
+    assert store.list_jobs() == []
 
 
 def test_tasks_declare_the_shared_retry_limit() -> None:
