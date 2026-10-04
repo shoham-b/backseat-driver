@@ -1,5 +1,5 @@
-"""Port for job state and results in the distributed mode.
-The Postgres implementation lives next to it in `postgres_job_store.py`.
+"""Port for job state and results.
+The SQL implementation (Postgres when distributed, SQLite for the monolith) lives next to it in `sql_job_store.py`.
 
 A job's state is derived from how many scenes it expects versus how many
 descriptions have been recorded, never stored. That removes the race a separate
@@ -29,6 +29,10 @@ class JobStore(ABC):
     @abstractmethod
     def get_job(self, job_id: UUID) -> Job:
         """Raises NotFoundError for an unknown job."""
+
+    @abstractmethod
+    def list_jobs(self) -> list[Job]:
+        """Every job, newest first."""
 
     @abstractmethod
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:

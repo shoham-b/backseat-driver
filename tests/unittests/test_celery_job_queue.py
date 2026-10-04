@@ -14,7 +14,7 @@ from backseat_driver.jobs.celery_job_queue import (
     make_celery_app,
 )
 from backseat_driver.models import CaptionTask, IngestTask
-from tests.fakes import FakeCeleryApp, FakeCeleryConnection, make_keyframe
+from tests.fakes import FakeCeleryApp, FakeCeleryConnection, make_image_uri, make_keyframe
 
 BROKER = "amqp://guest:guest@broker:5672/"
 
@@ -74,7 +74,7 @@ def test_enqueue_ingest_publishes_a_json_payload_by_task_name() -> None:
 
 def test_enqueue_caption_publishes_a_json_payload_by_task_name() -> None:
     app = FakeCeleryApp()
-    task = CaptionTask(job_id=uuid4(), transaction_id="tx-1", keyframe=make_keyframe(1))
+    task = CaptionTask(job_id=uuid4(), transaction_id="tx-1", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
 
     _queue(app).enqueue_caption(task)
 

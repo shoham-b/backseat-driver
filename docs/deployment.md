@@ -11,8 +11,8 @@ can be checked without a cluster or a daemon are also pinned by `tests/unittests
 |---|---|---|
 | `cli` | `backseat-driver` | the batch pipeline, the report UI, `db init` |
 | `api` | `fastapi run …` on port 8080 | `/describe`, `/jobs`, `/health`, `/ready` |
-| `ingest-worker` | `backseat-driver worker ingest` | reads the dataset, fans out caption tasks (nuscenes-devkit, no torch) |
-| `caption-worker` | `backseat-driver worker caption` | runs the VLM on one scene at a time (torch, no nuscenes-devkit) |
+| `ingest-worker` | `backseat-driver worker ingest` | reads the dataset's metadata tables from the bucket and fans out caption tasks (nuscenes-devkit, no torch, no dataset on disk) |
+| `caption-worker` | `backseat-driver worker caption` | downloads one keyframe from the bucket and runs the VLM on it (torch, no nuscenes-devkit, no dataset on disk) |
 
 Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount a volume there to survive restarts.
 `.github/workflows/docker.yml` publishes them as `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}:latest`.
@@ -26,7 +26,7 @@ Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount
 | API + RabbitMQ + Postgres + workers | `just compose up --build` (API on <http://localhost:8080>) |
 | Containerised system + smoke tests | `just test-system` |
 
-The dataset is read from `./data` and results are written to `./output`. Because the image is non-root, a bind-mounted
+The dataset is read from `./data` by the one-shot `dataset-upload` service only, which copies it into the `s3` service (a development S3 store started with the stack); the workers read it from there. Results are written to `./output`. Because the image is non-root, a bind-mounted
 `./output` that Docker created as root is not writable; either `mkdir output` and run with
 `LOCAL_UID=$(id -u) LOCAL_GID=$(id -g)`, or leave both unset to run as root as before.
 
@@ -38,12 +38,14 @@ The `ui` service exits at startup when `./output` has no result files yet — ru
 
 | Object | Notes |
 |---|---|
-| `api` Deployment (2) + Service | liveness `/health`, readiness `/ready` (VLM, broker and database reachable) |
-| `ingest-worker` (1), `caption-worker` (2) | each from its own image; `kubectl -n backseat-driver scale deploy/caption-worker --replicas=N`, or autoscale (below) |
+| `api` Deployment (2) + Service | liveness `/health`, readiness `/ready` (VLM, broker and database reachable); serves `GET /images/{key}` from the dataset bucket, so it takes the same `DATASET_BUCKET` and `AWS_*` configuration as the workers and refuses to start without it |
+| `ingest-worker` (1), `caption-worker` (2) | each from its own image; `kubectl -n backseat-driver scale deploy/caption-worker --replicas=N`, or autoscale (below). With KEDA the ingest Deployment is replaced by a Job per queued ingest task |
+| `dataset-upload` Job | copies the dataset from the `nuscenes-data` volume into the bucket (skipping images already there); retries until the volume and the bucket are up |
 | `db-init` Job | creates the tables; the API and workers recover on their own once it has succeeded |
 | `postgres` StatefulSet, `rabbitmq` Deployment | evaluation-grade; point `BACKSEAT_DRIVER_DATABASE_URL` / `_RABBITMQ_URL` at managed services in production |
-| `ui` Deployment + Service | the model-comparison report over the `results` volume |
-| `nuscenes-data`, `results` PVCs | the dataset (read-only everywhere) and the result JSON files |
+| `s3` Deployment + Service | development-only S3 store (in memory, any credentials) with the `nuscenes` bucket; in production delete `object-store.yaml` and set `BACKSEAT_DRIVER_DATASET_BUCKET`, the `AWS_*` credentials and (for non-AWS stores) `BACKSEAT_DRIVER_S3_ENDPOINT_URL` |
+| `ui` Deployment + Service | the model-comparison report, built on every load from the completed jobs on the API (`--all-jobs`) with images proxied from it; mounts no volume and needs only the API's address. `--public-api-url` is where the browser reaches the API for the live card (a `port-forward` by default) |
+| `nuscenes-data`, `results` PVCs | the dataset (read-only; mounted by the `dataset-upload` Job and the example run job, by no worker and not by the UI) and the result JSON files the example run job writes |
 
 ```bash
 kubectl apply -k deploy/k8s
@@ -58,7 +60,8 @@ inside the API pods, never touching the workers.
 
 Before using it for real, replace the development credentials in `config.yaml` (the `Secret` and the RabbitMQ URL) and
 pin the image tags with the `images:` block in `kustomization.yaml`. Both PVCs are `ReadWriteOnce`: on a multi-node
-cluster either use a `ReadWriteMany` storage class or pin the pods that share a volume to one node.
+cluster, pin the pods that share a volume to one node. No worker mounts a volume, so the workers can run on any node:
+they only reach the broker, Postgres and the dataset bucket.
 
 ## Autoscaling and the local kind cluster
 
@@ -70,7 +73,7 @@ URL with credentials) from the overlay that uses it.
 | Deployment | Queue | Scale | Replicas |
 |---|---|---|---|
 | `caption-worker` | `backseat_driver.caption` | 1 per 20 waiting scenes | 1–8 |
-| `ingest-worker` | `backseat_driver.ingest` | 1 per 2 waiting jobs | 1–3 |
+| `ingest-worker` (a `ScaledJob`) | `backseat_driver.ingest` | one Job per waiting ingest task, none while the queue is empty | 0–3 at a time |
 
 The minimum is 1, not 0: a new caption replica loads the model before consuming, and scaling to zero would add that to
 the first job. Scaling down is safe because acks are late: a replica removed mid-caption has its message redelivered, and
@@ -87,7 +90,7 @@ just k8s-down     # delete the cluster
 
 `k8s-up` builds the four image targets, loads them into the cluster, installs a pinned KEDA release and applies
 `deploy/kind`: local `:local` image tags, one API replica, the API as NodePort 30080 (mapped to host port 8080), the repo's
-`./data` exposed to the workers through a hostPath volume (`deploy/kind/cluster.yaml`), and development credentials. Every
+`./data` exposed to the `dataset-upload` Job (and the UI) through a hostPath volume (`deploy/kind/cluster.yaml`), and development credentials. Every
 `kubectl` call is pinned to the `kind-backseat-driver` context. Try it with `curl -X POST localhost:8080/jobs`, then
 `just k8s-status` while the caption queue drains.
 

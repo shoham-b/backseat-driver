@@ -13,8 +13,8 @@ def init() -> None:
 
     from loguru import logger
 
-    from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+    from backseat_driver.jobs.sql_job_store import SqlJobStore
     from backseat_driver.jobs.storage import JobStorage
 
-    PostgresJobStore(JobStorage(settings.database_url)).ensure_schema()
+    SqlJobStore(JobStorage(settings.database_url)).ensure_schema()
     logger.info("database schema ready")

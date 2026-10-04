@@ -116,7 +116,7 @@ Each layer only imports from layers to its left:
 - **Capability packages** — each one holds an abstract port *and* its concrete implementations, so everything about one concern lives in one place:
   - **`captioning/`** — `Captioner` port; `CaptionBackend` (`HuggingFaceBackend`, `OllamaBackend`, `AnthropicBackend`) + `CaptionModel`, combined by `BackendCaptioner`; `build_captioner` picks them from config.
   - **`scenes/`** — `SceneLoader` port; `NuScenesSceneLoader`; `ScenePipeline` (loader → captioner) and `write_json`.
-  - **`jobs/`** — `JobQueue` and `JobStore` ports; `CeleryJobQueue`, `PostgresJobStore` (with its SQLAlchemy `orm.py`/`storage.py`); `IngestWorker`/`CaptionWorker`.
+  - **`jobs/`** — `JobQueue` and `JobStore` ports; `CeleryJobQueue`, `SqlJobStore` (with its SQLAlchemy `orm.py`/`storage.py`); `IngestWorker`/`CaptionWorker`.
 
   Orchestration code (`ScenePipeline`, the workers) depends only on the ports via constructor injection and never imports nuscenes-devkit, transformers, torch, celery, or psycopg. Those stay inside the concrete implementation modules, behind lazy imports where heavy, which keeps the orchestration fast and testable with fakes. A concrete module is the only kind of file allowed to import a platform SDK.
 - **`api/`** — HTTP layer. Imports the ports and `models`. Owns request validation, response serialization, and error mapping.
@@ -160,6 +160,10 @@ All entry points use [loguru](https://github.com/Delgan/loguru). `setup_logging(
 Set the format via `BACKSEAT_DRIVER_LOG_FORMAT=colored|json` or in `.env`.
 
 `setup_logging()` is called once per process entry-point (API lifespan, CLI `run` command). All other modules just `from loguru import logger`.
+
+## Microservices, debugged as a monolith
+
+Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and an in-memory job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API and the dataset in `data/`. See [Distributed mode](distributed.md) for the microservices and [Running it](running.md) for how to start either.
 
 ## Deployment
 

@@ -72,3 +72,116 @@ These three came up independently from two different sources (this design conver
 **Decision: unprompted, generic captioning.** The assignment's ask is "a short natural-language description of the scene" — not hazard analysis. Steering toward domain-specific detail is a real, reasonable next step for the repo's own "backseat driver" framing, but it's a scope decision beyond what was actually asked, not an architecture one.
 
 **Revisit if:** the description's actual consumer needs driving-specific structure (hazards, traffic state) rather than a general caption — at that point it's a prompt/model change behind the same `Captioner` interface, not a pipeline redesign.
+
+## Distributed mode: how the workers get their data
+
+Questions 7–15 are the path taken while making the distributed mode work across machines. They are kept in the order they were decided because each answer changed the next question. The result is described in [Distributed mode](distributed.md).
+
+### 7. Why two workers (ingest and caption) and not one?
+
+**Options:** one worker that reads the dataset and captions every scene; or two queue consumers, `ingest` and `caption`.
+
+**Decision: two.** They differ in everything that matters for scaling. Ingest opens the dataset, counts the scenes and publishes one message per scene: I/O-bound, once per job, cheap. Captioning runs the model once per scene: CPU/GPU-bound, many tasks per job, and the only step worth scaling. Separate workers mean caption replicas scale from the queue depth while ingest stays small, and each gets its own image (`ingest-worker` has nuscenes-devkit and no torch; `caption-worker` has torch and no devkit), so GPU nodes carry only the model. Ingest is not scaled because it only pushes to the queue.
+
+**Revisit if:** captioning never needs more than one process. Then one worker would be simpler, and the monolith mode already is exactly that.
+
+### 8. How is the data passed between the services?
+
+**Options:** put the image bytes in the queue message; put a reference in the message and read the file from somewhere shared; or send a reference to an object store.
+
+**Decision: messages carry small JSON with references, results go to Postgres.** The API publishes an `IngestTask` (job id, transaction id, `max_scenes`), ingest publishes one `CaptionTask` per scene (the `SceneKeyframe` plus where the image is), and the caption worker writes its `SceneDescription` to Postgres rather than back through the queue. Celery keeps no results. Images do not travel in messages: that would bloat RabbitMQ with payloads and re-send the same bytes on every redelivery.
+
+### 9. How does a caption worker on another machine get the image?
+
+The first design was a shared volume: both workers mounted the same `./data` (or one Kubernetes claim) at the same path, and the message carried the path. That only works on one machine. Four ways out were weighed:
+
+| Option | Verdict |
+|---|---|
+| Shared network volume (NFS and similar) | Rejected. It needs no code change, but it is a shared filesystem to run, it can become the bottleneck, and `ReadWriteOnce` claims already forced "pin the pods to one node". |
+| Object storage (S3, GCS, MinIO) | **Chosen.** Workers on any machine reach it with credentials and an endpoint, with nothing mounted. |
+| Image bytes inside the task | Rejected for the reason in question 8. |
+| Every worker downloads the whole dataset to local disk | Rejected. Every replica would pull the full dataset (a few GB for mini, far more for the full set) for the sake of one image per task. |
+
+The `ImageStore` port (`datasets/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (the key already is a path, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
+
+### 10. What goes into the bucket, and when?
+
+**First attempt:** the ingest worker uploaded each keyframe image into the bucket as part of every job (under `keyframes/<scene token>/...`), so the object store only ever held what was about to be captioned. It worked, but it was the wrong place for the copy: every job re-uploaded the same images, ingest still needed the dataset mounted, and so one volume stayed in the picture.
+
+**Decision: upload the dataset once, and make the bucket its home.** A one-time `backseat-driver dataset upload` copies the metadata tables (`<version>/*.json`) and the images of the configured camera into the bucket, keeping the nuScenes layout, and skips anything already there so it can be rerun. After that:
+
+- **Ingest** downloads only the small metadata tables to a scratch directory and runs the devkit over them to find the keyframes. A keyframe's `image_path` becomes its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`) and the task carries that key's URI.
+- **Caption workers** fetch that one object, caption it and delete it.
+- **No worker mounts the dataset.** Only the upload step reads it from disk.
+
+Two details came out of testing it. The devkit refuses to open a dataset unless every map file named in `map.json` exists, so ingest creates empty placeholders for them instead of downloading the maps (`open_nuscenes_tables`). And sweeps and maps are not uploaded at all, because no worker reads them.
+
+**Revisit if:** the full dataset's metadata tables become too large to download per job. They could then be cached on the ingest worker's disk, or the keyframes precomputed once and stored.
+
+### 11. Where does ingest run: the API, a worker, or a Job?
+
+**Options:** the API does the fan-out itself as a background task; an always-on ingest worker; or a run-to-completion Job per request.
+
+The API option is attractive now that ingest only reads metadata, and the monolith already works that way. It was not chosen for the distributed mode: it puts nuscenes-devkit into an API image that is deliberately kept without it, runs the metadata load and fan-out on a serving pod, and has no recovery if the pod dies after answering 202 but before publishing every message (the job would stay `running` forever).
+
+**Decision: keep the queue, and run ingest as a Job per queued task.**
+
+- The API still publishes an `IngestTask`, so the message is durable and redelivered if the Job dies.
+- On Kubernetes with KEDA, a `ScaledJob` starts one Job per waiting ingest message (`worker ingest --once`) that handles it and exits, so nothing runs while the queue is empty. The component deletes the always-on Deployment in its favour.
+- Without KEDA (the base manifests) and in docker compose, ingest stays a plain long-running worker consuming the same queue, so everything works without KEDA installed.
+
+**Why `--once` is not a Celery worker that stops.** The obvious implementation was to let a normal Celery worker run and make it shut down after its first task. Run against a real RabbitMQ, that handled all three queued messages: with prefetch the next message is started before the shutdown flag is looked at. `--once` therefore fetches a single message with a plain `basic_get`, runs it through the registered task (retries included), and acks it only afterwards. A task that still fails after its retries is dropped, as with the Celery workers, and the Job exits non-zero so the failure is visible. A Job that crashes before the ack leaves the message to be redelivered to the next Job. This was checked on a real RabbitMQ: three messages queued, one handled, two left.
+
+**Revisit if:** the Job's pod start-up cost starts to dominate a job's latency; an always-on worker with a short idle timeout would then be the better trade.
+
+### 12. Which S3-compatible server for local development?
+
+**Options:** MinIO, LocalStack, Adobe S3Mock, a cloud bucket.
+
+**Decision: Adobe S3Mock, development only.** MinIO was the first choice, but its images could no longer be pulled (not from Docker Hub, and not from quay.io, which answered 401), so the compose file and manifests that were written for it could not run. S3Mock pulled and worked with boto3 for upload, download and listing, creates the bucket from an environment variable, and accepts any credentials. It is only a stand-in: it is in-memory, and production points `BACKSEAT_DRIVER_DATASET_BUCKET` and the `AWS_*` credentials at a real bucket and drops `deploy/k8s/object-store.yaml`.
+
+### 13. Should the monolith use the object store too?
+
+**Options:** keep the monolith local-only; or add a setting (say `BACKSEAT_DRIVER_DATASET_STORE=local|s3`) so the single-process mode can also read the dataset from the bucket, separating "how jobs run" from "where the dataset lives".
+
+**Decision: local-only.** The monolith exists so `just dev` needs nothing but the API and the dataset on disk. It already skips the queue and the database for that reason, and the bucket belongs in the same category: infrastructure that exists to connect separate machines. A process that runs ingest and captioning together has no use for it. A switch would also add a second way to configure the dataset location, which can silently change what a stray bucket setting in `.env` does. The S3 path is exercised in distributed mode (`just dev-distributed` with `just dataset-upload`), which is also where it matters.
+
+**Revisit if:** there is a need to run the API on a machine without the dataset but without a broker, which has not come up.
+
+### 14. Where does the report UI get its data and images?
+
+**Options:** keep reading result files and a dataset volume; have the UI talk to the database and the bucket directly; or have it read everything from the API.
+
+**Decision: from the API.** A finished job's descriptions already come from `GET /jobs/{id}/descriptions`, and the missing piece was the image bytes, so the API gained `GET /images/{key}`. `report` and `ui` take `--job <id>` (repeatable, one job per model) and inline the images they fetch from it, so a report needs the API and nothing else. The UI holding database or bucket credentials was rejected: it would put them in a second service for no benefit, and the API is the one place that already knows how to read both.
+
+Details that came with it:
+
+- **Keys, not paths, in both modes.** A description's `image_path` is the dataset-relative key (`samples/CAM_FRONT/<name>.jpg`) when it comes from a job, in the monolith as well as the distributed mode. `LocalImageStore` is rooted at the dataroot and the monolith's loader reports relative keys (`RelativeSceneLoader`), so the same endpoint serves local files in dev and bucket objects in production. `run` result files keep their local paths.
+- **The endpoint is not a file server.** It serves only keys under `samples/` with an image suffix, rejects empty, `.` and `..` segments and backslashes before the store is asked, and the local store refuses any key that resolves outside the dataroot. Metadata tables are not served.
+- **HTTP caching.** Images never change under their key, so responses carry an `ETag` and `Cache-Control: public, max-age=86400, immutable`, and a matching `If-None-Match` gets `304`. That is the whole caching story for the API; nothing is cached on the server.
+- **The API needs the bucket in distributed mode.** It builds the store at startup and refuses to start without `BACKSEAT_DRIVER_DATASET_BUCKET`, like the workers. Its image gained the S3 client.
+- **A running job is an error.** The report is built when the command runs, and a partial one would look complete, so `--job` fails fast on a job that is not `completed`.
+
+Two limits were left open here and resolved in question 15: the deployed UI still mounted the dataset volume, and job ids had to be given when it started.
+
+### 15. Making the report UI independent of volumes and of restarts
+
+Question 14 left two limits, and neither was worth keeping: the deployed UI still mounted the dataset volume (it served `run` result files whose images are local paths), and `--job <id>` ids had to be given at startup and were lost when the monolith restarted. Both came from the same two gaps, so both were closed.
+
+**The UI discovers jobs itself.** The API gained `GET /jobs` (newest first, `?state=completed`, `?limit=`) on top of a new `JobStore.list_jobs`. `ui --all-jobs` re-reads the completed jobs on every page load, so a job that finishes shows up on the next refresh and no id has to be passed. Where several jobs ran the same model the newest one wins, so a rerun replaces rather than duplicates. `--job <id>` still pins specific jobs. The static `report` command is unchanged and still embeds everything.
+
+**The UI proxies images, it does not embed them.** A page of hundreds of scenes with base64 images would be many megabytes per load. Instead the page points each image at the UI's own `/images/<key>`, which forwards to the API (the same key rule as the API's endpoint, checked before anything is forwarded) and returns the bytes with immutable caching headers, so the browser fetches each image once. The browser only ever talks to the UI: no CORS, no second address to expose. Result files given on the command line keep their embedded images, so local use is unchanged.
+
+**The deployed UI mounts nothing.** `ui.yaml` drops both volumes and runs `ui --all-jobs --api-url http://api`; its readiness probe is a new `/healthz` that does not call the API, because a probe that depends on the API would take the UI out of rotation whenever the API blinked. `--public-api-url` is where the *browser* reaches the API for the live-inference card (a port-forward by default), separate from `--api-url` that the UI process itself uses. The `results` volume remains only for the example `run` Job; its output is viewed locally with `ui output/*.json`.
+
+**The monolith keeps its jobs in a file.** `SqlJobStore` is the same class that serves Postgres, run over a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`; empty keeps them in memory), so job ids, progress and descriptions survive a restart and `GET /jobs` lists past runs. The store was renamed from `PostgresJobStore` because it no longer is one. This stays inside the monolith's rule of dropping infrastructure: SQLite is a file, not a service. What is **not** persisted is the in-process queue, so a job that was running when the process stopped keeps its recorded progress but its remaining scenes are never captioned and it stays `running`. That is the same gap as the missing `failed` state below.
+
+**Revisit if:** the UI should filter or page through many jobs; the listing is capped at 500 and the newest-per-model rule is applied in the UI.
+
+### What is still open
+
+- **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
+- **Nothing expires the uploaded dataset.** It is the source of truth, so it stays until deleted; give the bucket whatever lifecycle rule suits the dataset.
+- **The example run job still uses the dataset volume.** It is the only consumer left, and runs `run` over the dataset on disk.
+- **Old queued messages are rejected.** `CaptionTask.image_uri` is required, so tasks queued by an earlier version fail validation.
+- **The full Docker stack and a real cluster were not run for this change.** Unit and integration tests, the rendered manifests, `docker compose config`, a boto3 round trip against S3Mock and the RabbitMQ `basic_get` check were.

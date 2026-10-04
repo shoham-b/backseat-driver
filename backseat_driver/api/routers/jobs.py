@@ -9,14 +9,14 @@ from http import HTTPStatus
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore
-from backseat_driver.models import IngestTask, Job, SceneDescription
+from backseat_driver.models import IngestTask, Job, JobState, SceneDescription
 
 router = APIRouter(tags=["jobs"])
 
@@ -42,6 +42,17 @@ async def create_job(
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
     await run_in_threadpool(queue.enqueue_ingest, task)
     return await run_in_threadpool(store.get_job, job_id)
+
+
+@router.get("/jobs")
+async def list_jobs(
+    store: Annotated[JobStore, Depends(get_job_store)],
+    state: JobState | None = None,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> list[Job]:
+    """Jobs, newest first, optionally only those in one `state`."""
+    jobs = await run_in_threadpool(store.list_jobs)
+    return [job for job in jobs if state is None or job.state is state][:limit]
 
 
 @router.get("/jobs/{job_id}")

@@ -21,6 +21,7 @@ from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
 
 ROOT = Path(__file__).parents[2]
 K8S = ROOT / "deploy" / "k8s"
+KEDA = ROOT / "deploy" / "components" / "keda-autoscaling"
 ENV_PREFIX = "BACKSEAT_DRIVER_"
 
 
@@ -102,7 +103,7 @@ def test_container_args_are_valid_cli_invocations() -> None:
     for container in containers:
         _parse_without_running([str(arg) for arg in container["args"]])
 
-    assert {c["args"][0] for c in containers} == {"db", "worker", "ui"}
+    assert {c["args"][0] for c in containers} == {"dataset", "db", "worker", "ui"}
 
 
 def test_our_images_are_the_ones_the_docker_workflow_publishes() -> None:
@@ -220,16 +221,95 @@ def test_each_worker_runs_its_own_image() -> None:
 
 
 def test_autoscalers_target_the_workers_and_watch_the_queues_they_consume() -> None:
-    component = ROOT / "deploy" / "components" / "keda-autoscaling"
     scaled = {
-        doc["metadata"]["name"]: doc
-        for doc in _documents(component / "autoscaling.yaml")
-        if doc["kind"] == "ScaledObject"
+        doc["metadata"]["name"]: doc for doc in _documents(KEDA / "autoscaling.yaml") if doc["kind"] == "ScaledObject"
     }
     deployments = {doc["metadata"]["name"] for doc in _of_kind("Deployment")}
 
     queues = {name: obj["spec"]["triggers"][0]["metadata"]["queueName"] for name, obj in scaled.items()}
 
-    assert queues == {"ingest-worker": INGEST_QUEUE, "caption-worker": CAPTION_QUEUE}
+    assert queues == {"caption-worker": CAPTION_QUEUE}
     assert {obj["spec"]["scaleTargetRef"]["name"] for obj in scaled.values()} <= deployments
     assert all(obj["spec"]["minReplicaCount"] >= 1 for obj in scaled.values())  # the model must stay loaded
+
+
+def _ingest_scaled_job() -> dict[str, Any]:
+    (job,) = [doc for doc in _documents(KEDA / "autoscaling.yaml") if doc["kind"] == "ScaledJob"]
+    return job
+
+
+def test_ingest_runs_as_a_job_per_queued_task_with_keda() -> None:
+    job = _ingest_scaled_job()
+    (container,) = job["spec"]["jobTargetRef"]["template"]["spec"]["containers"]
+    patched = yaml.safe_load((KEDA / "kustomization.yaml").read_text())["patches"]
+
+    _parse_without_running([str(arg) for arg in container["args"]])
+
+    assert job["spec"]["triggers"][0]["metadata"]["queueName"] == INGEST_QUEUE
+    assert container["args"] == ["worker", "ingest", "--once"]  # a Job must exit after its task
+    assert container["image"] == "ghcr.io/shoham-b/backseat-driver-ingest-worker"
+    assert any("$patch: delete" in p["patch"] and p["target"]["name"] == "ingest-worker" for p in patched)
+
+
+def _compose_services() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())["services"]
+
+
+def test_no_worker_mounts_the_dataset_in_the_cluster() -> None:
+    pods = dict(_pod_specs())
+
+    mounting = {
+        name
+        for name, pod in pods.items()
+        if any(
+            volume.get("persistentVolumeClaim", {}).get("claimName") == "nuscenes-data"
+            for volume in pod.get("volumes", [])
+        )
+    }
+
+    assert "dataset-upload" in mounting
+    assert not {name for name in mounting if name.endswith("-worker")}
+    assert not any(
+        volume.get("persistentVolumeClaim", {}).get("claimName") == "nuscenes-data"
+        for volume in _ingest_scaled_job()["spec"]["jobTargetRef"]["template"]["spec"].get("volumes", [])
+    )
+
+
+def test_only_the_upload_service_mounts_the_dataset_in_compose() -> None:
+    services = _compose_services()
+
+    mounts_data = {
+        name
+        for name in ("dataset-upload", "ingest-worker", "caption-worker")
+        if any("./data" in v for v in services[name].get("volumes", []))
+    }
+
+    assert mounts_data == {"dataset-upload"}
+
+
+def test_the_cluster_bucket_is_the_one_the_dev_store_creates() -> None:
+    (config,) = [doc for doc in _of_kind("ConfigMap") if doc["metadata"]["name"] == "backseat-driver-config"]
+    (store,) = [doc for doc in _of_kind("Deployment") if doc["metadata"]["name"] == "s3"]
+    (container,) = store["spec"]["template"]["spec"]["containers"]
+    created = {entry["value"] for entry in container["env"] if entry["name"].endswith("INITIAL_BUCKETS")}
+
+    assert {config["data"]["BACKSEAT_DRIVER_DATASET_BUCKET"]} == created
+
+
+def test_compose_ingest_waits_for_the_upload_and_every_worker_gets_the_bucket() -> None:
+    services = _compose_services()
+
+    for name in ("ingest-worker", "caption-worker"):
+        assert services[name]["environment"]["BACKSEAT_DRIVER_DATASET_BUCKET"], name
+        assert services[name]["depends_on"]["s3"]["condition"] == "service_healthy", name
+    assert services["ingest-worker"]["depends_on"]["dataset-upload"]["condition"] == "service_completed_successfully"
+
+
+def test_the_report_ui_mounts_no_volume_and_probes_without_the_api() -> None:
+    pods = dict(_pod_specs())
+    (ui,) = [c for name, c in _our_containers() if name == "ui"]
+
+    assert "volumes" not in pods["ui"]
+    assert "volumeMounts" not in ui
+    assert "--all-jobs" in ui["args"]
+    assert ui["readinessProbe"]["httpGet"]["path"] == "/healthz"

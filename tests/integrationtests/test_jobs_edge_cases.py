@@ -9,10 +9,11 @@ from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
 from backseat_driver.captioning.backend_captioner import BackendCaptioner
 from backseat_driver.config import RunMode, VlmBackend
+from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
 from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import JobState
 from tests.fakes import FakeJobQueue, FakeJobStore, make_settings
 from tests.integrationtests.conftest import ClientFactory
@@ -144,7 +145,8 @@ def test_unsupported_methods_are_rejected(client: TestClient, method: str, path:
 def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
     # No dependency overrides: this is what a deployed process builds. The default broker and database URLs
     # point at nothing, so startup only succeeds if none of the adapters connects while being constructed.
-    service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED))
+    settings = make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes")
+    service = create_app(settings)
 
     with TestClient(service) as client:
         state = client.app.state
@@ -152,8 +154,16 @@ def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
 
     assert isinstance(state.captioner, BackendCaptioner)
     assert isinstance(state.job_queue, CeleryJobQueue)
-    assert isinstance(state.job_store, PostgresJobStore)
+    assert isinstance(state.job_store, SqlJobStore)
+    assert isinstance(state.image_store, S3DatasetStore)
     assert health.status_code == HTTPStatus.OK
+
+
+def test_a_distributed_api_without_a_dataset_bucket_refuses_to_start() -> None:
+    service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED))
+
+    with pytest.raises(ValueError, match="BACKSEAT_DRIVER_DATASET_BUCKET"), TestClient(service):
+        pass
 
 
 def test_lifespan_defaults_to_the_monolith_with_no_infrastructure() -> None:

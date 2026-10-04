@@ -15,15 +15,19 @@ from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.scenes.scene_loader import SceneLoader
 
 
-def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner) -> SceneDescription:
-    """Caption one keyframe. Shared by the batch pipeline and the distributed caption worker."""
+def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, image_path: str) -> SceneDescription:
+    """Caption the image at `image_path` as the keyframe's scene. Shared by the batch pipeline and the caption worker.
+
+    The path to read is separate from `keyframe.image_path`, which is what the description records: a worker captions
+    a local copy, but the result still names the dataset image.
+    """
     return SceneDescription(
         scene_token=keyframe.scene_token,
         scene_name=keyframe.scene_name,
         camera_channel=keyframe.camera_channel,
         image_path=keyframe.image_path,
         reference_description=keyframe.reference_description,
-        description=captioner.caption(keyframe.image_path),
+        description=captioner.caption(image_path),
         model_name=captioner.model_name,
     )
 
@@ -45,5 +49,5 @@ class ScenePipeline:
         descriptions: list[SceneDescription] = []
         for keyframe in keyframes:
             logger.bind(scene=keyframe.scene_name).info("describing scene")
-            descriptions.append(describe_keyframe(keyframe, self._captioner))
+            descriptions.append(describe_keyframe(keyframe, self._captioner, keyframe.image_path))
         return descriptions

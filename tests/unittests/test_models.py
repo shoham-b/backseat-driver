@@ -17,11 +17,11 @@ def _keyframe() -> SceneKeyframe:
     return SceneKeyframe(scene_token="t", scene_name="n", camera_channel="CAM_FRONT", image_path="/p.jpg")
 
 
-@given(keyframe=_keyframes, job_id=st.uuids(), transaction_id=_text)
+@given(keyframe=_keyframes, job_id=st.uuids(), transaction_id=_text, image_uri=_text)
 def test_caption_task_survives_the_json_round_trip_the_queue_applies(
-    keyframe: SceneKeyframe, job_id: UUID, transaction_id: str
+    keyframe: SceneKeyframe, job_id: UUID, transaction_id: str, image_uri: str
 ) -> None:
-    task = CaptionTask(job_id=job_id, transaction_id=transaction_id, keyframe=keyframe)
+    task = CaptionTask(job_id=job_id, transaction_id=transaction_id, keyframe=keyframe, image_uri=image_uri)
 
     wire = json.loads(json.dumps(task.model_dump(mode="json")))
 

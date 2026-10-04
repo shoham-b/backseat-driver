@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     anthropic_model_name: str | None = None
     anthropic_api_key: SecretStr | None = None
 
+    # Where the monolith keeps its jobs (a SQLite file), so they survive a restart and the report UI can list them.
+    # Empty keeps them in memory only. Distributed mode uses `database_url` instead.
+    jobs_db_path: str = "output/jobs.db"
+
     # How the API runs `/jobs`. Monolith by default so local dev needs nothing else running; docker compose
     # sets `distributed`.
     mode: RunMode = RunMode.MONOLITH
@@ -56,6 +60,10 @@ class Settings(BaseSettings):
     # Distributed mode only (API + queue workers)
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     database_url: str = "postgresql+psycopg://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
+    # Where the dataset lives for the distributed workers (S3-compatible; credentials via the AWS_* variables).
+    # No defaults: the workers refuse to start without a bucket. The endpoint is only for S3-compatible non-AWS stores.
+    dataset_bucket: str | None = None
+    s3_endpoint_url: str | None = None
 
     # Pipeline output: `run` writes <output_dir>/<backend>__<model>.json unless told otherwise
     output_dir: str = "output"

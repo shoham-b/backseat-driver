@@ -51,7 +51,7 @@ def test_describe_keyframe(keyframes: list[SceneKeyframe]) -> None:
     captioner = FakeCaptioner()
 
     for keyframe in keyframes:
-        describe_keyframe(keyframe, captioner)
+        describe_keyframe(keyframe, captioner, keyframe.image_path)
 
 
 @pytest.mark.benchmark
