@@ -1,0 +1,155 @@
+name: Kubernetes
+
+# Deploys the real images to a kind cluster with KEDA and checks that the stack works and the caption workers
+# autoscale. Slower than the rest of CI, so it runs only when something it covers changes, plus nightly to catch
+# upstream drift (KEDA, base images, dependencies).
+on:
+  pull_request:
+    paths:
+      - deploy/**
+      - docker/Dockerfile*
+      - backseat_driver/jobs/**
+      - backseat_driver/captioning/**
+      - backseat_driver/tasks.py
+      - pyproject.toml
+      - uv.lock
+      - Justfile
+      - .github/workflows/kind.yml
+  push:
+    branches: [master, main]
+    paths:
+      - deploy/**
+      - docker/Dockerfile*
+      - backseat_driver/jobs/**
+      - backseat_driver/tasks.py
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: kind-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CLUSTER: backseat-driver
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read pinned versions
+        run: |
+          echo "PYTHON_VERSION=$(cat .python-version)" >> "$GITHUB_ENV"
+          # The Justfile is the single source of truth for the KEDA release `just k8s-up` installs.
+          echo "KEDA_VERSION=$(sed -n 's/^keda_version := "\(.*\)"/\1/p' Justfile)" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v4
+
+      # One step per image target, built from the real Dockerfile with a cache scope each so they don't evict
+      # one another. `load` puts the image in the local daemon, from where `kind load` copies it into the cluster.
+      - name: Build api image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: api
+          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          load: true
+          tags: backseat-driver-api:local
+          cache-from: type=gha,scope=kind-api
+          cache-to: type=gha,scope=kind-api,mode=max
+      - name: Build ingest-worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: ingest-worker
+          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          load: true
+          tags: backseat-driver-ingest-worker:local
+          cache-from: type=gha,scope=kind-ingest-worker
+          cache-to: type=gha,scope=kind-ingest-worker,mode=max
+      - name: Build caption-worker image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: caption-worker
+          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          load: true
+          tags: backseat-driver-caption-worker:local
+          cache-from: type=gha,scope=kind-caption-worker
+          cache-to: type=gha,scope=kind-caption-worker,mode=max
+      - name: Build cli image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          target: cli
+          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          load: true
+          tags: backseat-driver-cli:local
+          cache-from: type=gha,scope=kind-cli
+          cache-to: type=gha,scope=kind-cli,mode=max
+
+      - name: Create ./data (mounted into the kind node)
+        run: mkdir -p data
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER }}
+          config: deploy/kind/cluster.yaml
+
+      - name: Load images into the cluster
+        run: |
+          for target in api ingest-worker caption-worker cli; do
+            kind load docker-image --name "$CLUSTER" "backseat-driver-${target}:local"
+          done
+
+      - name: Install KEDA
+        run: |
+          kubectl apply --server-side -f "https://github.com/kedacore/keda/releases/download/v${KEDA_VERSION}/keda-${KEDA_VERSION}.yaml"
+          kubectl wait -n keda --for=condition=Available deployment --all --timeout=180s
+
+      # deploy/kind-ci is deploy/kind plus a stub model server and fast autoscaling; the manifests, probes and
+      # ScaledObjects are the real ones.
+      - name: Deploy
+        run: |
+          kubectl apply -k deploy/kind-ci
+          kubectl -n backseat-driver rollout status deploy/api --timeout=300s
+          kubectl -n backseat-driver rollout status deploy/ingest-worker deploy/caption-worker deploy/stub-ollama --timeout=180s
+
+      # The dependency cache is off: this job builds images, and zizmor treats a shared cache next to a build as a
+      # poisoning risk. The one group installed here is small.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      # Only the systemtest dependency group: the tests are black-box HTTP, so they need neither torch nor the project's.
+      - name: System and smoke tests against the cluster
+        run: uv run --only-group systemtest pytest tests/systemtests tests/smoketests -v --tb=short --api-url http://localhost:8080
+
+      - name: Autoscaling
+        run: deploy/kind-ci/check-scaling.sh
+
+      - name: Cluster state
+        if: failure()
+        run: |
+          kubectl -n backseat-driver get all,scaledobject,hpa,pvc -o wide || true
+          kubectl -n backseat-driver describe pods || true
+          for app in api ingest-worker caption-worker stub-ollama rabbitmq; do
+            echo "::group::logs ${app}"
+            kubectl -n backseat-driver logs "deploy/${app}" --tail=100 || true
+            echo "::endgroup::"
+          done
+          echo "::group::keda operator"
+          kubectl -n keda logs deploy/keda-operator --tail=100 || true
+          echo "::endgroup::"

@@ -91,6 +91,21 @@ just k8s-down     # delete the cluster
 `kubectl` call is pinned to the `kind-backseat-driver` context. Try it with `curl -X POST localhost:8080/jobs`, then
 `just k8s-status` while the caption queue drains.
 
+### Continuous testing on kind
+
+`.github/workflows/kind.yml` runs the kind deployment in CI: it builds the four images from `docker/Dockerfile`, creates
+the cluster, installs the pinned KEDA release (the Justfile's `keda_version`), applies `deploy/kind-ci`, runs the system
+and smoke tests against the API, and then `deploy/kind-ci/check-scaling.sh`. That script queues captions, expects KEDA to
+scale `caption-worker` up (at least 3 replicas), every caption to be recorded, and the workers to scale back to 1.
+
+`deploy/kind-ci` is `deploy/kind` plus a stub model server (no weights to download), small resource requests so many
+replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window).
+The manifests, probes and ScaledObjects under test are otherwise the real ones. The workflow runs on pull requests that
+touch the deployment, the Dockerfile or the jobs code, on pushes to the main branch, nightly, and on demand.
+
+The autoscaling component also switches RabbitMQ to the `rabbitmq:4-management` image and exposes port 15672, because
+KEDA reads queue depth from the management API.
+
 ## Release checklist
 
 Run through this before tagging a release; each step lists what "good" looks like.
