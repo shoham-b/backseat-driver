@@ -6,10 +6,15 @@ Keyframe images are embedded as base64 so the file can be opened or shared witho
 import base64
 import json
 import mimetypes
+from importlib.resources import files
 from pathlib import Path
 
 from backseat_driver.reporting.report import Report
-from backseat_driver.reporting.report_template import TEMPLATE
+
+
+def load_template() -> str:
+    """The report page, with `__REPORT_DATA__` marking where the report JSON goes."""
+    return files(__package__).joinpath("report_template.html").read_text(encoding="utf-8")
 
 
 def write_html(report: Report, path: str, api_url: str | None = None) -> None:
@@ -25,7 +30,7 @@ def write_html(report: Report, path: str, api_url: str | None = None) -> None:
     data = json.dumps(payload).replace("</", "<\\/")
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(TEMPLATE.replace("__REPORT_DATA__", data), encoding="utf-8")
+    output.write_text(load_template().replace("__REPORT_DATA__", data), encoding="utf-8")
 
 
 def _data_uri(image: Path) -> str:
