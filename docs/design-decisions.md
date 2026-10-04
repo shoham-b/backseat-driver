@@ -72,3 +72,19 @@ These three came up independently from two different sources (this design conver
 **Decision: unprompted, generic captioning.** The assignment's ask is "a short natural-language description of the scene" — not hazard analysis. Steering toward domain-specific detail is a real, reasonable next step for the repo's own "backseat driver" framing, but it's a scope decision beyond what was actually asked, not an architecture one.
 
 **Revisit if:** the description's actual consumer needs driving-specific structure (hazards, traffic state) rather than a general caption — at that point it's a prompt/model change behind the same `Captioner` interface, not a pipeline redesign.
+
+## Distributed mode and the monolith
+
+The questions from here on came up while making the job processing work as separate services and as one process. They are kept in the order they were decided, because each answer changed the next question. [Distributed mode](distributed.md) describes the result.
+
+### 7. Where does the monolith keep its jobs?
+
+**Options:** in memory only; a SQLite file; or require Postgres even for local development.
+
+**Decision: a SQLite file.** The monolith exists so `just dev` needs nothing but the API and the dataset on disk. In-memory state made a job id useless after a restart, and made it impossible to list past runs. SQLite is a file, not a service, so it keeps that promise while fixing both: `SqlJobStore` is the class that serves Postgres, run over a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`; empty keeps jobs in memory), so job ids, progress and descriptions survive a restart and `GET /jobs` lists earlier runs. The store was renamed from `PostgresJobStore` because it no longer is only that. Requiring Postgres was rejected because it would end the no-infrastructure local workflow.
+
+Small details: `created_at` has a client-side microsecond default, because `CURRENT_TIMESTAMP` has one-second resolution on SQLite and several jobs created within a second must still list newest first; the engine sets a lock timeout and `check_same_thread=False`, because the API threads and the in-process worker thread share the connection pool.
+
+What is **not** persisted is the in-process queue. A job that was running when the process stopped keeps its recorded progress, but its remaining scenes are never captioned and it stays `running`. That is the same gap as the missing `failed` state.
+
+**Revisit if:** a monolith job must resume after a restart; the queue would then need to be persisted too.

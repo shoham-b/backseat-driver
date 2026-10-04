@@ -1,6 +1,7 @@
 # Queue-depth autoscaling for the workers. Optional, and kept out of the base because it needs KEDA
 # (https://keda.sh) installed in the cluster. Use it from an overlay: `components: [../components/keda-autoscaling]`.
 # The overlay must also provide the `rabbitmq-management` Secret (key `host`, the management API URL with credentials).
+# KEDA reads queue depth from RabbitMQ's management HTTP API, which the plain `rabbitmq` image of the base doesn't run.
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
@@ -13,3 +14,10 @@ patches:
   - target: {kind: Deployment, name: caption-worker}
     patch: |-
       - {op: remove, path: /spec/replicas}
+  - target: {kind: Deployment, name: rabbitmq}
+    patch: |-
+      - {op: replace, path: /spec/template/spec/containers/0/image, value: "rabbitmq:4-management"}
+      - {op: add, path: /spec/template/spec/containers/0/ports/-, value: {containerPort: 15672, name: management}}
+  - target: {kind: Service, name: rabbitmq}
+    patch: |-
+      - {op: add, path: /spec/ports/-, value: {port: 15672, name: management}}

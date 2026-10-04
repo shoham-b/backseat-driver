@@ -29,7 +29,7 @@ from backseat_driver.jobs.celery_job_queue import (
 )
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.logger import LogFormat, setup_logging
@@ -47,7 +47,7 @@ def _nuscenes_loader(settings: Settings) -> SceneLoader:
 
 
 def _postgres_store(settings: Settings) -> JobStore:
-    return PostgresJobStore(JobStorage(settings.database_url))
+    return SqlJobStore(JobStorage(settings.database_url))
 
 
 def _celery_queue(settings: Settings) -> JobQueue:

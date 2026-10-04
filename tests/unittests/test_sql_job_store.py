@@ -7,14 +7,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import JobState, SceneDescription
 
 
 @pytest.fixture
-def store(sqlite_storage: JobStorage) -> PostgresJobStore:
-    return PostgresJobStore(sqlite_storage)
+def store(sqlite_storage: JobStorage) -> SqlJobStore:
+    return SqlJobStore(sqlite_storage)
 
 
 def _description(n: int, text: str | None = None) -> SceneDescription:
@@ -38,12 +38,12 @@ def test_constructing_the_store_never_connects() -> None:
 
     job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=engine_factory)
 
-    PostgresJobStore(job_storage)
+    SqlJobStore(job_storage)
 
     assert engines_created == []
 
 
-def test_new_job_is_pending(store: PostgresJobStore) -> None:
+def test_new_job_is_pending(store: SqlJobStore) -> None:
     job_id = uuid4()
 
     store.create_job(job_id, max_scenes=4, transaction_id="tx-1")
@@ -54,7 +54,7 @@ def test_new_job_is_pending(store: PostgresJobStore) -> None:
     assert (job.expected_scenes, job.completed_scenes) == (None, 0)
 
 
-def test_job_is_running_until_every_expected_scene_is_recorded(store: PostgresJobStore) -> None:
+def test_job_is_running_until_every_expected_scene_is_recorded(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
     store.set_expected_scenes(job_id, 2)
@@ -67,7 +67,7 @@ def test_job_is_running_until_every_expected_scene_is_recorded(store: PostgresJo
     assert (running, completed) == (JobState.RUNNING, JobState.COMPLETED)
 
 
-def test_job_with_zero_expected_scenes_is_immediately_completed(store: PostgresJobStore) -> None:
+def test_job_with_zero_expected_scenes_is_immediately_completed(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
 
@@ -76,7 +76,7 @@ def test_job_with_zero_expected_scenes_is_immediately_completed(store: PostgresJ
     assert store.get_job(job_id).state == JobState.COMPLETED
 
 
-def test_recording_a_redelivered_description_does_not_inflate_progress(store: PostgresJobStore) -> None:
+def test_recording_a_redelivered_description_does_not_inflate_progress(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
     store.set_expected_scenes(job_id, 2)
@@ -88,7 +88,7 @@ def test_recording_a_redelivered_description_does_not_inflate_progress(store: Po
     assert [d.description for d in store.list_descriptions(job_id)] == ["description 1"]
 
 
-def test_descriptions_round_trip_through_the_database_sorted_by_scene(store: PostgresJobStore) -> None:
+def test_descriptions_round_trip_through_the_database_sorted_by_scene(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
     for n in (2, 1):
@@ -100,7 +100,7 @@ def test_descriptions_round_trip_through_the_database_sorted_by_scene(store: Pos
     assert descriptions[0].model_dump(exclude={"generated_at"}) == _description(1).model_dump(exclude={"generated_at"})
 
 
-def test_a_description_with_a_reference_label_is_stored_without_it(store: PostgresJobStore) -> None:
+def test_a_description_with_a_reference_label_is_stored_without_it(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
     labelled = _description(1).model_copy(update={"reference_description": "Parked truck"})
@@ -111,7 +111,7 @@ def test_a_description_with_a_reference_label_is_stored_without_it(store: Postgr
     assert stored.reference_description is None
 
 
-def test_a_job_with_no_descriptions_lists_none(store: PostgresJobStore) -> None:
+def test_a_job_with_no_descriptions_lists_none(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
 
@@ -127,9 +127,7 @@ def test_a_job_with_no_descriptions_lists_none(store: PostgresJobStore) -> None:
     ],
     ids=["get_job", "set_expected_scenes", "list_descriptions"],
 )
-def test_unknown_job_is_not_found(
-    store: PostgresJobStore, operation: Callable[[PostgresJobStore, UUID], object]
-) -> None:
+def test_unknown_job_is_not_found(store: SqlJobStore, operation: Callable[[SqlJobStore, UUID], object]) -> None:
     unknown = uuid4()
 
     with pytest.raises(NotFoundError, match=str(unknown)):
@@ -142,15 +140,30 @@ class _DownStorage(JobStorage):
 
 
 def test_healthcheck_delegates_to_storage() -> None:
-    job_store = PostgresJobStore(_DownStorage("postgresql+psycopg://host/db"))
+    job_store = SqlJobStore(_DownStorage("postgresql+psycopg://host/db"))
 
     assert job_store.healthcheck() is False
 
 
-def test_ensure_schema_is_safe_to_repeat(store: PostgresJobStore) -> None:
+def test_ensure_schema_is_safe_to_repeat(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")
 
     store.ensure_schema()
 
     assert store.get_job(job_id).transaction_id == "tx"
+
+
+def test_listing_jobs_returns_the_newest_first_with_their_progress(store: SqlJobStore) -> None:
+    first, second = uuid4(), uuid4()
+    store.create_job(first, None, "tx-1")
+    store.create_job(second, None, "tx-2")
+    store.set_expected_scenes(second, 1)
+
+    jobs = store.list_jobs()
+
+    assert [(job.job_id, job.state) for job in jobs] == [(second, JobState.RUNNING), (first, JobState.PENDING)]
+
+
+def test_listing_jobs_with_none_is_empty(store: SqlJobStore) -> None:
+    assert store.list_jobs() == []

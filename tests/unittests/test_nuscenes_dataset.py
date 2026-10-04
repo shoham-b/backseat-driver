@@ -83,3 +83,13 @@ def test_an_unreachable_server_is_an_error_even_with_a_cache(tmp_path: Path) -> 
 
     with pytest.raises(OSError, match=r"gone.tgz"):
         ensure_nuscenes_dataset(str(dataroot), "v1.0-mini", (tmp_path / "gone.tgz").as_uri())
+
+
+def test_download_reports_progress_to_the_callback(tmp_path: Path) -> None:
+    url = _archive(tmp_path, "v1.0-mini/a.json").as_uri()
+    seen: list[tuple[int, int | None]] = []
+
+    ensure_nuscenes_dataset(str(tmp_path / "cache"), "v1.0-mini", url, on_progress=lambda *args: seen.append(args))
+
+    assert seen
+    assert seen[-1][0] == seen[-1][1]

@@ -9,13 +9,21 @@ Usage::
     backseat_driver run --all-cameras      # every scene from all six cameras
 """
 
+import sys
 from typing import Annotated
 
 import typer
 from loguru import logger
+from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progress, TextColumn, TimeRemainingColumn
 
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
+from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.models import SceneKeyframe
+
+
+def log_progress(index: int, total: int, keyframe: SceneKeyframe) -> None:
+    logger.info("describing {} ({}) [{}/{}]", keyframe.scene_name, keyframe.camera_channel, index, total)
 
 
 @app.command()
@@ -60,13 +68,43 @@ def run(
     version = version or settings.nuscenes_version
     output = output or settings.output_path_for(backend, model)
 
-    ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
+    # A moving bar would garble piped output and JSON logs, so those get log lines instead.
+    interactive = settings.log_format == LogFormat.COLORED and sys.stderr.isatty()
+
+    if interactive:
+        with Progress(
+            TextColumn("nuScenes download"), BarColumn(), DownloadColumn(), TimeRemainingColumn(), transient=True
+        ) as downloads:
+            task = downloads.add_task("download", total=None)
+
+            def advance_download(downloaded: int, total: int | None) -> None:
+                downloads.update(task, total=total, completed=downloaded)
+
+            ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url, on_progress=advance_download)
+    else:
+        ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channels=cameras)
     captioner = build_captioner(settings, backend=backend, model_name=model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
     logger.info("loading scenes from {!r} ({})", dataroot, version)
-    descriptions = pipeline.run(max_scenes=max_scenes)
+    if interactive:
+        with Progress(
+            TextColumn("{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), transient=True
+        ) as progress:
+            task = progress.add_task("starting")
+
+            def advance(index: int, total: int, keyframe: SceneKeyframe) -> None:
+                progress.update(
+                    task,
+                    total=total,
+                    completed=index - 1,
+                    description=f"{keyframe.scene_name} {keyframe.camera_channel}",
+                )
+
+            descriptions = pipeline.run(max_scenes=max_scenes, on_progress=advance)
+    else:
+        descriptions = pipeline.run(max_scenes=max_scenes, on_progress=log_progress)
 
     write_json(descriptions, output)
     logger.info("wrote {} scene description(s) to {}", len(descriptions), output)

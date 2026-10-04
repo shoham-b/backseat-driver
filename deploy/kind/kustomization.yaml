@@ -15,11 +15,12 @@ images:
 generatorOptions:
   disableNameSuffixHash: true
 secretGenerator:
-  # Development credentials only, matching the base's RabbitMQ URL.
+  # Development credentials only, matching the base's RabbitMQ URL. KEDA reads this from its own namespace, so the
+  # host must carry the namespace: a bare `rabbitmq` only resolves inside backseat-driver.
   - name: rabbitmq-management
     namespace: backseat-driver
     literals:
-      - host=http://guest:guest@rabbitmq:15672/
+      - host=http://guest:guest@rabbitmq.backseat-driver:15672/
 patches:
   # One API replica is plenty locally, and each loads the model.
   - target: {kind: Deployment, name: api}

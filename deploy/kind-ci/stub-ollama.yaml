@@ -1,0 +1,39 @@
+# Runs the stub from the ConfigMap generated in kustomization.yaml, on the API image (it only needs Python).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stub-ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: stub-ollama}
+  template:
+    metadata:
+      labels: {app: stub-ollama}
+    spec:
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: stub
+          image: ghcr.io/shoham-b/backseat-driver-api
+          imagePullPolicy: IfNotPresent
+          command: [python, /stub/stub_ollama.py]
+          ports: [{containerPort: 11434, name: http}]
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 2
+          volumeMounts:
+            - {name: stub, mountPath: /stub, readOnly: true}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+      volumes:
+        - name: stub
+          configMap: {name: stub-ollama}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stub-ollama
+spec:
+  selector: {app: stub-ollama}
+  ports: [{port: 11434, targetPort: http, name: http}]

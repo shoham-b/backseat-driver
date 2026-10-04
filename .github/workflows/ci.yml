@@ -12,6 +12,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      deployment: ${{ steps.filter.outputs.deployment }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - backseat_driver/**
+              - tests/**
+              - pyproject.toml
+              - uv.lock
+              - .python-version
+            deployment:
+              - docker/**
+              - deploy/**
+              - .python-version
+
   lint:
     runs-on: ubuntu-latest
     permissions:
@@ -40,6 +67,8 @@ jobs:
       - run: uv run ty check backseat_driver tests
 
   test:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -61,6 +90,8 @@ jobs:
           path: junit.xml
 
   test-ui:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,6 +105,8 @@ jobs:
       - run: uv run pytest tests/uitests -v
 
   test-system:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.deployment == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -91,6 +124,8 @@ jobs:
         run: docker compose -f docker/docker-compose.yml --project-directory . --profile test down
 
   deploy-config:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.deployment == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -104,6 +139,92 @@ jobs:
       - run: kubectl kustomize deploy/k8s > rendered.yaml
       - run: uvx kubernetes-validate rendered.yaml
       - run: uvx kubernetes-validate deploy/k8s/examples/run-job.yaml
+
+  # Deploys the real images to a kind cluster with KEDA and checks that the stack works and the caption workers
+  # autoscale. Gated like test-system: always on push, on branches only when docker/ or deploy/ change.
+  kind:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.deployment == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      CLUSTER: backseat-driver
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Read pinned versions
+        run: |
+          echo "PYTHON_VERSION=$(cat .python-version)" >> "$GITHUB_ENV"
+          # The Justfile is the single source of truth for the KEDA release `just k8s-up` installs.
+          echo "KEDA_VERSION=$(sed -n 's/^keda_version := "\(.*\)"/\1/p' Justfile)" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v4
+
+      # The three images are built concurrently from one bake file, each with its own cache scope. `load` puts them in
+      # the local daemon, from where `kind load` copies them into the cluster.
+      - name: Build images
+        uses: docker/bake-action@v7
+        with:
+          files: deploy/kind-ci/docker-bake.hcl
+          load: true
+
+      - name: Create ./data (mounted into the kind node)
+        run: mkdir -p data
+
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: ${{ env.CLUSTER }}
+          config: deploy/kind/cluster.yaml
+
+      - name: Load images into the cluster
+        run: |
+          kind load docker-image --name "$CLUSTER" \
+            backseat-driver-api:local backseat-driver-ingest-worker:local backseat-driver-caption-worker:local
+
+      - name: Install KEDA
+        run: |
+          kubectl apply --server-side -f "https://github.com/kedacore/keda/releases/download/v${KEDA_VERSION}/keda-${KEDA_VERSION}.yaml"
+          kubectl wait -n keda --for=condition=Available deployment --all --timeout=180s
+
+      # deploy/kind-ci is deploy/kind plus a stub model server and fast autoscaling; the manifests, probes and
+      # ScaledObjects are the real ones.
+      - name: Deploy
+        run: |
+          kubectl apply -k deploy/kind-ci
+          kubectl -n backseat-driver rollout status deploy/api --timeout=300s
+          kubectl -n backseat-driver rollout status deploy/ingest-worker deploy/caption-worker deploy/stub-ollama --timeout=180s
+
+      # The dependency cache is off: this job builds images, and zizmor treats a shared cache next to a build as a
+      # poisoning risk. The one group installed here is small.
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: false
+
+      # The systemtest group without dev (which pulls in torch): the tests are black-box HTTP. The project itself is
+      # installed, because tests/conftest.py imports backseat_driver.
+      - name: System and smoke tests against the cluster
+        run: uv run --no-dev --group systemtest pytest tests/systemtests tests/smoketests -v --tb=short --api-url http://localhost:8080
+
+      - name: Autoscaling
+        run: deploy/kind-ci/check-scaling.sh
+
+      - name: Cluster state
+        if: failure()
+        run: |
+          kubectl -n backseat-driver get all,scaledobject,hpa,pvc -o wide || true
+          kubectl -n backseat-driver describe pods || true
+          for app in api ingest-worker caption-worker stub-ollama rabbitmq; do
+            echo "::group::logs ${app}"
+            kubectl -n backseat-driver logs "deploy/${app}" --tail=100 || true
+            echo "::endgroup::"
+          done
+          echo "::group::keda operator"
+          kubectl -n keda logs deploy/keda-operator --tail=100 || true
+          echo "::endgroup::"
 
   audit:
     runs-on: ubuntu-latest
