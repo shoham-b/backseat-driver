@@ -10,12 +10,12 @@
 | HTTP API | [FastAPI](https://fastapi.tiangolo.com/) (`fastapi dev` / `fastapi run`) | Optional on-demand deployment shape; served by the FastAPI CLI (uvicorn) |
 | Domain models & config | [Pydantic](https://docs.pydantic.dev/) / [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | `SceneKeyframe`/`SceneDescription` schemas; env-var-backed `Settings` |
 | Logging | [Loguru](https://github.com/Delgan/loguru) | Structured logs, colored locally / JSON in production |
-| VLM backend | [transformers](https://huggingface.co/docs/transformers) `image-to-text` pipeline, BLIP (`Salesforce/blip-image-captioning-base`), CPU-only [torch](https://pytorch.org/), [Pillow](https://python-pillow.org/) | Small captioning model, no GPU required — pinned `transformers<5` since the plain captioning pipeline was folded into a chat-style task in v5 |
-| Dataset access | [nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit) | Reads the nuScenes v1.0-mini dataset |
-| Testing | pytest, pytest-asyncio, pytest-cov/coverage, httpx (`ASGITransport`), [hypothesis](https://hypothesis.readthedocs.io/) (property-based), [schemathesis](https://schemathesis.readthedocs.io/) (OpenAPI fuzzing) | Four layers: unit / integration / smoke / system (see `AGENTS.md`) |
+| VLM backends | HuggingFace [transformers](https://huggingface.co/docs/transformers) `image-to-text` pipeline (e.g. BLIP, CPU-only [torch](https://pytorch.org/), [Pillow](https://python-pillow.org/)); a local [Ollama](https://ollama.com) server; the hosted Claude API (the last two over a stdlib `urllib` HTTP client) | One backend per runtime, chosen by `BACKSEAT_DRIVER_VLM_BACKEND`. The HuggingFace path needs no GPU — pinned `transformers<5` since the plain captioning pipeline was folded into a chat-style task in v5 |
+| Demo dataset | [nuscenes-devkit](https://github.com/nutonomy/nuscenes-devkit) | Reads the nuScenes v1.0-mini dataset the pipeline is demonstrated on; swappable behind `SceneLoader` |
+| Testing | pytest, pytest-asyncio, pytest-cov/coverage, httpx (`ASGITransport`), [hypothesis](https://hypothesis.readthedocs.io/) (property-based), [schemathesis](https://schemathesis.readthedocs.io/) (OpenAPI fuzzing) | Five layers: unit / integration / smoke / UI / system (see `AGENTS.md`) |
 | Lint / types | [ruff](https://docs.astral.sh/ruff/), [ty](https://github.com/astral-sh/ty) | `just lint` / `just typecheck` |
 | Docs | [MkDocs](https://www.mkdocs.org/) + Material + mkdocstrings | This site, published via GitHub Pages (`.github/workflows/pages.yml`) |
-| Containers | Docker (multi-stage `docker/Dockerfile`, `cli` + `api` targets), Docker Compose | See "Deployment" below |
+| Containers | Docker (multi-stage `docker/Dockerfile`, one target per service: `cli`, `api`, `ingest-worker`, `caption-worker`), Docker Compose | See "Deployment" below |
 | CI/CD | GitHub Actions — `ci.yml` (lint/typecheck/test), `docker.yml` (build+push images), `codeql.yml`, `release-please.yml`/`release.yml`, `semantic-pr.yml`, `dependabot-auto-merge.yml` | |
 
 ## Components
@@ -27,7 +27,7 @@ The pipeline logic in `scenes/` is shared by two independent entry points:
 | Component | Entry point | Description |
 |---|---|---|
 | **CLI** (primary) | `uv run backseat-driver run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
-| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `/ready` needs infrastructure only in distributed mode (`just dev-distributed`) | FastAPI service exposing `/describe` — captions a single uploaded image on demand. Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
+| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `/ready` needs infrastructure only in distributed mode (`just dev-distributed`) | FastAPI service: `/describe` captions a single uploaded image on demand, and `/jobs` runs a whole dataset asynchronously (in-process in the monolith, on queue workers when distributed). Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
 
 ### Object model
 

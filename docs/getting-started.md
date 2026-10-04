@@ -1,20 +1,11 @@
 # Getting Started
 
-## 1. Get the dataset
+## 1. The demo dataset
 
-nuScenes requires a free registration and cannot be redistributed in this repo. Download **v1.0-mini** from
-[nuscenes.org](https://www.nuscenes.org/nuscenes#download) and extract it so you end up with:
-
-```
-data/sets/nuscenes/
-├── maps/
-├── samples/
-├── sweeps/
-└── v1.0-mini/
-```
-
-`data/` is gitignored. The default dataroot is `data/sets/nuscenes` — override with `--dataroot` or
-`BACKSEAT_DRIVER_NUSCENES_DATAROOT` if you keep it elsewhere.
+The pipeline is demonstrated on the nuScenes **v1.0-mini** driving dataset. It can't be redistributed in this repo,
+so the first `run` downloads it into `data/sets/nuscenes` (gitignored) and re-downloads it when the archive at
+`BACKSEAT_DRIVER_NUSCENES_URL` changes. The dataroot is only a cache, so deleting it is always safe. Override its
+location with `--dataroot` or `BACKSEAT_DRIVER_NUSCENES_DATAROOT`.
 
 ## 2. Run the pipeline
 
@@ -39,7 +30,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 
 | Option | Default | Description |
 |---|---|---|
-| `--dataroot` | `data/sets/nuscenes` | Path to the local dataset |
+| `--dataroot` | `data/sets/nuscenes` | Cache directory for the dataset (downloaded here if missing) |
 | `--version` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | required (or `--all-cameras`) | Camera channel used as the representative frame, e.g. `CAM_FRONT` (repeatable); `--all-cameras` runs all six |
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
@@ -92,9 +83,11 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 
 | Variable | Default | Description |
 |---|---|---|
-| `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
+| `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Cache directory for the demo dataset |
 | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | Dataset version |
+| `BACKSEAT_DRIVER_NUSCENES_URL` | the v1.0-mini archive | Where the dataset is downloaded from |
 | `BACKSEAT_DRIVER_CAMERA_CHANNEL` | `CAM_FRONT` | Camera used as the representative frame |
+| `BACKSEAT_DRIVER_MODE` | `monolith` | `monolith` (jobs run inside the API) or `distributed` (RabbitMQ + Postgres + workers; needs `BACKSEAT_DRIVER_DATASET_BUCKET`) |
 | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `BACKSEAT_DRIVER_VLM_MODEL_NAME` | required for `huggingface` | HuggingFace image-to-text model, e.g. `Salesforce/blip-image-captioning-base` |
 | `BACKSEAT_DRIVER_OLLAMA_MODEL_NAME` | required for `ollama` | Ollama model, e.g. `llava` |

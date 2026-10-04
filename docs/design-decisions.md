@@ -4,15 +4,6 @@ This page records the design questions that came up while shaping this pipeline,
 
 The read → process → write shape is fixed by the assignment. Nearly all the real design space lives inside "process" (how a scene becomes a caption) and at the seams between the three stages. Each decision below is recorded as: the question, the options, and the choice — with the condition that would flip it.
 
-## Implementation status
-
-The object model, method signatures, and calls between objects are implemented and type-check (`just typecheck`); the leaf logic behind each external dependency (`nuscenes-devkit` traversal in `NuScenesSceneLoader._keyframe_for_scene`/`_middle_sample`, the HF pipeline load/inference in `HuggingFaceCaptioner.load`/`caption`, the file write in `write_json`) raises `NotImplementedError` pending a follow-up pass. `tests/unittests/test_pipeline.py` passes today (it only exercises the wiring, via fakes); `test_huggingface_captioner.py`, `test_nuscenes_scene_loader.py`, and `test_writer.py` fail on the stubs by design — they're the acceptance spec for that follow-up pass, not a regression.
-
-Two signature changes landed in this pass, both consequences of the review in "Missing corners" below:
-
-- **`Captioner` gained `model_name` (property) and `load()`.** `ScenePipeline` and `api/routers/describe.py` previously each had their own way of getting at the model name (a constructor arg on the former, a `getattr(..., "unknown")` fallback on the latter) — both now just read `captioner.model_name`. `load()` exists so a caller can eager-load the model instead of paying that cost inside the first `caption()` call, but **nothing calls it yet** — wiring it into `api/app.py`'s `lifespan()` was deferred because that function runs unconditionally at app startup, including under `TestClient`, and `HuggingFaceCaptioner.load()` is currently a stub that raises. Wiring it in before the leaf logic is filled in would break every integration/smoke/system test that boots the app, not just the two unit-test files that are supposed to fail right now. Do this in the same pass that fills in `HuggingFaceCaptioner.load()`.
-- **`api/routers/describe.py` now calls `captioner.caption()` via `run_in_threadpool`.** `caption()` is synchronous and CPU-bound; calling it directly inside an `async def` route blocks the whole event loop for the request's duration. This was safe to fix now because it only changes how the API layer calls the (already-abstract class'd) captioner, not what the captioner does.
-
 ## Settled by convergence
 
 These three came up independently from two different sources (this design conversation, and a second review) and agreed without prompting — treated as high-confidence, not just preference.
@@ -59,17 +50,17 @@ These three came up independently from two different sources (this design conver
 
 ### 5. Process step: local model vs. hosted VLM
 
-**Options:** local BLIP via `transformers` (current) vs. a hosted VLM (Claude/GPT-4V-class) behind the same `Captioner` abstract class.
+**Options:** local BLIP via `transformers` vs. a local Ollama model vs. a hosted VLM (Claude) behind the same `Captioner` abstract class.
 
-**Decision: local BLIP.** The assignment explicitly says "no need for large models or GPU inference... a small/basic VLM is fine," and a container that needs a live API key and network egress at runtime is a materially different deployment story than one that's fully self-contained. The `Captioner` abstract class already makes a hosted backend a same-shaped addition later — a new class, no changes to `ScenePipeline`.
+**Decision: all three, with local BLIP as the self-contained example.** The assignment explicitly says "no need for large models or GPU inference... a small/basic VLM is fine," and a container that needs a live API key and network egress at runtime is a materially different deployment story than one that's fully self-contained, so the HuggingFace backend needs neither. Because the runtime (`CaptionBackend`) and the model (`CaptionModel`) are separate from `ScenePipeline`, the Ollama and Claude backends were each a new class with no pipeline changes. They give richer, prompt-driven descriptions and let the report compare models side by side; the hosted one is billed per request and needs an API key.
 
-**Revisit if:** description quality becomes the actual bottleneck rather than pipeline structure — that's a model-swap, not an architecture change, by design.
+**Revisit if:** a backend's dependencies or maintenance cost outweigh what it adds to the comparison — dropping one is a delete, not an architecture change.
 
 ### 6. Prompted vs. unprompted captioning
 
-**Options:** BLIP's unconditional `image-to-text` pipeline (current — produces a generic caption) vs. a prompt-capable VLM steered toward driving-specific detail ("note hazards, traffic, pedestrians").
+**Options:** BLIP's unconditional `image-to-text` pipeline (produces a generic caption) vs. a prompt-capable VLM steered toward driving-specific detail ("note hazards, traffic, pedestrians").
 
-**Decision: unprompted, generic captioning.** The assignment's ask is "a short natural-language description of the scene" — not hazard analysis. Steering toward domain-specific detail is a real, reasonable next step for the repo's own "backseat driver" framing, but it's a scope decision beyond what was actually asked, not an architecture one.
+**Decision: both, behind one `CaptionModel`.** The HuggingFace backend captions unconditionally, which matches the assignment's ask of "a short natural-language description of the scene". The Ollama and Claude backends are prompt-driven and share one driving-scene prompt (`DETAILED_SCENE_PROMPT`), so their output is comparable with each other, and the report scores all of them against the same nuScenes label. The prompt is part of the model, so it changes without touching the pipeline.
 
 **Revisit if:** the description's actual consumer needs driving-specific structure (hazards, traffic state) rather than a general caption — at that point it's a prompt/model change behind the same `Captioner` interface, not a pipeline redesign.
 

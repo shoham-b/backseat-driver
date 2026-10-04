@@ -64,12 +64,12 @@ All three are enforced in CI.
 
 ## Tests
 
-There are four test layers, from fastest to slowest:
+There are five test layers, from fastest to slowest:
 
 | Layer | Path | Infrastructure |
 |---|---|---|
 | Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are replaced by injected fakes, no dataset or model download |
-| Integration | `tests/integrationtests/` | in-process API (no external services); captioner is swapped for a fake |
+| Integration | `tests/integrationtests/` | in-process API, CLI commands and ingest/caption workers (no external services); queue, store and captioner are swapped for in-memory fakes |
 | Smoke | `tests/smoketests/` | running API (pass `--api-url` to override) |
 | UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |
 | System | `tests/systemtests/` | Docker Compose |
