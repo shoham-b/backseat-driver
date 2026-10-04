@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from backseat_driver.process.huggingface_backend import HuggingFaceBackend
+from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
 
 

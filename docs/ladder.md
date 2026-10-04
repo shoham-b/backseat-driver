@@ -27,7 +27,7 @@ just describe --camera front        # = uv run backseat-driver describe ...
 | Step | Port | Adapter | Wired in |
 |---|---|---|---|
 | read | [`SceneLoader`](../backseat_driver/read/scene_loader.py) | [`NuScenesSceneLoader`](../backseat_driver/read/nuscenes_scene_loader.py) | [`stacks.pipeline`](../backseat_driver/stacks.py) |
-| process | [`Captioner`](../backseat_driver/process/captioner.py) | [`BackendCaptioner`](../backseat_driver/process/backend_captioner.py) over a [HuggingFace](../backseat_driver/process/huggingface_backend.py), [Ollama](../backseat_driver/process/ollama_backend.py) or [Anthropic](../backseat_driver/process/anthropic_backend.py) backend | [`process.factory`](../backseat_driver/process/factory.py) |
+| process | [`Captioner`](../backseat_driver/process/captioner.py) | [`BackendCaptioner`](../backseat_driver/process/backend_captioner.py) over a [HuggingFace](../backseat_driver/process/backends/huggingface.py), [Ollama](../backseat_driver/process/backends/ollama.py) or [Anthropic](../backseat_driver/process/backends/anthropic.py) backend | [`process.factory`](../backseat_driver/process/factory.py) |
 | write | | [`write_json`](../backseat_driver/write/json_writer.py) | [`cli/describe.py`](../backseat_driver/cli/describe.py) |
 
 Tests: [`test_pipeline.py`](../tests/unittests/test_pipeline.py), [`tests/unittests/read/`](../tests/unittests/read), [`process/`](../tests/unittests/process), [`write/`](../tests/unittests/write), and the command itself in [`test_pipeline_end_to_end.py`](../tests/integrationtests/cli/test_pipeline_end_to_end.py).

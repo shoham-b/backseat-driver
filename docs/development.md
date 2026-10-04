@@ -103,9 +103,9 @@ live in `tests/fakes.py` and the layer's `conftest.py`.
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `read/nuscenes_scene_loader.py` and `process/huggingface_backend.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `read/nuscenes_scene_loader.py` and `process/backends/huggingface.py` import nuscenes-devkit and
 transformers lazily inside their default factories, which the loader and backend take as constructor arguments so these tests can pass a fake — see
-`tests/unittests/read/test_nuscenes_scene_loader.py` and `tests/unittests/process/test_huggingface_backend.py`.
+`tests/unittests/read/test_nuscenes_scene_loader.py` and `tests/unittests/process/backends/test_huggingface.py`.
 
 ### Integration tests
 

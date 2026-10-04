@@ -1,14 +1,14 @@
 """Builds the configured `Captioner` so the API, CLI and workers pick a backend and model the same way."""
 
 from backseat_driver.config import Settings, VlmBackend
-from backseat_driver.process.anthropic_backend import AnthropicBackend
-from backseat_driver.process.backend import CaptionBackend
 from backseat_driver.process.backend_captioner import BackendCaptioner
+from backseat_driver.process.backends.anthropic import AnthropicBackend
+from backseat_driver.process.backends.backend import CaptionBackend
+from backseat_driver.process.backends.huggingface import HuggingFaceBackend
+from backseat_driver.process.backends.ollama import OllamaBackend
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.http_client import UrllibHttpClient
-from backseat_driver.process.huggingface_backend import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
-from backseat_driver.process.ollama_backend import OllamaBackend
 
 
 def build_backend(settings: Settings, backend: VlmBackend) -> CaptionBackend:

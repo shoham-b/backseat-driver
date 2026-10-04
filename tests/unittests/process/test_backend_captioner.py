@@ -1,5 +1,5 @@
-from backseat_driver.process.backend import CaptionBackend
 from backseat_driver.process.backend_captioner import BackendCaptioner
+from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.model import CaptionModel
 
 
