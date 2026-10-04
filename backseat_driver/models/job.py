@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -30,3 +31,12 @@ class Job(JobReference):
     completed_scenes: int  # descriptions recorded so far
     created_at: datetime
     error: str | None = None
+
+
+class DeadLetter(BaseModel):
+    """A task that ran out of retries, kept whole so it can be inspected or re-enqueued; the job only records why."""
+
+    task: Literal["ingest", "caption"]
+    payload: dict[str, Any]
+    error: str
+    failed_at: datetime

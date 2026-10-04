@@ -9,7 +9,7 @@ descriptions have been recorded (and whether an error was recorded), never store
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from backseat_driver.models import Job, JobState, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobState, SceneDescription
 
 
 class JobStore(ABC):
@@ -34,6 +34,15 @@ class JobStore(ABC):
     def fail_job(self, job_id: UUID, error: str) -> None:
         """Mark the job failed. The first error is kept, so a later one can't hide the root cause.
         Raises NotFoundError for an unknown job."""
+
+    @abstractmethod
+    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
+        """Keep a task that ran out of retries, with its payload. Does not change the job's state: `fail_job` does.
+        Raises NotFoundError for an unknown job."""
+
+    @abstractmethod
+    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+        """Oldest first. Raises NotFoundError for an unknown job."""
 
     @abstractmethod
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:

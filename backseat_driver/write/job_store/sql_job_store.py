@@ -5,7 +5,7 @@ Postgres when distributed; the monolith runs the same code over a SQLite file so
 from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import Job, SceneDescription
+from backseat_driver.models import DeadLetter, Job, SceneDescription
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.orm import JobRow
 from backseat_driver.write.job_store.storage import JobStorage
@@ -34,6 +34,22 @@ class SqlJobStore(JobStore):
     def fail_job(self, job_id: UUID, error: str) -> None:
         if not self._storage.update_error(job_id, error):
             raise NotFoundError(f"job {job_id} not found")
+
+    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
+        self.get_job(job_id)  # raises NotFoundError rather than a foreign key violation
+        self._storage.insert_dead_letter(job_id, dead_letter.model_dump())
+
+    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+        self.get_job(job_id)
+        return [
+            DeadLetter(
+                task=row.task,  # ty: ignore[invalid-argument-type]
+                payload=row.payload,
+                error=row.error,
+                failed_at=row.failed_at,
+            )
+            for row in self._storage.fetch_dead_letters(job_id)
+        ]
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         self._storage.insert_description(job_id, description.model_dump())

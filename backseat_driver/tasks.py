@@ -30,7 +30,7 @@ from backseat_driver.stacks import celery_queue, postgres_store, stored_loader
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, make_celery_app
 from backseat_driver.transport.ingest_worker import IngestWorker
-from backseat_driver.transport.job_failure import describe_failure
+from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
 
@@ -105,7 +105,10 @@ def register_tasks(
             except ValidationError:
                 logger.error("{} {} failed and its payload names no job: {}", self.name, task_id, exc)
                 return
-            store().fail_job(reference.job_id, describe_failure(str(self.name), exc))
+            job_store = store()
+            job_store.fail_job(reference.job_id, describe_failure(str(self.name), exc))
+            kind = "ingest" if self.name == INGEST_TASK else "caption"
+            job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, args[0], exc))
 
     @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def ingest(self: Task, payload: dict[str, Any]) -> None:

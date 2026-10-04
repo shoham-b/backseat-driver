@@ -9,7 +9,7 @@ from threading import Lock
 from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import Job, SceneDescription
+from backseat_driver.models import DeadLetter, Job, SceneDescription
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
 
 
@@ -22,6 +22,7 @@ class _Record:
         self.error: str | None = None
         self.created_at = datetime.now(UTC)
         self.descriptions: dict[tuple[str, str], SceneDescription] = {}
+        self.dead_letters: list[DeadLetter] = []
 
 
 class InMemoryJobStore(JobStore):
@@ -54,6 +55,14 @@ class InMemoryJobStore(JobStore):
         with self._lock:
             record = self._get(job_id)
             record.error = record.error or error
+
+    def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
+        with self._lock:
+            self._get(job_id).dead_letters.append(dead_letter)
+
+    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+        with self._lock:
+            return list(self._get(job_id).dead_letters)
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         key = (description.scene_token, description.camera_channel)

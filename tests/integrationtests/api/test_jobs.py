@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -5,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
-from backseat_driver.models import JobState
+from backseat_driver.models import DeadLetter, JobState
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
@@ -51,6 +52,28 @@ def test_list_descriptions_of_unknown_job_is_not_found(client: TestClient) -> No
     response = client.get(f"/jobs/{uuid4()}/descriptions")
 
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_list_dead_letters_of_unknown_job_is_not_found(client: TestClient) -> None:
+    response = client.get(f"/jobs/{uuid4()}/dead-letters")
+
+    assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+def test_dead_letters_of_a_job_are_listed_with_their_payload(client_with: ClientFactory) -> None:
+    store, job_id = FakeJobStore(), uuid4()
+    store.create_job(job_id, None, "tx")
+    store.record_dead_letter(
+        job_id,
+        DeadLetter(task="caption", payload={"job_id": str(job_id)}, error="OSError: gone", failed_at=datetime.now(UTC)),
+    )
+    client = client_with({get_job_store: lambda: store})
+
+    letters = client.get(f"/jobs/{job_id}/dead-letters").json()
+
+    assert [(letter["task"], letter["error"], letter["payload"]) for letter in letters] == [
+        ("caption", "OSError: gone", {"job_id": str(job_id)})
+    ]
 
 
 def test_job_runs_to_completion_through_both_workers(client_with: ClientFactory) -> None:
