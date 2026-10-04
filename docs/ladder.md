@@ -51,12 +51,12 @@ The API turns the run into tasks. **Ingest** is the read step turned into a prod
 | What | Where |
 |---|---|
 <<<<<<< HEAD
-| The seam, in one docstring | [`transport/__init__.py`](../backseat_driver/transport/__init__.py) |
-| The queue port and its in-process adapter | [`JobQueue`](../backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](../backseat_driver/transport/in_process_job_queue.py) |
-| Read as a producer; process and write per task | [`IngestWorker`](../backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](../backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](../backseat_driver/pipeline.py) |
-| The job store the workers write to | [`JobStore`](../backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](../backseat_driver/write/job_store/in_memory_job_store.py) |
-| The front door | [`POST /jobs`](../backseat_driver/api/routers/jobs.py) |
-| Wired in | [`stacks.seam`](../backseat_driver/stacks.py) |
+| The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
+| The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
+| Read as a producer; process and write per task | [`IngestWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py) |
+| The job store the workers write to | [`JobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/in_memory_job_store.py) |
+| The front door | [`POST /jobs`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/api/routers/jobs.py) |
+| Wired in | [`stacks.seam`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
 =======
 | The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
 | The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
