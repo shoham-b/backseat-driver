@@ -1,6 +1,18 @@
 from datetime import UTC, datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
+
+
+class CameraChannel(StrEnum):
+    """The six cameras on a nuScenes vehicle, front-centre first then clockwise."""
+
+    CAM_FRONT = "CAM_FRONT"
+    CAM_FRONT_RIGHT = "CAM_FRONT_RIGHT"
+    CAM_BACK_RIGHT = "CAM_BACK_RIGHT"
+    CAM_BACK = "CAM_BACK"
+    CAM_BACK_LEFT = "CAM_BACK_LEFT"
+    CAM_FRONT_LEFT = "CAM_FRONT_LEFT"
 
 
 class SceneKeyframe(BaseModel):
