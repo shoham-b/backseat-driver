@@ -17,6 +17,7 @@ from backseat_driver.api.routers.health import router as health_router
 from backseat_driver.api.routers.jobs import router as jobs_router
 from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, get_settings
+from backseat_driver.datasets.factory import build_image_store
 from backseat_driver.errors import BackseatDriverError
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.logger import LogFormat, setup_logging
@@ -31,9 +32,12 @@ def create_app(settings: Settings) -> FastAPI:
 
         app.state.settings = settings
         app.state.captioner = build_captioner(settings)
+        # The local dataroot in the monolith; in distributed mode the bucket, which a distributed API must be configured
+        # with. Either way the store is only built here, not connected.
+        images = build_image_store(settings)
         # In distributed mode neither client connects until first use, so startup never blocks on the broker
         # or database; /ready reports whether they are reachable.
-        app.state.job_queue, app.state.job_store = build_job_backend(settings, app.state.captioner)
+        app.state.job_queue, app.state.job_store = build_job_backend(settings, app.state.captioner, images)
 
         logger.bind(api_url=settings.api_url, mode=settings.mode).info("startup complete")
         yield

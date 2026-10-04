@@ -7,7 +7,9 @@ resources:
   - storage.yaml
   - postgres.yaml
   - rabbitmq.yaml
+  - object-store.yaml
   - db-init.yaml
+  - dataset-upload.yaml
   - api.yaml
   - workers.yaml
   - ui.yaml

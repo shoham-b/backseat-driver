@@ -50,17 +50,24 @@ jobs = [
     "sqlalchemy>=2.0",
 ]
 
+# S3-compatible client for the images that travel from the ingest worker to the caption workers.
+object-storage = [
+    "boto3>=1.35",
+]
+
 # Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
 ingest-worker = [
     { include-group = "core" },
     { include-group = "nuscenes" },
     { include-group = "jobs" },
+    { include-group = "object-storage" },
 ]
 
 caption-worker = [
     { include-group = "core" },
     { include-group = "vlm" },
     { include-group = "jobs" },
+    { include-group = "object-storage" },
 ]
 
 # Everything the batch CLI pipeline needs at runtime.
@@ -69,6 +76,7 @@ cli = [
     { include-group = "vlm" },
     { include-group = "nuscenes" },
     { include-group = "jobs" },
+    { include-group = "object-storage" },
 ]
 
 # Everything the HTTP API needs at runtime (single-image captioning only —

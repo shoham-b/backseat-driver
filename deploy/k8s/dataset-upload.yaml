@@ -1,0 +1,27 @@
+# One-shot: copies the nuScenes dataset from the nuscenes-data volume into the dataset bucket (images already there are
+# skipped, so re-applying is cheap). It is the only workload that reads the dataset volume apart from the report UI and
+# the example run job; the workers read the dataset from the bucket. Retries until the object store and the volume are up.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dataset-upload
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: dataset-upload
+          image: ghcr.io/shoham-b/backseat-driver-cli
+          imagePullPolicy: IfNotPresent
+          args: [dataset, upload]
+          envFrom:
+            - configMapRef: {name: backseat-driver-config}
+            - secretRef: {name: backseat-driver-secrets}
+          volumeMounts:
+            - {name: data, mountPath: /app/data, readOnly: true}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}

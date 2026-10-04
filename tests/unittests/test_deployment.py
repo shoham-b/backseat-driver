@@ -102,7 +102,7 @@ def test_container_args_are_valid_cli_invocations() -> None:
     for container in containers:
         _parse_without_running([str(arg) for arg in container["args"]])
 
-    assert {c["args"][0] for c in containers} == {"db", "worker", "ui"}
+    assert {c["args"][0] for c in containers} == {"dataset", "db", "worker", "ui"}
 
 
 def test_our_images_are_the_ones_the_docker_workflow_publishes() -> None:
@@ -233,3 +233,53 @@ def test_autoscalers_target_the_workers_and_watch_the_queues_they_consume() -> N
     assert queues == {"ingest-worker": INGEST_QUEUE, "caption-worker": CAPTION_QUEUE}
     assert {obj["spec"]["scaleTargetRef"]["name"] for obj in scaled.values()} <= deployments
     assert all(obj["spec"]["minReplicaCount"] >= 1 for obj in scaled.values())  # the model must stay loaded
+
+
+def _compose_services() -> dict[str, Any]:
+    return yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())["services"]
+
+
+def test_no_worker_mounts_the_dataset_in_the_cluster() -> None:
+    pods = dict(_pod_specs())
+
+    mounting = {
+        name
+        for name, pod in pods.items()
+        if any(
+            volume.get("persistentVolumeClaim", {}).get("claimName") == "nuscenes-data"
+            for volume in pod.get("volumes", [])
+        )
+    }
+
+    assert "dataset-upload" in mounting
+    assert not {name for name in mounting if name.endswith("-worker")}
+
+
+def test_only_the_upload_service_mounts_the_dataset_in_compose() -> None:
+    services = _compose_services()
+
+    mounts_data = {
+        name
+        for name in ("dataset-upload", "ingest-worker", "caption-worker")
+        if any("./data" in v for v in services[name].get("volumes", []))
+    }
+
+    assert mounts_data == {"dataset-upload"}
+
+
+def test_the_cluster_bucket_is_the_one_the_dev_store_creates() -> None:
+    (config,) = [doc for doc in _of_kind("ConfigMap") if doc["metadata"]["name"] == "backseat-driver-config"]
+    (store,) = [doc for doc in _of_kind("Deployment") if doc["metadata"]["name"] == "s3"]
+    (container,) = store["spec"]["template"]["spec"]["containers"]
+    created = {entry["value"] for entry in container["env"] if entry["name"].endswith("INITIAL_BUCKETS")}
+
+    assert {config["data"]["BACKSEAT_DRIVER_DATASET_BUCKET"]} == created
+
+
+def test_compose_ingest_waits_for_the_upload_and_every_worker_gets_the_bucket() -> None:
+    services = _compose_services()
+
+    for name in ("ingest-worker", "caption-worker"):
+        assert services[name]["environment"]["BACKSEAT_DRIVER_DATASET_BUCKET"], name
+        assert services[name]["depends_on"]["s3"]["condition"] == "service_healthy", name
+    assert services["ingest-worker"]["depends_on"]["dataset-upload"]["condition"] == "service_completed_successfully"

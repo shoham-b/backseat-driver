@@ -98,6 +98,16 @@ uv run backseat-driver ui output/blip.json output/llava.json --port 8081
 just ui                      # all JSON files in output/
 ```
 
+
+
+## `dataset upload`
+
+`backseat-driver dataset upload [--camera CAM_FRONT ...| --all-cameras] [--dataroot DIR] [--version v1.0-mini]` copies the dataset's metadata tables and the chosen cameras' images from a local dataroot into the dataset bucket (`BACKSEAT_DRIVER_DATASET_BUCKET`), once, for the distributed mode. Reruns replace the tables and skip images already there. Without `--camera` it uploads the configured camera. Not needed when debugging as a monolith.
+
+## `worker`
+
+`backseat-driver worker ingest|caption` run the distributed queue workers.
+
 | Option | Default | Description |
 |---|---|---|
 | `--host` | `127.0.0.1` | Interface to serve on |

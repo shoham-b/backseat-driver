@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from backseat_driver import tasks
 from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.config import Settings
+from backseat_driver.datasets.dataset_store import DatasetStore
 from backseat_driver.jobs.celery_job_queue import MAX_RETRIES, make_celery_app
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.logger import LogFormat
@@ -13,9 +14,12 @@ from backseat_driver.models import CaptionTask, IngestTask
 from backseat_driver.scenes.scene_loader import SceneLoader
 from tests.fakes import (
     FakeCaptioner,
+    FakeDatasetStore,
+    FakeImageStore,
     FakeJobQueue,
     FakeJobStore,
     FakeSceneLoader,
+    make_image_uri,
     make_keyframe,
     make_settings,
 )
@@ -23,7 +27,7 @@ from tests.fakes import (
 
 class _FailingIngestWorker(IngestWorker):
     def __init__(self) -> None:
-        super().__init__(FakeSceneLoader([]), FakeJobQueue(), FakeJobStore())
+        super().__init__(FakeSceneLoader([]), FakeJobQueue(), FakeJobStore(), FakeImageStore())
         self.calls = 0
 
     def handle(self, task: IngestTask) -> None:
@@ -33,7 +37,7 @@ class _FailingIngestWorker(IngestWorker):
 
 class _FailingCaptionWorker(CaptionWorker):
     def __init__(self) -> None:
-        super().__init__(FakeCaptioner(), FakeJobStore())
+        super().__init__(FakeCaptioner(), FakeJobStore(), FakeImageStore())
         self.calls = 0
 
     def handle(self, task: CaptionTask) -> None:
@@ -66,8 +70,10 @@ def _register(
 def test_caption_task_validates_the_payload_and_hands_it_to_the_worker() -> None:
     job_id, store = uuid4(), FakeJobStore()
     store.create_job(job_id, None, "tx-1")
-    registered = _register(caption_worker=_WorkerProvider(CaptionWorker(FakeCaptioner(), store)))
-    payload = CaptionTask(job_id=job_id, transaction_id="tx-1", keyframe=make_keyframe(1)).model_dump(mode="json")
+    registered = _register(caption_worker=_WorkerProvider(CaptionWorker(FakeCaptioner(), store, FakeImageStore())))
+    payload = CaptionTask(
+        job_id=job_id, transaction_id="tx-1", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+    ).model_dump(mode="json")
 
     registered.caption.apply(args=[payload]).get()
 
@@ -89,7 +95,7 @@ def test_tasks_are_registered_under_the_names_the_api_publishes_to() -> None:
 def test_ingest_task_validates_the_payload_and_fans_out_through_the_worker() -> None:
     job_id, store, queue = uuid4(), FakeJobStore(), FakeJobQueue()
     store.create_job(job_id, None, "tx-1")
-    worker = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store)
+    worker = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store, FakeImageStore())
     registered = _register(ingest_worker=_WorkerProvider(worker))
     payload = IngestTask(job_id=job_id, transaction_id="tx-1").model_dump(mode="json")
 
@@ -128,7 +134,9 @@ def test_transient_ingest_failures_are_retried_up_to_the_limit_then_surface() ->
 
 def test_transient_caption_failures_are_retried_up_to_the_limit_then_surface() -> None:
     worker = _FailingCaptionWorker()
-    payload = CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1)).model_dump(mode="json")
+    payload = CaptionTask(
+        job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+    ).model_dump(mode="json")
 
     result = _register(caption_worker=_WorkerProvider(worker)).caption.apply(args=[payload])
 
@@ -157,9 +165,10 @@ class _RecordingBuilders:
         self.loader_calls: list[Settings] = []
         self.queue_calls: list[Settings] = []
         self.store_calls: list[Settings] = []
+        self.dataset_calls: list[Settings] = []
         self.captioner = _LoadCountingCaptioner()
 
-    def loader(self, settings: Settings) -> SceneLoader:
+    def loader(self, settings: Settings, dataset: DatasetStore) -> SceneLoader:
         self.loader_calls.append(settings)
         return FakeSceneLoader([])
 
@@ -174,6 +183,10 @@ class _RecordingBuilders:
     def build_captioner(self, settings: Settings) -> Captioner:
         return self.captioner
 
+    def dataset(self, settings: Settings) -> FakeDatasetStore:
+        self.dataset_calls.append(settings)
+        return FakeDatasetStore()
+
 
 def _workers(builders: _RecordingBuilders, settings: Settings | None = None) -> tasks.Workers:
     return tasks.Workers(
@@ -182,6 +195,7 @@ def _workers(builders: _RecordingBuilders, settings: Settings | None = None) -> 
         build_queue=builders.queue,
         build_store=builders.store,
         build_captioner=builders.build_captioner,
+        build_dataset=builders.dataset,
     )
 
 
@@ -197,6 +211,7 @@ def test_ingest_worker_is_built_from_settings_and_cached() -> None:
     assert builders.loader_calls == [settings]
     assert builders.queue_calls == [settings]
     assert builders.store_calls == [settings]
+    assert builders.dataset_calls == [settings]
 
 
 def test_caption_worker_loads_the_model_once_and_is_cached() -> None:
@@ -225,7 +240,7 @@ def test_workers_build_nothing_until_asked() -> None:
 
     _workers(builders)
 
-    assert builders.loader_calls == builders.queue_calls == builders.store_calls == []
+    assert builders.loader_calls == builders.queue_calls == builders.store_calls == builders.dataset_calls == []
     assert builders.captioner.loads == 0
 
 

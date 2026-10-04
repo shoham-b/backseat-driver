@@ -29,7 +29,8 @@ Run `just --list` at any time to see all targets. The full table:
 | `just dev` | API dev server with hot reload (`fastapi dev`) in monolith mode: `/jobs` runs in-process, no infra needed |
 | `just dev-distributed` | Same, but distributed mode against RabbitMQ + Postgres in Docker (starts them); pair with `just worker-*` |
 | `just serve` | API production-mode server on the host, binds `0.0.0.0` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) |
-| `just infra` / `just infra-down` | RabbitMQ + Postgres in Docker for the host-run API and workers |
+| `just infra` / `just infra-down` | RabbitMQ + Postgres + a dev S3 store in Docker for the host-run API and workers |
+| `just dataset-upload` | Copy `data/` into the dev S3 bucket, once, before `just worker-ingest` |
 | `just worker-ingest` / `just worker-caption` | Queue workers on the host |
 | `just docker-run [ARGS]` | The pipeline in the `cli` container |
 | `just up` / `just up-dev` / `just down` | Full distributed stack in Docker Compose (`up-dev` hot-reloads the API) |

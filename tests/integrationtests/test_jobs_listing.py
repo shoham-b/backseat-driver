@@ -10,6 +10,7 @@ from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import IngestTask, JobState
 from tests.fakes import (
     FakeCaptioner,
+    FakeImageStore,
     FakeJobQueue,
     FakeJobStore,
     FakeSceneLoader,
@@ -41,8 +42,10 @@ def test_jobs_can_be_filtered_by_state(client_with: ClientFactory) -> None:
     store, queue, pending, done = FakeJobStore(), FakeJobQueue(), uuid4(), uuid4()
     store.create_job(pending, None, "tx-1")
     store.create_job(done, None, "tx-2")
-    IngestWorker(FakeSceneLoader([make_keyframe(1)]), queue, store).handle(IngestTask(job_id=done, transaction_id="tx"))
-    CaptionWorker(FakeCaptioner(), store).handle(queue.caption_tasks[0])
+    IngestWorker(FakeSceneLoader([make_keyframe(1)]), queue, store, FakeImageStore()).handle(
+        IngestTask(job_id=done, transaction_id="tx")
+    )
+    CaptionWorker(FakeCaptioner(), store, FakeImageStore()).handle(queue.caption_tasks[0])
     client = _client(client_with, store)
 
     completed = client.get("/jobs", params={"state": JobState.COMPLETED.value}).json()

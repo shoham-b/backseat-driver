@@ -7,12 +7,12 @@ from backseat_driver.config import RunMode
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import JobState, SceneDescription
-from tests.fakes import FakeCaptioner, make_keyframe, make_settings
+from tests.fakes import FakeCaptioner, FakeImageStore, make_keyframe, make_settings
 
 
 def _monolith_store(db_path: Path) -> SqlJobStore:
     settings = make_settings(mode=RunMode.MONOLITH, jobs_db_path=str(db_path))
-    _, store = build_job_backend(settings, FakeCaptioner())
+    _, store = build_job_backend(settings, FakeCaptioner(), FakeImageStore())
     assert isinstance(store, SqlJobStore)
     return store
 
