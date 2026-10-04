@@ -140,8 +140,8 @@ just typecheck    # type check
 just docs         # build docs
 ```
 
-The Justfile runs on Linux, macOS and Windows. On Windows it uses Windows PowerShell, so there is nothing extra to
-install. The local-Kubernetes recipes (`k8s-up`, `k8s-validate`) are POSIX-only; run them from WSL or Git Bash.
+install. A few recipes are POSIX-only and absent on Windows: `test-system`, `test-all`, `dev-distributed`, `k8s-up`,
+`k8s-validate` and `clean` (use WSL or Git Bash for those).
 
 See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
 codebase conventions.

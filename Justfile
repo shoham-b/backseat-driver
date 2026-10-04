@@ -1,8 +1,8 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-# Windows PowerShell on Windows, `sh` elsewhere: nothing to install or put on PATH. Recipes that are POSIX-only carry [unix]; those with a Windows equivalent have a [windows] twin.
-set windows-powershell := true
+# PowerShell on Windows, `sh` elsewhere. Recipes marked [unix] (system tests, distributed dev, kind, clean) are POSIX-only.
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
 compose := "docker compose -f docker/docker-compose.yml --project-directory ."
@@ -55,10 +55,6 @@ test-system:
         {{compose}} --profile test run --build --rm systemtest
     fi
 
-[windows]
-test-system:
-    if ($env:API_URL) { uv run pytest tests/systemtests -v --api-url $env:API_URL } else { try { {{compose}} --profile test run --build --rm systemtest } finally { {{compose}} --profile test down } }
-
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
     uv run pytest tests/benchmarks --codspeed
@@ -72,6 +68,7 @@ test-ui:
     uv run pytest tests/uitests -v
 
 # Unit + integration tests, then the containerised system tests
+[unix]
 test-all: test test-system
 
 # Same variables the app reads, so the host-run API listens where `test-smoke` and .env expect it.
@@ -91,10 +88,6 @@ dev:
 [unix]
 dev-distributed: infra
     BACKSEAT_DRIVER_MODE=distributed uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
-
-[windows]
-dev-distributed: infra
-    $env:BACKSEAT_DRIVER_MODE = "distributed"; uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
 # Production-mode server, all interfaces. Monolith unless BACKSEAT_DRIVER_MODE=distributed (Kubernetes sets it; locally `just infra` first)
 serve:
@@ -197,9 +190,3 @@ clean:
     rm -rf dist/ site/ .pytest_cache/ htmlcov/ coverage.xml junit.xml
     find . -type d -name __pycache__ -exec rm -rf {} +
     find . -type f -name "*.pyc" -delete
-
-[windows]
-clean:
-    'dist', 'site', '.pytest_cache', 'htmlcov', 'coverage.xml', 'junit.xml' | Where-Object { Test-Path $_ } | Remove-Item -Recurse -Force
-    Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
-    Get-ChildItem -Recurse -File -Filter *.pyc | Remove-Item -Force
