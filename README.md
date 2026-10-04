@@ -140,8 +140,8 @@ just typecheck    # type check
 just docs         # build docs
 ```
 
-The Justfile runs on Linux, macOS and Windows. On Windows it needs `sh` from Git for Windows, so put
-`C:\Program Files\Git\usr\bin` on your `PATH` (otherwise a bare `bash` would pick WSL, which has no `uv`).
+The Justfile runs on Linux, macOS and Windows. On Windows it uses `sh` from Git for Windows at its default
+location, `C:\Program Files\Git\usr\bin\sh.exe`; edit `windows-shell` in the Justfile if yours is elsewhere.
 
 See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
 codebase conventions.
