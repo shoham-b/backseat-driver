@@ -98,7 +98,7 @@ jobs:
             gh release view "$TAG_NAME" --json body --jq .body
             printf '\n### Docker images\n\n'
             for target in cli api ingest-worker caption-worker; do
-              printf -- '- `ghcr.io/shoham-b/backseat-driver-%s:%s`\n' "$target" "$TAG_NAME"
+              echo "- \`ghcr.io/shoham-b/backseat-driver-${target}:${TAG_NAME}\`"
             done
           } > notes.md
           gh release edit "$TAG_NAME" --notes-file notes.md
