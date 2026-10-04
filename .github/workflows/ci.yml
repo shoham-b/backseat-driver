@@ -12,6 +12,33 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      deployment: ${{ steps.filter.outputs.deployment }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - backseat_driver/**
+              - tests/**
+              - pyproject.toml
+              - uv.lock
+              - .python-version
+            deployment:
+              - docker/**
+              - deploy/**
+              - .python-version
+
   lint:
     runs-on: ubuntu-latest
     permissions:
@@ -40,6 +67,8 @@ jobs:
       - run: uv run ty check backseat_driver tests
 
   test:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -61,6 +90,8 @@ jobs:
           path: junit.xml
 
   test-ui:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -74,6 +105,8 @@ jobs:
       - run: uv run pytest tests/uitests -v
 
   test-system:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.deployment == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -91,6 +124,8 @@ jobs:
         run: docker compose -f docker/docker-compose.yml --project-directory . --profile test down
 
   deploy-config:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.deployment == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
