@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends
 from fastapi.concurrency import run_in_threadpool
 
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
-from backseat_driver.api.errors import APIError
+from backseat_driver.api.errors import UNAVAILABLE_RESPONSE, APIError
 from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore
@@ -19,7 +19,7 @@ async def liveness() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get("/ready")
+@router.get("/ready", responses=UNAVAILABLE_RESPONSE)
 async def readiness(
     captioner: Annotated[Captioner, Depends(get_captioner)],
     queue: Annotated[JobQueue, Depends(get_job_queue)],

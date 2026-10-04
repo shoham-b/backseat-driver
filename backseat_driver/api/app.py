@@ -16,6 +16,7 @@ from backseat_driver.api.routers.describe import router as describe_router
 from backseat_driver.api.routers.health import router as health_router
 from backseat_driver.api.routers.images import router as images_router
 from backseat_driver.api.routers.jobs import router as jobs_router
+from backseat_driver.api.state import AppState
 from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.datasets.factory import build_image_store
@@ -31,15 +32,13 @@ def create_app(settings: Settings) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         setup_logging(LogFormat(settings.log_format), service="api")
 
-        app.state.settings = settings
-        app.state.captioner = build_captioner(settings)
+        captioner = build_captioner(settings)
         # The bucket in distributed mode, the local dataroot otherwise; a distributed API without a bucket fails here.
-        app.state.image_store = build_image_store(settings)
+        image_store = build_image_store(settings)
         # In distributed mode neither client connects until first use, so startup never blocks on the broker
         # or database; /ready reports whether they are reachable.
-        app.state.job_queue, app.state.job_store = build_job_backend(
-            settings, app.state.captioner, app.state.image_store
-        )
+        job_queue, job_store = build_job_backend(settings, captioner, image_store)
+        app.state.services = AppState(settings, captioner, image_store, job_queue, job_store)
 
         logger.bind(api_url=settings.api_url, mode=settings.mode).info("startup complete")
         yield
