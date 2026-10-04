@@ -31,9 +31,13 @@ class Settings(BaseSettings):
     cors_origins: list[str] = []
     log_format: Literal["colored", "json"] = "colored"
 
-    # Model-comparison UI (`backseat-driver ui`)
+    # Model-comparison UI (`just ui`, `fastapi run backseat_driver/reporting/ui_server.py`)
     ui_host: str = "127.0.0.1"
     ui_port: int = 8081
+    # Also show the API's completed jobs (re-read on every page load, newest per model), besides the result files.
+    ui_all_jobs: bool = False
+    # Where the browser reaches the API for the live-inference card, if not api_url (e.g. a port-forward).
+    ui_public_api_url: str | None = None
 
     # nuScenes dataset: the dataroot is a cache, filled from nuscenes_url when <dataroot>/<version> is missing
     nuscenes_dataroot: str = "data/sets/nuscenes"

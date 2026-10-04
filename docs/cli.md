@@ -88,28 +88,27 @@ match and verbose models score low on precision, so read the numbers as a relati
 models rather than absolute accuracy. Results produced before this feature carry no label and are
 shown unscored; re-run `run` to get scores.
 
-### `ui`
+### The UI (`just ui`)
 
-Same page, served locally instead of written to a file. With no arguments it uses every `*.json` in the
-output directory; `just ui` is the shortcut.
+Same page, served locally instead of written to a file. It is not a CLI command but a small FastAPI app, run like the API: `just ui` is `fastapi run backseat_driver/reporting/ui_server.py` on `BACKSEAT_DRIVER_UI_HOST`/`_UI_PORT`. It shows every `*.json` in the output directory (`BACKSEAT_DRIVER_OUTPUT_DIR`), re-read on every page load, and refuses to start if there are none and `BACKSEAT_DRIVER_UI_ALL_JOBS` is off.
 
 ```bash
-uv run backseat-driver ui output/blip.json output/llava.json --port 8081
-just ui                      # all JSON files in output/
+just ui                                       # all JSON files in output/
+BACKSEAT_DRIVER_UI_ALL_JOBS=true just ui      # ...plus every completed job on the API
 ```
 
-### Reports from the API (`--job`)
+### Reports from the API
 
-Both `report` and `ui` can also read finished jobs from the API instead of (or as well as) result files. Pass the id of a completed job with `--job`; each job is one model's run, so give several ids to compare models. `ui` also takes `--all-jobs`, which shows every completed job on the API (the newest per model) and re-reads them on each page load, so no ids are needed and a job that finishes appears on the next refresh. The descriptions come from `GET /jobs/{id}/descriptions` and every image from `GET /images/{key}`, so the report needs the API and nothing else: no dataset on disk, no database, no bucket.
+`report` can read finished jobs from the API instead of (or as well as) result files: pass the id of a completed job with `--job`; each job is one model's run, so give several ids to compare models. The UI does the same with `BACKSEAT_DRIVER_UI_ALL_JOBS=true`, which shows every completed job on the API (the newest per model) and re-reads them on each page load, so no ids are needed and a job that finishes appears on the next refresh. The descriptions come from `GET /jobs/{id}/descriptions` and every image from `GET /images/{key}`, so the report needs the API and nothing else: no dataset on disk, no database, no bucket.
 
 ```bash
 just dev                                                  # the API, as a monolith
 curl -X POST localhost:8080/jobs                          # -> job_id; wait until it is completed
-uv run backseat-driver ui --job <job-id> [--job <other-job-id>] [--api-url http://localhost:8080]
-uv run backseat-driver ui --all-jobs                      # every completed job, refreshed on each load
+uv run backseat-driver report --job <job-id> [--job <other-job-id>] [--api-url http://localhost:8080]
+BACKSEAT_DRIVER_UI_ALL_JOBS=true just ui                  # every completed job, refreshed on each load
 ```
 
-The UI serves the images itself, forwarding each one to the API, so the browser only talks to the UI. `--api-url` is the API the UI process reads from; `--public-api-url` is where your browser reaches the API for the live-inference card, if that differs (the usual case in a cluster).
+The UI serves the images itself, forwarding each one to the API, so the browser only talks to the UI. It exposes `/`, `/images/<key>` and `/healthz`. `BACKSEAT_DRIVER_API_URL` is the API the UI process reads from; `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where your browser reaches the API for the live-inference card, if that differs (the usual case in a cluster).
 
 A job that is still running is an error rather than a partial report. When debugging as a monolith the jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`), so ids and results survive a restart of the API.
 

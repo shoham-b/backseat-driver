@@ -71,9 +71,7 @@ services:
       args:
         - PYTHON_VERSION
       target: cli
-    command: ["ui", "--no-open"]
-    environment:
-      BACKSEAT_DRIVER_UI_HOST: 0.0.0.0
+    entrypoint: ["fastapi", "run", "backseat_driver/reporting/ui_server.py", "--host", "0.0.0.0", "--port", "8081"]
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output:ro

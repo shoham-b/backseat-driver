@@ -13,7 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - `dataset upload` CLI command and a `dataset-upload` compose service / Kubernetes Job: the one-time copy of the dataset into the bucket
 - `worker ingest --once` and a KEDA `ScaledJob` that runs ingest as a Job per queued task
 - `GET /images/{key}` on the API and `report`/`ui --job <id>`: the report UI reads a finished job's descriptions and images from the API alone. In the monolith too, `image_path` of a job's descriptions is now the dataset-relative key (`LocalImageStore` is rooted at the dataroot)
-- `GET /jobs` on the API and `ui --all-jobs`: the report UI discovers the completed jobs itself, re-reads them on every page load and proxies the images from the API, so the deployed `ui` mounts no volume
+- `GET /jobs` on the API and `BACKSEAT_DRIVER_UI_ALL_JOBS` for the UI (a FastAPI app run with `fastapi run`, `just ui`; there is no `ui` CLI command): the report UI discovers the completed jobs itself, re-reads them on every page load and proxies the images from the API, so the deployed `ui` mounts no volume
 - The monolith keeps its jobs in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`), so job ids and results survive a restart
 - Development S3 store (`adobe/s3mock`) in docker compose, `just infra` and the Kubernetes base
 - Design Decisions 7-16: where the monolith keeps its jobs, why two workers, how data is passed, how the dataset reaches them, why ingest is a Job, and how the report UI reads from the API

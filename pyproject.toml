@@ -72,6 +72,8 @@ caption-worker = [
 
 # Everything the batch CLI pipeline needs at runtime.
 cli = [
+    # The report UI is a FastAPI app run with `fastapi run` (see reporting/ui_server.py).
+    "fastapi[standard]>=0.115",
     { include-group = "core" },
     { include-group = "vlm" },
     { include-group = "nuscenes" },

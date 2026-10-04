@@ -7,9 +7,7 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
-import http.server
 import json
-import webbrowser
 from pathlib import Path
 from typing import Annotated
 
@@ -42,62 +40,6 @@ def report(
     results = results or ([] if job else _default_results())
     count = _write_report(results, output, jobs=job or [], jobs_api_url=api_url or settings.api_url)
     logger.info("wrote report for {} description(s) to {}", count, output)
-
-
-@app.command()
-def ui(
-    results: Annotated[
-        list[Path] | None,
-        typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
-    ] = None,
-    host: Annotated[str | None, typer.Option(help="Interface to serve on [default: BACKSEAT_DRIVER_UI_HOST]")] = None,
-    port: Annotated[int | None, typer.Option(help="Port to serve on [default: BACKSEAT_DRIVER_UI_PORT]")] = None,
-    open_browser: Annotated[bool, typer.Option("--open/--no-open", help="Open the page in a browser")] = True,
-    job: Annotated[
-        list[str] | None,
-        typer.Option(help="Completed job id to read from the API (repeatable; one job is one model's run)"),
-    ] = None,
-    all_jobs: Annotated[
-        bool,
-        typer.Option(
-            "--all-jobs", help="Show every completed job on the API, re-read on each page load (newest per model)"
-        ),
-    ] = False,
-    api_url: Annotated[
-        str | None,
-        typer.Option(
-            help="API to read jobs and images from, and the live-inference card's target [default: configured]"
-        ),
-    ] = None,
-    public_api_url: Annotated[
-        str | None,
-        typer.Option(
-            help="Where the browser reaches the API for the live card, if not --api-url (e.g. a port-forward)"
-        ),
-    ] = None,
-) -> None:
-    """Serve the model-comparison UI: from result files, and/or from the API's jobs (rebuilt on every page load)."""
-    from backseat_driver.reporting.api_source import ApiReportSource
-    from backseat_driver.reporting.ui_server import ReportPage, make_handler
-
-    settings = get_settings()
-    host = host or settings.ui_host
-    port = port or settings.ui_port
-    results = results or ([] if job or all_jobs else _default_results())
-    api_url = api_url or settings.api_url
-    source = ApiReportSource(api_url) if job or all_jobs else None
-
-    page = ReportPage(results, source, job, all_jobs, live_api_url=public_api_url or api_url)
-    _, count = page.render()  # fail now, not on the first request, if a source is unreadable
-    url = f"http://{host}:{port}/"
-    logger.info("serving {} description(s) at {} (Ctrl+C to stop)", count, url)
-    with http.server.ThreadingHTTPServer((host, port), make_handler(page, source)) as server:
-        if open_browser:
-            webbrowser.open(url)
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            logger.info("stopped")
 
 
 def _default_results() -> list[Path]:

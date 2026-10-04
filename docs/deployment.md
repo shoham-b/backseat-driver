@@ -44,7 +44,7 @@ The `ui` service exits at startup when `./output` has no result files yet — ru
 | `db-init` Job | creates the tables; the API and workers recover on their own once it has succeeded |
 | `postgres` StatefulSet, `rabbitmq` Deployment | evaluation-grade; point `BACKSEAT_DRIVER_DATABASE_URL` / `_RABBITMQ_URL` at managed services in production |
 | `s3` Deployment + Service | development-only S3 store (in memory, any credentials) with the `nuscenes` bucket; in production delete `object-store.yaml` and set `BACKSEAT_DRIVER_DATASET_BUCKET`, the `AWS_*` credentials and (for non-AWS stores) `BACKSEAT_DRIVER_S3_ENDPOINT_URL` |
-| `ui` Deployment + Service | the model-comparison report, built on every load from the completed jobs on the API (`--all-jobs`) with images proxied from it; mounts no volume and needs only the API's address. `--public-api-url` is where the browser reaches the API for the live card (a `port-forward` by default) |
+| `ui` Deployment + Service | the model-comparison report, built on every load from the completed jobs on the API (`BACKSEAT_DRIVER_UI_ALL_JOBS`) with images proxied from it; mounts no volume and needs only the API's address. `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where the browser reaches the API for the live card (a `port-forward` by default) |
 | `nuscenes-data`, `results` PVCs | the dataset (read-only; mounted by the `dataset-upload` Job and the example run job, by no worker and not by the UI) and the result JSON files the example run job writes |
 
 ```bash

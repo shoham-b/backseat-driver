@@ -22,9 +22,9 @@ run *ARGS:
 report *ARGS:
     uv run backseat-driver report {{ARGS}}
 
-# Serve the model-comparison UI locally (default: every JSON in output/)
-ui *ARGS:
-    uv run backseat-driver ui {{ARGS}}
+# Serve the model-comparison UI: every JSON in output/, plus the API's jobs with BACKSEAT_DRIVER_UI_ALL_JOBS=true
+ui:
+    uv run fastapi run backseat_driver/reporting/ui_server.py --host {{ui_host}} --port {{ui_port}}
 
 # Auto-fix and format
 fmt:
@@ -79,6 +79,8 @@ export PYTHON_VERSION := trim(read(justfile_directory() / ".python-version"))
 
 api_host := env("BACKSEAT_DRIVER_API_HOST", "127.0.0.1")
 api_port := env("BACKSEAT_DRIVER_API_PORT", "8080")
+ui_host := env("BACKSEAT_DRIVER_UI_HOST", "127.0.0.1")
+ui_port := env("BACKSEAT_DRIVER_UI_PORT", "8081")
 
 # Local dev server with auto-reload; no Docker. Monolith mode: /describe and /jobs all work in this one process, with no broker, database or workers (job state is lost on restart)
 dev:
