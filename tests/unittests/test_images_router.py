@@ -4,14 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backseat_driver.api.app import create_app
-from backseat_driver.api.dependencies import get_image_service
-from backseat_driver.datasets.image_service import ImageService
+from backseat_driver.api.dependencies import get_image_store
 from tests.fakes import FakeImageStore, make_settings
 
 
 def _client() -> TestClient:
     app = create_app(make_settings())
-    app.dependency_overrides[get_image_service] = lambda: ImageService(FakeImageStore())
+    app.dependency_overrides[get_image_store] = FakeImageStore
     return TestClient(app)
 
 

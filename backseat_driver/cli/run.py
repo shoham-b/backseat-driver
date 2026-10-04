@@ -18,7 +18,7 @@ from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progres
 
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
-from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.logger import LogFormat
 from backseat_driver.models import SceneKeyframe
 
 

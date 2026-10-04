@@ -1,11 +1,13 @@
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import Request
+from fastapi import Depends, Request
 
 from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.datasets.image_service import ImageService
+from backseat_driver.datasets.image_store import ImageStore
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore
 
@@ -14,8 +16,13 @@ def get_captioner(request: Request) -> Captioner:
     return request.app.state.captioner  # type: ignore[no-any-return]
 
 
-def get_image_service(request: Request) -> ImageService:
-    return request.app.state.image_service  # type: ignore[no-any-return]
+def get_image_store(request: Request) -> ImageStore:
+    return request.app.state.image_store  # type: ignore[no-any-return]
+
+
+def get_image_service(store: Annotated[ImageStore, Depends(get_image_store)]) -> ImageService:
+    # Built per request from the store: the service is cheap, the store (its client) lives as long as the app.
+    return ImageService(store)
 
 
 def get_job_queue(request: Request) -> JobQueue:

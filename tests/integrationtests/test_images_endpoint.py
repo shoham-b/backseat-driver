@@ -8,8 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backseat_driver.api.app import create_app
-from backseat_driver.api.dependencies import get_image_service
-from backseat_driver.datasets.image_service import ImageService
+from backseat_driver.api.dependencies import get_image_store
 from backseat_driver.datasets.local_image_store import LocalImageStore
 from tests.fakes import make_settings
 
@@ -25,7 +24,7 @@ def client(tmp_path: Path) -> Iterator[TestClient]:
     (dataroot / "v1.0-mini" / "scene.json").write_text("[]")
     (tmp_path / "secret.jpg").write_bytes(b"not part of the dataset")
     app = create_app(make_settings())
-    app.dependency_overrides[get_image_service] = lambda: ImageService(LocalImageStore(str(dataroot)))
+    app.dependency_overrides[get_image_store] = lambda: LocalImageStore(str(dataroot))
     with TestClient(app) as test_client:
         yield test_client
 

@@ -19,7 +19,6 @@ from backseat_driver.api.routers.jobs import router as jobs_router
 from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.datasets.factory import build_image_store
-from backseat_driver.datasets.image_service import ImageService
 from backseat_driver.errors import BackseatDriverError
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.logger import LogFormat, setup_logging
@@ -36,7 +35,6 @@ def create_app(settings: Settings) -> FastAPI:
         app.state.captioner = build_captioner(settings)
         # The bucket in distributed mode, the local dataroot otherwise; a distributed API without a bucket fails here.
         app.state.image_store = build_image_store(settings)
-        app.state.image_service = ImageService(app.state.image_store)
         # In distributed mode neither client connects until first use, so startup never blocks on the broker
         # or database; /ready reports whether they are reachable.
         app.state.job_queue, app.state.job_store = build_job_backend(

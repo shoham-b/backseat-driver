@@ -131,7 +131,7 @@ services:
       target: cli
     command: ["db", "init"]
     environment:
-      <<: *distributed-env
+      <<: [*distributed-env, *dataset-store-env]
     depends_on:
       postgres:
         condition: service_healthy

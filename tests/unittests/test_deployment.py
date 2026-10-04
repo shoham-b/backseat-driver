@@ -313,3 +313,19 @@ def test_the_report_ui_mounts_no_volume_and_probes_without_the_api() -> None:
     assert "volumeMounts" not in ui
     assert "--all-jobs" in ui["args"]
     assert ui["readinessProbe"]["httpGet"]["path"] == "/healthz"
+
+
+def test_every_compose_service_in_distributed_mode_is_given_the_dataset_bucket() -> None:
+    services = _compose_services()
+
+    distributed = {
+        name
+        for name, service in services.items()
+        if service.get("environment", {}).get("BACKSEAT_DRIVER_MODE") == RunMode.DISTRIBUTED
+    }
+
+    assert {"api", "ingest-worker", "caption-worker", "db-init"} <= distributed
+    for name in distributed:
+        assert services[name]["environment"].get("BACKSEAT_DRIVER_DATASET_BUCKET"), (
+            name
+        )  # Settings refuses to load without it
