@@ -1,0 +1,56 @@
+# The kind overlay for CI (the `kind` job in .github/workflows/ci.yml): the same cluster, but with a stub model
+# server instead of downloading weights, small resource requests so many replicas fit on a runner, and fast
+# autoscaling so the scale-up/scale-down check finishes in minutes. It also leaves out the `cli` image (the largest
+# cost of the job after the build cache): db-init runs on the API image, which has the same CLI, and the `ui`
+# Deployment is dropped, since it only runs once a batch run has written results.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: backseat-driver
+resources:
+  - ../kind
+  - stub-ollama.yaml
+configMapGenerator:
+  - name: stub-ollama
+    files: [stub_ollama.py]
+generatorOptions:
+  disableNameSuffixHash: true
+patches:
+  - target: {kind: Job, name: db-init}
+    patch: |-
+      - {op: replace, path: /spec/template/spec/containers/0/image, value: backseat-driver-api:local}
+      - {op: add, path: /spec/template/spec/containers/0/command, value: [backseat-driver]}
+  - target: {kind: Deployment, name: ui}
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ui
+  - target: {kind: Service, name: ui}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ui
+  - target: {kind: ConfigMap, name: backseat-driver-config}
+    patch: |-
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: backseat-driver-config
+      data:
+        BACKSEAT_DRIVER_VLM_BACKEND: ollama
+        BACKSEAT_DRIVER_OLLAMA_MODEL_NAME: stub
+        BACKSEAT_DRIVER_OLLAMA_URL: http://stub-ollama:11434
+  - target: {kind: Deployment, name: caption-worker}
+    patch: |-
+      - {op: replace, path: /spec/template/spec/containers/0/resources, value: {requests: {cpu: 20m, memory: 128Mi}}}
+  - target: {kind: ScaledObject, name: caption-worker}
+    patch: |-
+      - {op: add, path: /spec/pollingInterval, value: 5}
+      - {op: replace, path: /spec/triggers/0/metadata/value, value: "5"}
+      - {op: replace, path: /spec/advanced/horizontalPodAutoscalerConfig/behavior/scaleDown/stabilizationWindowSeconds, value: 30}
+images:
+  # The stub runs on the API image, added here after the kind overlay's image rewrite.
+  - {name: ghcr.io/shoham-b/backseat-driver-api, newName: backseat-driver-api, newTag: local}
