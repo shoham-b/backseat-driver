@@ -106,6 +106,7 @@ api = [
     { name = "boto3" },
     { name = "celery" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "kombu" },
     { name = "loguru" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
@@ -121,6 +122,7 @@ api = [
 caption-worker = [
     { name = "boto3" },
     { name = "celery" },
+    { name = "kombu" },
     { name = "loguru" },
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
@@ -136,6 +138,7 @@ cli = [
     { name = "boto3" },
     { name = "celery" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "kombu" },
     { name = "loguru" },
     { name = "nuscenes-devkit" },
     { name = "pillow" },
@@ -162,6 +165,7 @@ dev = [
     { name = "fastapi", extra = ["standard"] },
     { name = "httpx" },
     { name = "hypothesis" },
+    { name = "kombu" },
     { name = "loguru" },
     { name = "nuscenes-devkit" },
     { name = "pillow" },
@@ -192,6 +196,7 @@ docs = [
 ingest-worker = [
     { name = "boto3" },
     { name = "celery" },
+    { name = "kombu" },
     { name = "loguru" },
     { name = "nuscenes-devkit" },
     { name = "psycopg", extra = ["binary"] },
@@ -202,6 +207,7 @@ ingest-worker = [
 ]
 jobs = [
     { name = "celery" },
+    { name = "kombu" },
     { name = "psycopg", extra = ["binary"] },
     { name = "sqlalchemy" },
 ]
@@ -237,6 +243,7 @@ api = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "celery", specifier = ">=5.6.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "pillow", specifier = ">=10.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -251,6 +258,7 @@ api = [
 caption-worker = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "celery", specifier = ">=5.6.3" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "pillow", specifier = ">=10.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -265,6 +273,7 @@ cli = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "celery", specifier = ">=5.6.3" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "nuscenes-devkit", specifier = ">=1.1.11" },
     { name = "pillow", specifier = ">=10.4" },
@@ -290,6 +299,7 @@ dev = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.28" },
     { name = "hypothesis", specifier = ">=6" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "nuscenes-devkit", specifier = ">=1.1.11" },
     { name = "pillow", specifier = ">=10.4" },
@@ -319,6 +329,7 @@ docs = [
 ingest-worker = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "celery", specifier = ">=5.6.3" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "nuscenes-devkit", specifier = ">=1.1.11" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -329,6 +340,7 @@ ingest-worker = [
 ]
 jobs = [
     { name = "celery", specifier = ">=5.6.3" },
+    { name = "kombu", specifier = ">=5.6.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "sqlalchemy", specifier = ">=2.0" },
 ]
