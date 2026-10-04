@@ -83,7 +83,7 @@ Stated explicitly, per the assignment's request:
 uv sync --group dev
 
 # 2. Run the pipeline (downloads the nuScenes v1.0-mini dataset and the model on first use)
-uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
+uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
 # → output/huggingface__Salesforce-blip-image-captioning-base.json
 
 # 3. Compare the models you have run
@@ -93,7 +93,7 @@ uv run backseat-driver ui    # http://localhost:8081
 Or fully containerized, no local Python required:
 
 ```bash
-just docker-run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
+just docker-run --camera front --model Salesforce/blip-image-captioning-base
 ```
 
 Full setup instructions (including the HTTP API) are in

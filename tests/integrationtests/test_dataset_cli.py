@@ -18,7 +18,7 @@ def _fresh_settings() -> Iterator[None]:
 
 
 def test_upload_rejects_a_camera_together_with_all_cameras() -> None:
-    result = runner.invoke(app, ["dataset", "upload", "--camera", "CAM_BACK", "--all-cameras"])
+    result = runner.invoke(app, ["dataset", "upload", "--camera", "back", "--all-cameras"])
 
     assert result.exit_code == 2
 

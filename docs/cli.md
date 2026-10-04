@@ -30,8 +30,8 @@ uv run backseat-driver run [OPTIONS]
 |---|---|---|---|
 | `--dataroot` | `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | nuScenes dataset version |
-| `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera channel used as the representative frame, e.g. `CAM_FRONT`. Repeat it (`--camera CAM_FRONT --camera CAM_BACK`) to describe several cameras |
-| `--all-cameras` | — | — | Describe all six cameras (`CAM_FRONT`, `CAM_FRONT_RIGHT`, `CAM_BACK_RIGHT`, `CAM_BACK`, `CAM_BACK_LEFT`, `CAM_FRONT_LEFT`) of every scene. Cannot be combined with `--camera` |
+| `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera used as the representative frame: `front`, `front_right`, `back_right`, `back`, `back_left` or `front_left` (nuScenes' `CAM_FRONT` etc.). Repeat it (`--camera front --camera back`) to describe several cameras |
+| `--all-cameras` | — | — | Describe all six cameras of every scene. Cannot be combined with `--camera` |
 | `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` / `..._ANTHROPIC_MODEL_NAME` | **required** (no default) | Model for the chosen backend, e.g. `Salesforce/blip-image-captioning-base`, `llava`, `claude-haiku-4-5-20251001`. Fails fast if neither the flag nor the variable is set |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
@@ -41,17 +41,17 @@ uv run backseat-driver run [OPTIONS]
 
 ```bash
 # Full v1.0-mini run on the front camera
-uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
+uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
 
 # Pick the backend and model; the output file is inferred
-uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava:13b
+uv run backseat-driver run --camera front --backend ollama --model llava:13b
 # -> output/ollama__llava-13b.json
 
 # Quick check against the first 2 scenes only
-uv run backseat-driver run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base --max-scenes 2
+uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base --max-scenes 2
 
 # Different dataset location and camera
-uv run backseat-driver run --dataroot /mnt/nuscenes --camera CAM_BACK --model Salesforce/blip-image-captioning-base
+uv run backseat-driver run --dataroot /mnt/nuscenes --camera back --model Salesforce/blip-image-captioning-base
 
 # Every camera of every scene, in one result file
 uv run backseat-driver run --all-cameras --model Salesforce/blip-image-captioning-base
@@ -71,8 +71,8 @@ Compare how several models described the same scenes. Takes the JSON files writt
 model; default: every `*.json` in the output directory) and writes a single self-contained HTML page (images embedded, no server needed).
 
 ```bash
-uv run backseat-driver run --camera CAM_FRONT --backend huggingface --model Salesforce/blip-image-captioning-base
-uv run backseat-driver run --camera CAM_FRONT --backend ollama --model llava
+uv run backseat-driver run --camera front --backend huggingface --model Salesforce/blip-image-captioning-base
+uv run backseat-driver run --camera front --backend ollama --model llava
 uv run backseat-driver report        # every output/*.json -> output/report.html
 ```
 
@@ -114,7 +114,7 @@ A job that is still running is an error rather than a partial report. When debug
 
 ## `dataset upload`
 
-`backseat-driver dataset upload [--camera CAM_FRONT ...| --all-cameras] [--dataroot DIR] [--version v1.0-mini]` copies the dataset's metadata tables and the chosen cameras' images from a local dataroot into the dataset bucket (`BACKSEAT_DRIVER_DATASET_BUCKET`), once, for the distributed mode. Reruns replace the tables and skip images already there. Without `--camera` it uploads the configured camera. Not needed when debugging as a monolith.
+`backseat-driver dataset upload [--camera front ...| --all-cameras] [--dataroot DIR] [--version v1.0-mini]` copies the dataset's metadata tables and the chosen cameras' images from a local dataroot into the dataset bucket (`BACKSEAT_DRIVER_DATASET_BUCKET`), once, for the distributed mode. Reruns replace the tables and skip images already there. Without `--camera` it uploads the configured camera. Not needed when debugging as a monolith.
 
 ## `worker`
 

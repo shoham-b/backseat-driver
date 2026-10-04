@@ -120,7 +120,7 @@ Run through this before tagging a release; each step lists what "good" looks lik
 
 1. `just lint typecheck test` — all green, coverage ≥ 95 %.
 2. `just test-system` — system + smoke tests pass against the containerised stack.
-3. **Batch + UI**: `just test-ui` (Selenium), then `just run --camera CAM_FRONT --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
+3. **Batch + UI**: `just test-ui` (Selenium), then `just run --camera front --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
    scores, working filters, no browser-console errors and no horizontal scrolling at phone width.
 4. **Distributed stack**: `just compose up --build`, then `curl localhost:8080/ready` → 200;
    `POST /jobs` → 202; `GET /jobs/{id}` reaches `completed`; `GET /jobs/{id}/descriptions` has one entry per scene.
