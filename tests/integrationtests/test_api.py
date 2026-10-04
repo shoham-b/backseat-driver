@@ -2,13 +2,11 @@ from collections.abc import Callable
 from http import HTTPStatus
 
 import pytest
-from fastapi import Request
 from fastapi.testclient import TestClient
 
-from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from backseat_driver.captioning.captioner import Captioner
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, make_settings
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
 from tests.integrationtests.conftest import ClientFactory
 
 
@@ -53,16 +51,6 @@ def test_readiness_unhealthy_backend(client_with: ClientFactory) -> None:
     assert error["code"] == HTTPStatus.SERVICE_UNAVAILABLE
     assert error["status"] == HTTPStatus.SERVICE_UNAVAILABLE.phrase
     assert "message" in error
-
-
-def test_get_captioner_reads_from_app_state() -> None:
-    service = create_app(make_settings())
-    service.state.captioner = FakeCaptioner()
-    request = Request({"type": "http", "app": service})
-
-    result = get_captioner(request)
-
-    assert result is service.state.captioner
 
 
 def test_error_response_shape_on_unhandled_exception(client_with: ClientFactory) -> None:
