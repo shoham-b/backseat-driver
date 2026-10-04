@@ -9,13 +9,30 @@
 [![Docs](https://img.shields.io/badge/docs-github--pages-blue)](https://shoham-b.github.io/backseat-driver/)
 [![Generated from python-project-template](https://img.shields.io/badge/generated%20from-python--project--template-8A2BE2)](https://github.com/shoham-b/python-project-template)
 
-A small production-shaped service for running vision-language model (VLM) inference over images and
-getting back natural-language descriptions, with the model and runtime (HuggingFace, Ollama, Claude) swappable
-behind one interface. The [nuScenes v1.0-mini](https://www.nuscenes.org/nuscenes) driving dataset is the demo
-input: it shows the pipeline describing a set of scenes end to end, but nothing in the design is specific to it.
-Built for the "Scene Description via VLM" take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf)).
+**Describe images in natural language with a vision-language model (VLM), and compare models side by side.**
 
-## What it does
+Backseat Driver reads a set of images, asks a VLM to describe each one, and writes the descriptions
+out. The model and runtime are swappable behind one interface (a local HuggingFace model, a local
+[Ollama](https://ollama.com) server, or the hosted Claude API), and the same code runs as a
+one-process script on a laptop or as a queue-backed service on Kubernetes.
+
+The [nuScenes v1.0-mini](https://www.nuscenes.org/nuscenes) driving dataset is the demo input, which is
+where the name comes from. It gives the pipeline realistic camera frames and a human-written label to
+score against; nothing in the design is specific to it. Built for the "Scene Description via VLM"
+take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf)).
+
+## Highlights
+
+- **Pick your model.** `--backend huggingface|ollama|anthropic` and `--model <name>`: terse captions from a
+  CPU-only BLIP, or verbose prompt-driven descriptions from `llava` or Claude.
+- **Compare models.** Every run writes `output/<backend>__<model>.json`, so results never overwrite each
+  other. `just ui` scores them against the nuScenes labels and shows them side by side.
+- **One pipeline, three scales.** The same read → process → write code runs in one process, as tasks on a
+  thread inside the API, or as separate services over RabbitMQ, S3 and Postgres.
+- **Production-shaped.** Ports and adapters, typed, fail-fast, structured logs, a Dockerfile target per
+  service, Kubernetes manifests with queue-depth autoscaling, and five layers of tests.
+
+## How it works
 
 ```
    read/                     process/                    write/
@@ -24,73 +41,46 @@ Built for the "Scene Description via VLM" take-home assignment (see [home_assign
 └─────────────┘          └──────────────┘          └──────────────┘
 ```
 
+1. **Read.** [`NuScenesSceneLoader`](backseat_driver/read/nuscenes_scene_loader.py) picks one representative
+   keyframe per scene and camera (the midpoint of the scene, not the static first frame). The dataset is
+   downloaded into `data/sets/nuscenes` on first use.
+2. **Process.** A [`Captioner`](backseat_driver/process/captioner.py) pairs a runtime with a model:
 
-The demo runs on nuScenes; the loader is the only dataset-specific step.
+   | Backend | Runs | Output style |
+   |---|---|---|
+   | `huggingface` | a local `image-to-text` pipeline, CPU-only (e.g. `Salesforce/blip-image-captioning-base`) | terse caption |
+   | `ollama` | a local Ollama server (e.g. `llava`) | short keyword list in the style of the nuScenes labels |
+   | `anthropic` | the hosted Claude API | short keyword list in the style of the nuScenes labels |
 
-1. **Loads a scene** — [`read/nuscenes_scene_loader.py`](backseat_driver/read/nuscenes_scene_loader.py) reads the
-   dataset via `nuscenes-devkit` and picks one representative keyframe image per scene and camera (at the
-   midpoint of the scene rather than the first frame). The dataset is downloaded into `data/sets/nuscenes` on first use.
-2. **Runs a VLM** — a [`Captioner`](backseat_driver/process/captioner.py) pairs a runtime with a model:
-   a local HuggingFace `image-to-text` model (e.g. `Salesforce/blip-image-captioning-base`, CPU-only, terse captions),
-   a local [Ollama](https://ollama.com) server (e.g. `llava`), or the hosted Claude API, the last two prompted for a
-   short keyword list in the style of the nuScenes labels. Pick one with `--backend` and `--model`.
-3. **Outputs the results** — [`write/json_writer.py`](backseat_driver/write/json_writer.py) writes one JSON object
-   per scene and camera to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
+3. **Write.** [`write_json`](backseat_driver/write/json_writer.py) writes one object per scene and camera:
 
    ```json
-   [
-     {
-       "scene_token": "cc8c0bf57f984915a77078b10eb33198",
-       "scene_name": "scene-0061",
-       "camera_channel": "CAM_FRONT",
-       "image_path": "data/sets/nuscenes/samples/CAM_FRONT/...jpg",
-       "reference_description": "Parked truck, construction, intersection, turn left, following a van",
-       "description": "a city street with cars and pedestrians",
-       "model_name": "Salesforce/blip-image-captioning-base",
-       "generated_at": "2026-09-27T12:00:00Z"
-     }
-   ]
+   {
+     "scene_token": "cc8c0bf57f984915a77078b10eb33198",
+     "scene_name": "scene-0061",
+     "camera_channel": "CAM_FRONT",
+     "image_path": "data/sets/nuscenes/samples/CAM_FRONT/...jpg",
+     "reference_description": "Parked truck, construction, intersection, turn left, following a van",
+     "description": "a city street with cars and pedestrians",
+     "model_name": "Salesforce/blip-image-captioning-base",
+     "generated_at": "2026-09-27T12:00:00Z"
+   }
    ```
 
-   `reference_description` is nuScenes' own human-written scene label. `backseat-driver report` and `ui` use it to score
-   and compare the output files of different models side by side.
+   `reference_description` is nuScenes' own label, which `report` and `ui` use to score each model.
 
-Swapping the dataset means writing another [`SceneLoader`](backseat_driver/read/scene_loader.py); the VLM side
-([`Captioner`](backseat_driver/process/captioner.py)) doesn't change. Both are abstract ports composed in
-[`pipeline.py`](backseat_driver/pipeline.py), so the orchestration logic never imports
-nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
-
-The same captioning is also available as a service: `POST /describe` captions one uploaded image, and `POST /jobs`
-runs a whole dataset asynchronously (see [One pipeline, three ways to run it](#one-pipeline-three-ways-to-run-it)).
-
-## Assumptions
-
-Stated explicitly, per the assignment's request:
-
-- **Representative frame = midpoint of the scene's keyframes.** The first frame is often a static lead-in; the
-  midpoint is more likely to show the scene in motion. The camera and the selection policy are the only
-  "scene → single image" choice this pipeline makes: pass `--camera` (repeatable) or `--all-cameras`, there is no default.
-- **"Small/basic VLM is fine"** is taken literally for the CPU-only example: `Salesforce/blip-image-captioning-base`
-  (~990MB) rather than a larger multimodal LLM. There is no default model, so pass `--model` or set the matching
-  `BACKSEAT_DRIVER_*_MODEL_NAME`. Any HuggingFace `image-to-text` model works, as do Ollama and Claude models for richer output.
-- **The dataset is a demo input, not the point.** The goal is VLM inference; nuScenes just gives it realistic
-  images to run on. It is not bundled (its license doesn't permit redistribution), so the loader downloads
-  v1.0-mini into `data/sets/nuscenes` (gitignored) on first use and re-downloads when the archive changes.
-- **Batch job is the primary shape.** The assignment describes a pipeline over a *set* of scenes, so the CLI
-  (`backseat-driver describe`) producing one JSON file is the main deliverable. The HTTP API is the optional deployment
-  of the same pipeline, answering "how would you deploy this" — see [docs/technology.md#deployment-shapes](docs/technology.md#deployment-shapes).
-- **No GPU, no batching.** Scenes are captioned one at a time, and the HuggingFace example runs on CPU, matching "no need for
-  large models or GPU inference." For v1.0-mini's 10 scenes this is seconds-to-low-minutes after the model
-  is cached. Scale comes from the distributed workers (more caption workers), not from batched inference, which
-  `ScenePipeline` doesn't do.
+The loader and the captioner are abstract ports composed in [`pipeline.py`](backseat_driver/pipeline.py),
+which never imports nuscenes-devkit, transformers or torch, so it is unit-tested with fakes. To use a
+different dataset, write another [`SceneLoader`](backseat_driver/read/scene_loader.py); the model side does
+not change.
 
 ## Quickstart
 
 ```bash
-# 1. Install deps
+# 1. Install dependencies
 uv sync --group dev
 
-# 2. Run the pipeline (downloads the nuScenes v1.0-mini dataset and the model on first use)
+# 2. Describe the scenes (downloads the dataset and the model on first use)
 uv run backseat-driver describe --camera front --model Salesforce/blip-image-captioning-base
 # → output/huggingface__Salesforce-blip-image-captioning-base.json
 
@@ -98,76 +88,109 @@ uv run backseat-driver describe --camera front --model Salesforce/blip-image-cap
 just ui    # http://localhost:8081
 ```
 
-Or fully containerized, no local Python required:
+No local Python? Run it containerized:
 
 ```bash
 just docker-run --camera front --model Salesforce/blip-image-captioning-base
 ```
 
-Full setup instructions (including the HTTP API) are in
-**[docs/getting-started.md](docs/getting-started.md)**. Full documentation is published at
-**https://shoham-b.github.io/backseat-driver/**.
+Setup details, including the HTTP API, are in [docs/getting-started.md](docs/getting-started.md).
 
 ## One pipeline, three ways to run it
 
-Backseat Driver is one idea: **read** the scenes, **process** each image with a vision-language model, **write** the descriptions. `describe` runs it in one process, and that is the whole program. The same three steps can also run as tasks over a queue: in one process for local development (`just dev`, no broker, bucket or database), or as separate services where RabbitMQ sits between read and process, the dataset lives in S3 and the results in Postgres. Showing the results (`report`, `ui`) is a separate role that only reads what was written. See [From pipeline to cluster](docs/ladder.md) for the three rungs and where each piece enters the code, and [Running it](docs/running.md) for how to start each.
+The three steps never change; each rung adds one thing. [From pipeline to cluster](docs/ladder.md) has
+the diagrams and shows where each piece enters the code.
 
-## How this was tested
+| Rung | Command | What runs | Adds | Needs |
+|---|---|---|---|---|
+| **1. Pipeline** | `just describe` | read, process and write in one function call | nothing | dataset in `data/` |
+| **2. Seam** | `just dev` | the same steps as tasks on a thread inside the API (`POST /jobs`) | an in-process queue and a SQLite job store | dataset in `data/` |
+| **3. Machines** | `just up`, `just k8s-apply` | ingest and caption workers as separate services | RabbitMQ, an S3 bucket and Postgres | Docker or a cluster |
 
-Five layers, matching the "structure it as if this was a production project" ask — see
-[docs/development.md](docs/development.md#tests) for commands:
+`describe --mode distributed` submits the pipeline as a job to a running API and writes the same JSON file
+as rung 1. Showing results (`report`, `ui`) is a separate role that only reads what was written. See
+[Running it](docs/running.md) for every command side by side.
 
-- **Unit** (`tests/unittests/`) — no I/O, no model download, no dataset, one unit at a time. `nuscenes-devkit` and
-  `transformers` are imported lazily inside injected factories, so tests hand in fakes instead of patching anything.
-- **Integration** (`tests/integrationtests/`) — the FastAPI app in-process via `httpx.ASGITransport`, the CLI commands, and
-  the ingest/caption workers wired to in-memory queue and store, with fake captioners so no weights are downloaded.
-  Includes `schemathesis`-driven fuzzing of the OpenAPI schema.
-- **Smoke** (`tests/smoketests/`) — black-box HTTP checks against a running API.
-- **UI** (`tests/uitests/`) — Selenium in headless Chrome against the real model-comparison `ui` server.
-- **System** (`tests/systemtests/`) — full Docker Compose stack.
+The API also exposes the captioner directly: `POST /describe` captions one uploaded image, and `POST /jobs`
+runs a whole dataset asynchronously.
+
+## Design assumptions
+
+- **Representative frame = the midpoint of the scene's keyframes.** The first frame is often a static
+  lead-in. The camera is always an explicit choice: pass `--camera` (repeatable) or `--all-cameras`.
+- **A small VLM is fine.** The CPU-only example uses BLIP base (~990MB), per the assignment's "no need for
+  large models or GPU inference". There is no default model, so pass `--model` or set the matching
+  `BACKSEAT_DRIVER_*_MODEL_NAME`. Any HuggingFace `image-to-text` model works, as do Ollama and Claude models.
+- **The dataset is a demo input, not the point.** It is not bundled (its license forbids redistribution), so
+  it is downloaded into the gitignored `data/sets/nuscenes` on first use.
+- **The batch job is the primary shape.** The assignment describes a pipeline over a set of scenes, so
+  `describe` writing one JSON file is the main deliverable; the API is the optional deployment of the same
+  pipeline ([why](docs/architecture.md#deployment)).
+- **No batching, no GPU.** Scenes are captioned one at a time. Scale comes from more caption workers, not
+  from batched inference.
+
+The alternatives considered and why are in [Design decisions](docs/design-decisions.md).
+
+## Documentation
+
+Published at **https://shoham-b.github.io/backseat-driver/**; the source is in [`docs/`](docs).
+
+| Page | What it covers |
+|---|---|
+| [Getting started](docs/getting-started.md) | Setup, dataset, Docker, the HTTP API, configuration |
+| [Running it](docs/running.md) | Every way to run it: CLI, `just`, Docker, Compose, Kubernetes |
+| [From pipeline to cluster](docs/ladder.md) | How one pipeline grows into a cluster, with diagrams |
+| [Architecture](docs/architecture.md) | Tech stack and object model |
+| [Distributed mode](docs/distributed.md) | Services, scaling and delivery guarantees |
+| [Deployment](docs/deployment.md) | Images, Compose profiles, Kubernetes manifests, release checklist |
+| [Design decisions](docs/design-decisions.md) | The alternatives considered |
+| [Development](docs/development.md) | Task list, tests, conventions |
+| [CLI](docs/cli.md) and [API](docs/api.md) reference | Commands, and the `backseat_driver.*` modules |
+
+## Testing
+
+Five layers, from fastest to slowest (commands in [docs/development.md](docs/development.md#tests)):
+
+- **Unit** (`tests/unittests/`): no I/O, no model download, no dataset. Heavy dependencies are imported lazily
+  inside injected factories, so tests hand in fakes instead of patching anything.
+- **Integration** (`tests/integrationtests/`): the FastAPI app in-process, the CLI commands and the
+  ingest/caption workers on an in-memory queue and store, plus `schemathesis` fuzzing of the OpenAPI schema.
+- **Smoke** (`tests/smoketests/`): black-box HTTP checks against a running API.
+- **UI** (`tests/uitests/`): Selenium in headless Chrome against the real comparison UI.
+- **System** (`tests/systemtests/`): the full Docker Compose stack.
 
 ```bash
-just test          # unit + integration, with coverage (coverage floor enforced in CI)
-just test-ui       # model-comparison UI, needs Chrome
+just test          # unit + integration, with coverage (the floor is enforced in CI)
+just test-ui       # comparison UI, needs Chrome
 just test-system   # full system test via Docker Compose
 ```
-
-## Deployment
-
-See **[docs/technology.md#deployment-shapes](docs/technology.md#deployment-shapes)** for the full discussion. Short
-version: `docker/Dockerfile` has one target per service: `cli` (the pipeline, meant to run as a scheduled batch
-job / CronJob), `api`, `ingest-worker` and `caption-worker`. They are built and pushed to `ghcr.io` in
-[`.github/workflows/docker.yml`](.github/workflows/docker.yml). `just up` runs the stack in Docker Compose, and
-Kubernetes manifests live in [`deploy/k8s`](deploy/k8s) (`kubectl apply -k deploy/k8s`, with optional queue-depth
-autoscaling via KEDA); see **[docs/deployment.md](docs/deployment.md)**.
 
 ## Development
 
 ```bash
 just describe          # run the pipeline
-just ui           # model-comparison UI over ./output (http://localhost:8081)
-just dev          # API dev server with hot reload (monolith mode: no broker/database needed)
-just dev-distributed  # same, against RabbitMQ + Postgres in Docker
-just test         # unit + integration tests
-just fmt          # auto-fix and reformat
-just typecheck    # type check
-just docs         # build docs
+just ui                # model-comparison UI over ./output (http://localhost:8081)
+just dev               # API dev server with hot reload (monolith mode: no broker or database)
+just dev-distributed   # same, against RabbitMQ + Postgres in Docker
+just fmt               # auto-fix and reformat
+just typecheck         # type check
+just docs              # build the docs
 ```
 
-A few recipes are POSIX-only and absent on Windows: `test-system`, `test-all`, `dev-distributed`, `k8s-up` and
-`k8s-validate` (use WSL or Git Bash for those).
-
-See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
-codebase conventions.
+`just --list` shows every recipe. `test-system`, `test-all`, `dev-distributed`, `k8s-up` and `k8s-validate`
+are POSIX-only (use WSL or Git Bash on Windows). Codebase conventions are in [AGENTS.md](AGENTS.md).
 
 The project was scaffolded from [python-project-template](https://github.com/shoham-b/python-project-template)
-(`models/` → the read, process and write packages → `cli/`+`api/`, containerized, CI, typed, tested at four levels)
-and then adapted to this domain.
+and adapted to this domain; [docs/development.md](docs/development.md) lists what was stripped.
 
-## Docker
+## Deployment
+
+`docker/Dockerfile` has one target per service: `cli` (the pipeline, suited to a scheduled batch job),
+`api`, `ingest-worker` and `caption-worker`, built and pushed to `ghcr.io` by
+[`.github/workflows/docker.yml`](.github/workflows/docker.yml).
 
 ```bash
-just docker-run   # the pipeline (primary deliverable)
+just docker-run   # the pipeline, containerized
 just up           # API + RabbitMQ + Postgres + queue workers
 just k8s-apply    # the same stack on Kubernetes (deploy/k8s)
 
@@ -175,12 +198,13 @@ just k8s-apply    # the same stack on Kubernetes (deploy/k8s)
 just compose --profile ui up ui --build
 ```
 
-See [docs/running.md](docs/running.md) for how these, `just dev` and the CLI fit together.
+Kubernetes manifests live in [`deploy/k8s`](deploy/k8s), with optional queue-depth autoscaling via KEDA. See
+[docs/deployment.md](docs/deployment.md).
 
 ## Configuration
 
-All settings are read from environment variables (or `.env`), prefixed `BACKSEAT_DRIVER_`. See
-[.env.example](.env.example) and [docs/getting-started.md#configuration](docs/getting-started.md#configuration).
+All settings are environment variables (or `.env`) prefixed `BACKSEAT_DRIVER_`. Start from
+[.env.example](.env.example); see [docs/getting-started.md#configuration](docs/getting-started.md#configuration).
 
 ## License
 
