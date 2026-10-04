@@ -1,6 +1,8 @@
 # The kind overlay for CI (the `kind` job in .github/workflows/ci.yml): the same cluster, but with a stub model
 # server instead of downloading weights, small resource requests so many replicas fit on a runner, and fast
-# autoscaling so the scale-up/scale-down check finishes in minutes.
+# autoscaling so the scale-up/scale-down check finishes in minutes. It also leaves out the `cli` image (the largest
+# cost of the job after the build cache): db-init runs on the API image, which has the same CLI, and the `ui`
+# Deployment is dropped, since it only runs once a batch run has written results.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: backseat-driver
@@ -13,6 +15,24 @@ configMapGenerator:
 generatorOptions:
   disableNameSuffixHash: true
 patches:
+  - target: {kind: Job, name: db-init}
+    patch: |-
+      - {op: replace, path: /spec/template/spec/containers/0/image, value: backseat-driver-api:local}
+      - {op: add, path: /spec/template/spec/containers/0/command, value: [backseat-driver]}
+  - target: {kind: Deployment, name: ui}
+    patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ui
+  - target: {kind: Service, name: ui}
+    patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ui
   - target: {kind: ConfigMap, name: backseat-driver-config}
     patch: |-
       apiVersion: v1

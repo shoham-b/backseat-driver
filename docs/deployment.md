@@ -94,14 +94,16 @@ just k8s-down     # delete the cluster
 
 ### Continuous testing on kind
 
-The `kind` job in `.github/workflows/ci.yml` runs the kind deployment in CI: it builds the four images from
-`docker/Dockerfile`, creates the cluster, installs the pinned KEDA release (the Justfile's `keda_version`), applies
-`deploy/kind-ci`, runs the system and smoke tests against the API, and then `deploy/kind-ci/check-scaling.sh`. That
-script queues captions, expects KEDA to scale `caption-worker` up (at least 3 replicas), every caption to be recorded,
-and the workers to scale back to 1.
+The `kind` job in `.github/workflows/ci.yml` runs the kind deployment in CI: it builds the api, ingest-worker and
+caption-worker images from `docker/Dockerfile`, creates the cluster, installs the pinned KEDA release (the Justfile's
+`keda_version`), applies `deploy/kind-ci`, runs the system and smoke tests against the API, and then
+`deploy/kind-ci/check-scaling.sh`. That script queues captions, expects KEDA to scale `caption-worker` up (at least 3
+replicas), every caption to be recorded, and the workers to scale back to 1.
 
 `deploy/kind-ci` is `deploy/kind` plus a stub model server (no weights to download), small resource requests so many
-replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window).
+replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window). It leaves out the `cli`
+image and the `ui` Deployment to save build and load time: `db-init` runs on the API image, which has the same CLI, and
+`ui` only starts once a batch run has written results.
 The manifests, probes and ScaledObjects under test are otherwise the real ones. Like `test-system` and
 `deploy-config`, the job runs on every push to the main branch and on pull requests that touch `docker/` or `deploy/`
 (the `deployment` filter of the `changes` job).

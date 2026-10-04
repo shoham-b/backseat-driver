@@ -164,52 +164,13 @@ jobs:
 
       - uses: docker/setup-buildx-action@v4
 
-      # One step per image target, built from the real Dockerfile with a cache scope each so they don't evict
-      # one another. `load` puts the image in the local daemon, from where `kind load` copies it into the cluster.
-      - name: Build api image
-        uses: docker/build-push-action@v7
+      # The three images are built concurrently from one bake file, each with its own cache scope. `load` puts them in
+      # the local daemon, from where `kind load` copies them into the cluster.
+      - name: Build images
+        uses: docker/bake-action@v7
         with:
-          context: .
-          file: docker/Dockerfile
-          target: api
-          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
+          files: deploy/kind-ci/docker-bake.hcl
           load: true
-          tags: backseat-driver-api:local
-          cache-from: type=gha,scope=kind-api
-          cache-to: type=gha,scope=kind-api,mode=max
-      - name: Build ingest-worker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: ingest-worker
-          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-          load: true
-          tags: backseat-driver-ingest-worker:local
-          cache-from: type=gha,scope=kind-ingest-worker
-          cache-to: type=gha,scope=kind-ingest-worker,mode=max
-      - name: Build caption-worker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: caption-worker
-          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-          load: true
-          tags: backseat-driver-caption-worker:local
-          cache-from: type=gha,scope=kind-caption-worker
-          cache-to: type=gha,scope=kind-caption-worker,mode=max
-      - name: Build cli image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: docker/Dockerfile
-          target: cli
-          build-args: PYTHON_VERSION=${{ env.PYTHON_VERSION }}
-          load: true
-          tags: backseat-driver-cli:local
-          cache-from: type=gha,scope=kind-cli
-          cache-to: type=gha,scope=kind-cli,mode=max
 
       - name: Create ./data (mounted into the kind node)
         run: mkdir -p data
@@ -222,8 +183,7 @@ jobs:
       - name: Load images into the cluster
         run: |
           kind load docker-image --name "$CLUSTER" \
-            backseat-driver-api:local backseat-driver-ingest-worker:local \
-            backseat-driver-caption-worker:local backseat-driver-cli:local
+            backseat-driver-api:local backseat-driver-ingest-worker:local backseat-driver-caption-worker:local
 
       - name: Install KEDA
         run: |
