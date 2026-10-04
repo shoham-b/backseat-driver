@@ -3,8 +3,13 @@
 Usage::
 
     backseat-driver worker ingest
+    backseat-driver worker ingest --once   # one task, then exit (a Job per queued task)
     backseat-driver worker caption
 """
+
+from typing import Annotated
+
+import typer
 
 from backseat_driver.cli import worker_app
 from backseat_driver.config import get_settings
@@ -15,12 +20,21 @@ _NO_CLUSTER = ["--without-gossip", "--without-mingle", "--without-heartbeat"]
 
 
 @worker_app.command()
-def ingest() -> None:
-    """Consume ingest tasks: load the dataset and fan out one caption task per scene."""
+def ingest(
+    once: Annotated[
+        bool,
+        typer.Option("--once", help="Handle one task, then exit, for a run-to-completion Job started per queued task"),
+    ] = False,
+) -> None:
+    """Consume ingest tasks: load the dataset metadata and fan out one caption task per scene."""
     from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
+    from backseat_driver.jobs.consume_one import consume_one
     from backseat_driver.tasks import celery_app
 
     setup_logging(LogFormat(get_settings().log_format), service="ingest-worker")
+    if once:
+        consume_one(celery_app, INGEST_QUEUE)
+        return
     celery_app.worker_main(["worker", "-Q", INGEST_QUEUE, "-n", "ingest@%h", "--pool=solo", *_NO_CLUSTER])
 
 

@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     # Distributed mode only (API + queue workers)
     rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
     database_url: str = "postgresql+psycopg://backseat_driver:backseat_driver@localhost:5432/backseat_driver"
+    # Where the dataset lives for the distributed workers and API (S3-compatible; credentials via the AWS_* variables).
+    # Required when `mode` is distributed (checked below) and unused by the monolith, hence no default. The endpoint is
+    # only for S3-compatible stores that are not AWS.
+    dataset_bucket: str | None = None
+    s3_endpoint_url: str | None = None
 
     # Pipeline output: `run` writes <output_dir>/<backend>__<model>.json unless told otherwise
     output_dir: str = "output"
@@ -87,6 +92,12 @@ class Settings(BaseSettings):
         # Model names contain "/" and ":" (e.g. "Salesforce/blip-...", "llava:13b"), which are unsafe in filenames.
         slug = re.sub(r"[^A-Za-z0-9._-]+", "-", self.model_name_for(backend, model_name)).strip("-")
         return f"{self.output_dir}/{backend.value}__{slug}.json"
+
+    @model_validator(mode="after")
+    def _distributed_needs_a_dataset_bucket(self) -> Self:
+        if self.mode is RunMode.DISTRIBUTED and not self.dataset_bucket:
+            raise ValueError("BACKSEAT_DRIVER_DATASET_BUCKET must be set when BACKSEAT_DRIVER_MODE is distributed")
+        return self
 
     @model_validator(mode="after")
     def _default_cors_origins(self) -> Self:

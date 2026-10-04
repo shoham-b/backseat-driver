@@ -1,5 +1,8 @@
-# Each worker has its own image (no torch in ingest, no nuscenes-devkit in caption). Scale caption-worker with
-# `kubectl scale` or let KEDA do it (deploy/components/keda-autoscaling); replicas share one queue.
+# Each worker has its own image (no torch in ingest, no nuscenes-devkit in caption). Neither mounts the dataset: the
+# dataset-upload Job puts it in the dataset bucket (object-store.yaml in development), ingest reads only its metadata
+# tables from there and the caption workers fetch single images, so both can run on any node.
+# Scale caption-worker with `kubectl scale` or let KEDA do it (deploy/components/keda-autoscaling); replicas share one queue.
+# With KEDA the ingest-worker Deployment is replaced by a Job per queued ingest task.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -21,14 +24,9 @@ spec:
           envFrom:
             - configMapRef: {name: backseat-driver-config}
             - secretRef: {name: backseat-driver-secrets}
-          volumeMounts:
-            - {name: data, mountPath: /app/data, readOnly: true}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
           resources:
             requests: {cpu: 100m, memory: 512Mi}
-      volumes:
-        - name: data
-          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -52,13 +50,10 @@ spec:
             - configMapRef: {name: backseat-driver-config}
             - secretRef: {name: backseat-driver-secrets}
           volumeMounts:
-            - {name: data, mountPath: /app/data, readOnly: true}
             - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
           securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
           resources:
             requests: {cpu: 500m, memory: 2Gi}
             limits: {memory: 4Gi}
       volumes:
-        - name: data
-          persistentVolumeClaim: {claimName: nuscenes-data, readOnly: true}
         - {name: hf-cache, emptyDir: {}}

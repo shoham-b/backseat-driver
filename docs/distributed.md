@@ -7,26 +7,30 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
                   │
                   └─(2) IngestTask──▶ RabbitMQ [backseat_driver.ingest]
                                           ▼
-                              ingest-worker (NuScenesSceneLoader)
+                              ingest-worker (StoredSceneLoader)
+                                 │ reads the metadata tables ◀── S3 bucket (dataset)
                                  │ set expected_scenes, then one CaptionTask per scene
                                  ▼
                           RabbitMQ [backseat_driver.caption]
                                  ▼
-                     caption-worker × N (BackendCaptioner, model loaded once)
+                     caption-worker × N (fetches one image from the bucket,
+                                         BackendCaptioner, model loaded once)
                                  ▼
                       Postgres (scene_descriptions)  ◀── GET /jobs/{id}
 ```
 
-## Monolith vs. distributed
+## Microservices vs. monolith
 
-`BACKSEAT_DRIVER_MODE` picks how the API runs `/jobs`; `jobs.factory.build_job_backend` wires the matching `JobQueue` and `JobStore`.
+This repository is a monorepo of microservices (`api`, `ingest-worker`, `caption-worker`, the report UI, one-shot `dataset-upload` and `db-init`), each built into its own image from the same package. The same code can also be debugged as a monolith: one process runs the API and both workers together. **Debugging as a monolith drops S3 and RabbitMQ** (and Postgres): the queue is in-process, job state is a SQLite file, and images are read in place from the local dataroot, so nothing but the API and the dataset on disk is needed.
+
+`BACKSEAT_DRIVER_MODE` picks which of the two the API runs `/jobs` as; `jobs.factory.build_job_backend` wires the matching `JobQueue` and `JobStore`.
 
 | Mode | Queue / store | Used by |
 |---|---|---|
-| `monolith` (default) | `InProcessJobQueue` / `SqlJobStore` over a SQLite file — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner. No RabbitMQ and no Postgres | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`), so they survive a restart |
-| `distributed` | `CeleryJobQueue` (RabbitMQ) / `SqlJobStore` | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
+| `monolith` (default) | `InProcessJobQueue` / `SqlJobStore` over SQLite / `LocalImageStore` — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner. No RabbitMQ, no Postgres, no S3 | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`) so they survive a restart |
+| `distributed` | `CeleryJobQueue` (RabbitMQ) / `SqlJobStore` / S3 dataset bucket | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
 
-To debug the distributed path locally, run `just dev-distributed` (starts RabbitMQ + Postgres in Docker and the API on the host with `BACKSEAT_DRIVER_MODE=distributed`), then `just worker-ingest` and `just worker-caption` in other terminals.
+To debug the distributed path locally, run `just dev-distributed` (starts RabbitMQ + Postgres + the dev S3 store in Docker and the API on the host with `BACKSEAT_DRIVER_MODE=distributed`), then `just worker-ingest` and `just worker-caption` in other terminals.
 
 The API's HTTP surface is identical in both modes; only where the work runs differs.
 
@@ -34,19 +38,22 @@ The API's HTTP surface is identical in both modes; only where the work runs diff
 
 | Service | Command | Role |
 |---|---|---|
-| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs` (the jobs, newest first, optionally by state), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
-| `ingest-worker` | `backseat-driver worker ingest` | Reads the dataset, fans out one caption task per scene |
-| `caption-worker` | `backseat-driver worker caption` | Captions one keyframe and stores the result; scale horizontally |
+| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, `GET /jobs` (the jobs newest first, optionally by state), `GET /images/{key}` (a keyframe image by its dataset key, from the local dataroot or the bucket), plus the synchronous `/describe` |
+| `ingest-worker` | `backseat-driver worker ingest` | Downloads the dataset's metadata tables from the bucket, finds the keyframes and fans out one caption task per scene. `--once` handles a single task and exits (a Job per queued task, see below) |
+| `caption-worker` | `backseat-driver worker caption` | Downloads one keyframe from the bucket, captions it and stores the result; scale horizontally |
+| `dataset-upload` | `backseat-driver dataset upload` | One-shot: copies the dataset from disk into the bucket (the only step that reads it from disk; reruns skip images already there) |
 | `db-init` | `backseat-driver db init` | One-shot: creates the tables |
 | `rabbitmq`, `postgres` | | Broker and job store |
+| `s3` | `adobe/s3mock` (compose and the k8s base only) | Development stand-in for the dataset bucket; production points at a real S3-compatible bucket |
 
 Each service has its own `docker/Dockerfile` target and dependency group: `api`, `ingest-worker` (nuscenes-devkit, no torch), `caption-worker` (torch, no nuscenes-devkit), and `cli` (everything, also used by `db-init`). Build one with `docker build -f docker/Dockerfile --target caption-worker .`.
 
-Run it with `just up` (and `just compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data`, mounted read-only into both workers.
+Run it with `just up` (and `just compose up --scale caption-worker=4` to add workers), or on Kubernetes with `just k8s-apply` (see [Deployment](deployment.md)). The dataset must be in `./data` for the `dataset-upload` service, the only one that mounts it; ingest waits for the upload to finish, and neither worker ever sees the dataset on disk.
 
 ## Design choices
 
-- **Messages carry references, not pixels.** A `CaptionTask` holds the keyframe's `image_path`; workers read the shared `data` volume. Swapping in an object store would change `image_path` semantics only.
+- **Messages carry references, not pixels, and workers share no filesystem.** The dataset lives in an S3-compatible bucket (`DatasetStore` / `ImageStore` ports in `datasets/`), put there once by `dataset upload` in its own layout (`<version>/*.json`, `samples/<camera>/*`). Ingest downloads only the metadata tables and puts each keyframe's object URI in `CaptionTask.image_uri`; the caption worker downloads that one image to a temporary file, captions it and deletes it. The keyframe's `image_path` is the dataset-relative key, so stored descriptions name the dataset image. In the monolith `LocalImageStore` passes the local path straight through. Configure the bucket with `BACKSEAT_DRIVER_DATASET_BUCKET` (no default; the workers refuse to start without it) and `BACKSEAT_DRIVER_S3_ENDPOINT_URL` for non-AWS stores; credentials come from the standard `AWS_*` variables. Why this and not a shared volume, a copy per job or ingest in the API: [Design Decisions](design-decisions.md#distributed-mode-and-the-monolith).
+- **Ingest can run as a Job per queued task.** With KEDA on Kubernetes, a `ScaledJob` starts one Job per waiting ingest message (`worker ingest --once`: one `basic_get`, run, ack, exit), so nothing runs while the queue is empty; without KEDA, and in compose, it is a plain consumer of the same queue. `--once` fetches the message itself rather than stopping a Celery worker, which would prefetch and run the next message first.
 - **Job state is derived, not stored.** `pending` until ingest records `expected_scenes`, `running` while `completed < expected`, `completed` after. There is no "mark done" step to race between workers.
 - **At-least-once, idempotent.** A message is acked only after its result is written. `(job_id, scene_token)` is the primary key and inserts use `ON CONFLICT DO NOTHING`, so redelivery is harmless.
 - **Workers are Celery workers** (`backseat_driver/tasks.py`), over RabbitMQ quorum queues, with late acks and one message at a time. A task that fails is retried with backoff up to 3 times, except malformed messages, which are never retried. After that the failure is logged with its `transaction_id` and the message is dropped, so its job stays `pending`/`running` — there is no `failed` state or dead-letter queue yet. Remote control and gossip are off because RabbitMQ 4 rejects the transient queues they need.
@@ -60,5 +67,5 @@ Caption workers run the solo pool (the model loads once per process and CUDA is 
 ## Not done yet
 
 - A `failed` job state, and a dead-letter queue for tasks that exhaust their retries.
-- Object storage instead of a shared volume; GPU node pools.
+- Letting the `dataset-upload` step download the dataset archive itself instead of reading it from disk; GPU node pools.
 - Autoscaling the API (needs metrics-server).

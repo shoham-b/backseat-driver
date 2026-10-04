@@ -14,7 +14,9 @@ Usage::
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
@@ -33,6 +35,20 @@ def open_nuscenes(version: str, dataroot: str) -> NuScenes:
     from nuscenes.nuscenes import NuScenes
 
     return NuScenes(version=version, dataroot=dataroot, verbose=False)
+
+
+def open_nuscenes_tables(version: str, dataroot: str) -> NuScenes:
+    """Open a dataroot that holds only the metadata tables, for finding keyframes without downloading any image.
+
+    The devkit insists that every map file named in `map.json` exists when it opens the dataset, though it only reads
+    them on demand. Empty placeholders satisfy it, which spares ingest the (large) maps.
+    """
+    root = Path(dataroot)
+    for record in json.loads((root / version / "map.json").read_text()):
+        placeholder = root / record["filename"]
+        placeholder.parent.mkdir(parents=True, exist_ok=True)
+        placeholder.touch()
+    return open_nuscenes(version, dataroot)
 
 
 class NuScenesSceneLoader(SceneLoader):

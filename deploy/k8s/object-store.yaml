@@ -1,0 +1,34 @@
+# Development-only S3-compatible store (Adobe S3Mock) for the keyframe images that travel from ingest to the caption
+# workers. It keeps objects in memory and accepts any credentials. In production drop this file and point
+# BACKSEAT_DRIVER_DATASET_BUCKET and the AWS_* credentials at a real bucket; S3_ENDPOINT_URL is only for stores like this.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: s3
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: s3}
+  template:
+    metadata:
+      labels: {app: s3}
+    spec:
+      containers:
+        - name: s3
+          image: adobe/s3mock:latest
+          env:
+            - {name: COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS, value: nuscenes}
+          ports: [{containerPort: 9090, name: s3}]
+          readinessProbe:
+            httpGet: {path: /, port: s3}
+            periodSeconds: 5
+          resources:
+            requests: {cpu: 100m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s3
+spec:
+  selector: {app: s3}
+  ports: [{port: 9090, name: s3}]
