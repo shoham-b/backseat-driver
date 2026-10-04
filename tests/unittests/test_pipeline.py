@@ -68,3 +68,13 @@ def test_max_scenes_counts_scenes_not_cameras() -> None:
         ("scene-1", "CAM_BACK"),
         ("scene-2", "CAM_FRONT"),
     ]
+
+
+def test_run_reports_progress_before_each_keyframe() -> None:
+    keyframes = [_keyframe(1), _keyframe(2)]
+    pipeline = ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner())
+    seen: list[tuple[int, int, str]] = []
+
+    pipeline.run(on_progress=lambda index, total, kf: seen.append((index, total, kf.scene_name)))
+
+    assert seen == [(1, 2, "scene-1"), (2, 2, "scene-2")]

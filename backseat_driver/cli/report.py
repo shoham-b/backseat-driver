@@ -16,8 +16,10 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from loguru import logger
 
 from backseat_driver.cli import app
+from backseat_driver.config import get_settings
 from backseat_driver.models import SceneDescription
 
 
@@ -32,12 +34,10 @@ def report(
     ] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
-    from backseat_driver.config import get_settings
-
     output = output or Path(get_settings().output_dir) / "report.html"
     results = results or _default_results()
     count = _write_report(results, output)
-    typer.secho(f"Wrote report for {count} description(s) to {output}", fg=typer.colors.GREEN)
+    logger.info("wrote report for {} description(s) to {}", count, output)
 
 
 @app.command()
@@ -54,8 +54,6 @@ def ui(
     ] = None,
 ) -> None:
     """Serve the model-comparison UI locally (rebuilt from the result files on every start)."""
-    from backseat_driver.config import get_settings
-
     settings = get_settings()
     host = host or settings.ui_host
     port = port or settings.ui_port
@@ -66,19 +64,17 @@ def ui(
         count = _write_report(results, Path(tmp) / "index.html", api_url)
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=tmp)
         url = f"http://{host}:{port}/"
-        typer.secho(f"Serving {count} description(s) from {len(results)} file(s) at {url} (Ctrl+C to stop)", fg="green")
+        logger.info("serving {} description(s) from {} file(s) at {} (Ctrl+C to stop)", count, len(results), url)
         with http.server.ThreadingHTTPServer((host, port), handler) as server:
             if open_browser:
                 webbrowser.open(url)
             try:
                 server.serve_forever()
             except KeyboardInterrupt:
-                typer.echo("Stopped")
+                logger.info("stopped")
 
 
 def _default_results() -> list[Path]:
-    from backseat_driver.config import get_settings
-
     found = sorted(Path(get_settings().output_dir).glob("*.json"))
     if not found:
         raise typer.BadParameter("no result files found; pass some or run `backseat-driver run` first")

@@ -1,6 +1,7 @@
 """In-memory implementation of the `JobStore` port — the monolith's store, so local dev needs no database.
 
-State lives in the process and is lost on restart; use `PostgresJobStore` when jobs must outlive it.
+State lives in the process and is lost on restart; `SqlJobStore` over SQLite is what the monolith uses by default,
+so its jobs outlive a restart. This one backs tests and `BACKSEAT_DRIVER_JOBS_DB_PATH=` (empty).
 """
 
 from datetime import UTC, datetime
@@ -41,17 +42,13 @@ class InMemoryJobStore(JobStore):
 
     def get_job(self, job_id: UUID) -> Job:
         with self._lock:
-            record = self._get(job_id)
-            completed = len(record.descriptions)
-            return Job(
-                job_id=job_id,
-                transaction_id=record.transaction_id,
-                state=derive_state(record.expected_scenes, completed),
-                max_scenes=record.max_scenes,
-                expected_scenes=record.expected_scenes,
-                completed_scenes=completed,
-                created_at=record.created_at,
-            )
+            return self._to_job(job_id, self._get(job_id))
+
+    def list_jobs(self) -> list[Job]:
+        with self._lock:
+            jobs = [self._to_job(job_id, record) for job_id, record in reversed(self._jobs.items())]
+        # Stable, so jobs the clock cannot tell apart keep newest-first from the reversed insertion order.
+        return sorted(jobs, key=lambda job: job.created_at, reverse=True)
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         with self._lock:
@@ -59,6 +56,19 @@ class InMemoryJobStore(JobStore):
 
     def healthcheck(self) -> bool:
         return True
+
+    @staticmethod
+    def _to_job(job_id: UUID, record: _Record) -> Job:
+        completed = len(record.descriptions)
+        return Job(
+            job_id=job_id,
+            transaction_id=record.transaction_id,
+            state=derive_state(record.expected_scenes, completed),
+            max_scenes=record.max_scenes,
+            expected_scenes=record.expected_scenes,
+            completed_scenes=completed,
+            created_at=record.created_at,
+        )
 
     def _get(self, job_id: UUID) -> _Record:
         if job_id not in self._jobs:

@@ -1,4 +1,5 @@
-"""Postgres persistence: engine/session lifecycle and queries over the ORM tables.
+"""SQL persistence (Postgres when distributed, SQLite for the monolith): engine/session lifecycle and queries
+over the ORM tables.
 
 Returns ORM rows and primitives, never domain models; mapping to the domain is the adapter's job.
 Never connects until first used.
@@ -12,7 +13,7 @@ from loguru import logger
 from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -29,7 +30,7 @@ def description_insert(job_id: UUID, values: dict) -> Insert:
 
 
 class JobStorage:
-    """`database_url` must name the psycopg 3 driver, e.g. `postgresql+psycopg://...`."""
+    """`database_url` names the psycopg 3 driver for Postgres (`postgresql+psycopg://...`) or a SQLite file (`sqlite:///path`)."""
 
     def __init__(self, database_url: str, engine_factory: Callable[..., Engine] = create_engine) -> None:
         self._database_url = database_url
@@ -69,6 +70,13 @@ class JobStorage:
             row = session.execute(select(JobRow, completed).where(JobRow.job_id == job_id)).one_or_none()
         return None if row is None else (row[0], row[1])
 
+    def fetch_jobs(self) -> list[tuple[JobRow, int]]:
+        """Every job row with its completed-scene count, newest first."""
+        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        with self._session() as session:
+            rows = session.execute(select(JobRow, completed).order_by(JobRow.created_at.desc())).all()
+        return [(row[0], row[1]) for row in rows]
+
     def fetch_descriptions(self, job_id: UUID) -> list[SceneDescriptionRow]:
         statement = (
             select(SceneDescriptionRow)
@@ -99,13 +107,12 @@ class JobStorage:
 
     def _engine_unlocked(self) -> Engine:
         # create_engine is lazy: no connection is opened until first use. The connect timeout keeps
-        # ping and startup failing fast against an unreachable host.
+        # ping and startup failing fast against an unreachable host; for SQLite it is the wait on a locked file, and
+        # the API threads and the in-process worker thread share one connection pool.
         if self._engine is None:
+            is_sqlite = make_url(self._database_url).get_backend_name() == "sqlite"
+            connect_args = {"timeout": 10, "check_same_thread": False} if is_sqlite else {"connect_timeout": 10}
             self._engine = self._engine_factory(
-                self._database_url,
-                pool_size=4,
-                max_overflow=0,
-                pool_pre_ping=True,
-                connect_args={"connect_timeout": 10},
+                self._database_url, pool_size=4, max_overflow=0, pool_pre_ping=True, connect_args=connect_args
             )
         return self._engine
