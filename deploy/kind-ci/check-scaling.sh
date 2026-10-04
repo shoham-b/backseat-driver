@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Autoscaling check for the kind CI cluster (.github/workflows/kind.yml): load the caption queue, then expect KEDA
-# to scale the caption workers up, every caption to be recorded, and the workers to scale back down.
+# Autoscaling check for the kind CI cluster (the `kind` job in .github/workflows/ci.yml): load the caption queue,
+# then expect KEDA to scale the caption workers up, every caption to be recorded, and the workers to scale back down.
 #
 # Captions are injected straight onto the queue from the API pod (using the project's own CeleryJobQueue) because
 # the CI cluster has no nuScenes dataset for the ingest worker to fan out.

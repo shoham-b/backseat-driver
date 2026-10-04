@@ -94,15 +94,17 @@ just k8s-down     # delete the cluster
 
 ### Continuous testing on kind
 
-`.github/workflows/kind.yml` runs the kind deployment in CI: it builds the four images from `docker/Dockerfile`, creates
-the cluster, installs the pinned KEDA release (the Justfile's `keda_version`), applies `deploy/kind-ci`, runs the system
-and smoke tests against the API, and then `deploy/kind-ci/check-scaling.sh`. That script queues captions, expects KEDA to
-scale `caption-worker` up (at least 3 replicas), every caption to be recorded, and the workers to scale back to 1.
+The `kind` job in `.github/workflows/ci.yml` runs the kind deployment in CI: it builds the four images from
+`docker/Dockerfile`, creates the cluster, installs the pinned KEDA release (the Justfile's `keda_version`), applies
+`deploy/kind-ci`, runs the system and smoke tests against the API, and then `deploy/kind-ci/check-scaling.sh`. That
+script queues captions, expects KEDA to scale `caption-worker` up (at least 3 replicas), every caption to be recorded,
+and the workers to scale back to 1.
 
 `deploy/kind-ci` is `deploy/kind` plus a stub model server (no weights to download), small resource requests so many
 replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window).
-The manifests, probes and ScaledObjects under test are otherwise the real ones. Like `ci.yml`, it runs on every pull request and on pushes to the main branch, plus weekly (to catch upstream drift
-in KEDA or the base images) and on demand.
+The manifests, probes and ScaledObjects under test are otherwise the real ones. Like `test-system` and
+`deploy-config`, the job runs on every push to the main branch and on pull requests that touch `docker/` or `deploy/`
+(the `deployment` filter of the `changes` job).
 
 The autoscaling component also switches RabbitMQ to the `rabbitmq:4-management` image and exposes port 15672, because
 KEDA reads queue depth from the management API.

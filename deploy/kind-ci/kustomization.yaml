@@ -1,6 +1,6 @@
-# The kind overlay for CI (.github/workflows/kind.yml): the same cluster, but with a stub model server instead of
-# downloading weights, small resource requests so many replicas fit on a runner, and fast autoscaling so the
-# scale-up/scale-down check finishes in minutes.
+# The kind overlay for CI (the `kind` job in .github/workflows/ci.yml): the same cluster, but with a stub model
+# server instead of downloading weights, small resource requests so many replicas fit on a runner, and fast
+# autoscaling so the scale-up/scale-down check finishes in minutes.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: backseat-driver
