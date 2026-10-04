@@ -100,7 +100,7 @@ def _scene_row(group: list[SceneDescription]) -> SceneRow:
             f"scene {first.scene_name!r} ({first.camera_channel}) was described more than once "
             f"by the same model: {names}"
         )
-    reference = next((d.reference_description for d in group if d.reference_description), None)
+    reference = _reference_of(group)
     entries = sorted((_entry(d, reference) for d in group), key=lambda e: e.model_name)
     return SceneRow(
         scene_token=first.scene_token,
@@ -112,6 +112,10 @@ def _scene_row(group: list[SceneDescription]) -> SceneRow:
     )
 
 
+def _reference_of(group: list[SceneDescription]) -> str | None:
+    return next((d.reference_description for d in group if d.reference_description), None)
+
+
 def _scene_scores(descriptions: list[SceneDescription]) -> list[SceneScore]:
     by_scene_model: dict[tuple[str, str], list[SceneDescription]] = {}
     for d in descriptions:
@@ -119,7 +123,7 @@ def _scene_scores(descriptions: list[SceneDescription]) -> list[SceneScore]:
 
     scores = []
     for (scene_token, model_name), group in sorted(by_scene_model.items()):
-        reference = next((d.reference_description for d in group if d.reference_description), None)
+        reference = _reference_of(group)
         combined = " ".join(d.description for d in sorted(group, key=lambda d: d.camera_channel))
         scores.append(
             SceneScore(

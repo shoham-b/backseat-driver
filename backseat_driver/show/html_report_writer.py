@@ -1,12 +1,11 @@
 """Renders a `Report` as one self-contained HTML file: data, images, styles and script all inline.
 
-Keyframe images are embedded as base64 so the file can be opened or shared without the dataset. Where the bytes come
-from is up to the caller: the local file at `image_path` by default, or the API for a report built from jobs.
+Keyframe images are embedded as base64 so the file can be opened or shared without the dataset. What goes in each
+`<img src>` is up to the caller (see `ReportService`).
 """
 
 import base64
 import json
-import mimetypes
 from collections.abc import Callable
 from importlib.resources import files
 from pathlib import Path
@@ -34,20 +33,10 @@ def render_html(report: Report, api_url: str | None, read_image: Callable[[str],
     return load_template().replace("__REPORT_DATA__", data)
 
 
-def write_html(
-    report: Report,
-    path: str,
-    api_url: str | None = None,
-    read_image: Callable[[str], str] | None = None,
-) -> None:
-    """Write `report` to `path` with its images embedded. `read_image` turns an `image_path` into a `data:` URI
-    (default: read the local file, raising FileNotFoundError if it is missing)."""
-    output = Path(path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(render_html(report, api_url, read_image or file_data_uri), encoding="utf-8")
+def save_html(html: str, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(html, encoding="utf-8")
 
 
-def file_data_uri(image_path: str) -> str:
-    image = Path(image_path)
-    mime = mimetypes.guess_type(image.name)[0] or "application/octet-stream"
-    return f"data:{mime};base64,{base64.b64encode(image.read_bytes()).decode('ascii')}"
+def data_uri(body: bytes, content_type: str) -> str:
+    return f"data:{content_type};base64,{base64.b64encode(body).decode('ascii')}"
