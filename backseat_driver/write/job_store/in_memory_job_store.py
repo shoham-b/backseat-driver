@@ -14,10 +14,12 @@ from backseat_driver.write.job_store.job_store import JobStore, derive_state
 
 
 class _Record:
-    def __init__(self, max_scenes: int | None, transaction_id: str) -> None:
+    def __init__(self, max_scenes: int | None, transaction_id: str, idempotency_key: str | None) -> None:
         self.max_scenes = max_scenes
         self.transaction_id = transaction_id
+        self.idempotency_key = idempotency_key
         self.expected_scenes: int | None = None
+        self.error: str | None = None
         self.created_at = datetime.now(UTC)
         self.descriptions: dict[str, SceneDescription] = {}
 
@@ -28,13 +30,30 @@ class InMemoryJobStore(JobStore):
         self._lock = Lock()
         self._jobs: dict[UUID, _Record] = {}
 
-    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
+    def create_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
         with self._lock:
-            self._jobs[job_id] = _Record(max_scenes, transaction_id)
+            if idempotency_key is not None and self._job_id_for(idempotency_key) is not None:
+                raise ValueError(f"idempotency key {idempotency_key!r} is already used")
+            self._jobs[job_id] = _Record(max_scenes, transaction_id, idempotency_key)
+
+    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+        with self._lock:
+            job_id = self._job_id_for(idempotency_key)
+            return None if job_id is None else self._to_job(job_id, self._jobs[job_id])
+
+    def _job_id_for(self, idempotency_key: str) -> UUID | None:
+        return next((job_id for job_id, r in self._jobs.items() if r.idempotency_key == idempotency_key), None)
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         with self._lock:
             self._get(job_id).expected_scenes = expected_scenes
+
+    def fail_job(self, job_id: UUID, error: str) -> None:
+        with self._lock:
+            record = self._get(job_id)
+            record.error = record.error or error
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         with self._lock:
@@ -63,11 +82,12 @@ class InMemoryJobStore(JobStore):
         return Job(
             job_id=job_id,
             transaction_id=record.transaction_id,
-            state=derive_state(record.expected_scenes, completed),
+            state=derive_state(record.expected_scenes, completed, record.error),
             max_scenes=record.max_scenes,
             expected_scenes=record.expected_scenes,
             completed_scenes=completed,
             created_at=record.created_at,
+            error=record.error,
         )
 
     def _get(self, job_id: UUID) -> _Record:

@@ -42,14 +42,30 @@ class FakeJobStore(JobStore):
         self.healthy = healthy
         self._jobs: dict[UUID, tuple[str, int | None, int | None, datetime]] = {}
         self._descriptions: dict[UUID, dict[str, SceneDescription]] = {}
+        self._errors: dict[UUID, str] = {}
+        self._keys: dict[str, UUID] = {}
 
-    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
+    def create_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
+        if idempotency_key is not None:
+            if idempotency_key in self._keys:
+                raise ValueError(f"idempotency key {idempotency_key!r} is already used")
+            self._keys[idempotency_key] = job_id
         self._jobs[job_id] = (transaction_id, max_scenes, None, datetime.now(UTC))
         self._descriptions[job_id] = {}
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         transaction_id, max_scenes, _, created_at = self._get(job_id)
         self._jobs[job_id] = (transaction_id, max_scenes, expected_scenes, created_at)
+
+    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+        job_id = self._keys.get(idempotency_key)
+        return None if job_id is None else self.get_job(job_id)
+
+    def fail_job(self, job_id: UUID, error: str) -> None:
+        self._get(job_id)
+        self._errors.setdefault(job_id, error)
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         self._get(job_id)
@@ -61,11 +77,12 @@ class FakeJobStore(JobStore):
         return Job(
             job_id=job_id,
             transaction_id=transaction_id,
-            state=derive_state(expected_scenes, completed),
+            state=derive_state(expected_scenes, completed, self._errors.get(job_id)),
             max_scenes=max_scenes,
             expected_scenes=expected_scenes,
             completed_scenes=completed,
             created_at=created_at,
+            error=self._errors.get(job_id),
         )
 
     def list_jobs(self) -> list[Job]:

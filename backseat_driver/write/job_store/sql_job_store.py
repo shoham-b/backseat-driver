@@ -18,11 +18,21 @@ class SqlJobStore(JobStore):
     def ensure_schema(self) -> None:
         self._storage.ensure_schema()
 
-    def create_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
-        self._storage.insert_job(job_id, max_scenes, transaction_id)
+    def create_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
+        self._storage.insert_job(job_id, max_scenes, transaction_id, idempotency_key)
+
+    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+        found = self._storage.fetch_job_by_key(idempotency_key)
+        return None if found is None else _to_job(*found)
 
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         if not self._storage.update_expected_scenes(job_id, expected_scenes):
+            raise NotFoundError(f"job {job_id} not found")
+
+    def fail_job(self, job_id: UUID, error: str) -> None:
+        if not self._storage.update_error(job_id, error):
             raise NotFoundError(f"job {job_id} not found")
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
@@ -62,9 +72,10 @@ def _to_job(job: JobRow, completed_scenes: int) -> Job:
     return Job(
         job_id=job.job_id,
         transaction_id=job.transaction_id,
-        state=derive_state(job.expected_scenes, completed_scenes),
+        state=derive_state(job.expected_scenes, completed_scenes, job.error),
         max_scenes=job.max_scenes,
         expected_scenes=job.expected_scenes,
         completed_scenes=completed_scenes,
         created_at=job.created_at,
+        error=job.error,
     )

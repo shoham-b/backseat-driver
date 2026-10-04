@@ -111,4 +111,4 @@ def test_job_rejects_an_unknown_state() -> None:
 
 
 def test_job_state_values_are_the_documented_api_contract() -> None:
-    assert [s.value for s in JobState] == ["pending", "running", "completed"]
+    assert [s.value for s in JobState] == ["pending", "running", "completed", "failed"]

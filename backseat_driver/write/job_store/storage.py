@@ -43,9 +43,18 @@ class JobStorage:
         """Create the tables if missing. Run once per deployment (`db init`), not per process."""
         Base.metadata.create_all(self._get_engine())
 
-    def insert_job(self, job_id: UUID, max_scenes: int | None, transaction_id: str) -> None:
+    def insert_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
         with self._session() as session, session.begin():
-            session.add(JobRow(job_id=job_id, max_scenes=max_scenes, transaction_id=transaction_id))
+            session.add(
+                JobRow(
+                    job_id=job_id,
+                    max_scenes=max_scenes,
+                    transaction_id=transaction_id,
+                    idempotency_key=idempotency_key,
+                )
+            )
 
     def update_expected_scenes(self, job_id: UUID, expected_scenes: int) -> bool:
         """Return False when no such job exists."""
@@ -53,6 +62,17 @@ class JobStorage:
             update(JobRow)
             .where(JobRow.job_id == job_id)
             .values(expected_scenes=expected_scenes)
+            .returning(JobRow.job_id)
+        )
+        with self._session() as session, session.begin():
+            return session.execute(statement).first() is not None
+
+    def update_error(self, job_id: UUID, error: str) -> bool:
+        """Keep the first error recorded. Return False when no such job exists."""
+        statement = (
+            update(JobRow)
+            .where(JobRow.job_id == job_id)
+            .values(error=func.coalesce(JobRow.error, error))
             .returning(JobRow.job_id)
         )
         with self._session() as session, session.begin():
@@ -68,6 +88,14 @@ class JobStorage:
         completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
         with self._session() as session:
             row = session.execute(select(JobRow, completed).where(JobRow.job_id == job_id)).one_or_none()
+        return None if row is None else (row[0], row[1])
+
+    def fetch_job_by_key(self, idempotency_key: str) -> tuple[JobRow, int] | None:
+        """Like `fetch_job`, for the job created under `idempotency_key`."""
+        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        statement = select(JobRow, completed).where(JobRow.idempotency_key == idempotency_key)
+        with self._session() as session:
+            row = session.execute(statement).one_or_none()
         return None if row is None else (row[0], row[1])
 
     def fetch_jobs(self) -> list[tuple[JobRow, int]]:

@@ -17,8 +17,10 @@ class JobRow(Base):
 
     job_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
     transaction_id: Mapped[str] = mapped_column(String)
+    idempotency_key: Mapped[str | None] = mapped_column(String, unique=True)  # NULLs never collide
     max_scenes: Mapped[int | None] = mapped_column(Integer)
     expected_scenes: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(String)
     # The client-side default has microsecond resolution (CURRENT_TIMESTAMP has seconds on SQLite), so jobs created in
     # the same second still sort in creation order.
     created_at: Mapped[datetime] = mapped_column(

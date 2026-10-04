@@ -18,6 +18,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from backseat_driver.config import RunMode, Settings, VlmBackend
+from backseat_driver.models import IngestTask
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
@@ -33,6 +34,7 @@ from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.ingest_worker import IngestWorker
+from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.job_store import JobStore
@@ -68,6 +70,9 @@ def seam(
     queue.register(
         on_ingest=IngestWorker(loader=build_loader(settings), queue=queue, store=store, images=images).handle,
         on_caption=CaptionWorker(captioner=captioner, store=store, images=images).handle,
+        on_failure=lambda task, error: store.fail_job(
+            task.job_id, describe_failure("ingest" if isinstance(task, IngestTask) else "caption", error)
+        ),
     )
     return queue, store
 

@@ -44,8 +44,8 @@ def get_job_store(state: Annotated[AppState, Depends(get_app_state)]) -> JobStor
     return state.job_store
 
 
-def get_request_id(request: Request) -> str:
-    return request.state.request_id  # type: ignore[no-any-return]
+def get_transaction_id(request: Request) -> str:
+    return request.state.transaction_id  # type: ignore[no-any-return]
 
 
 def get_upload_dir() -> Iterator[Path]:

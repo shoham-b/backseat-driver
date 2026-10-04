@@ -8,7 +8,7 @@ from celery import Celery
 from kombu.transport.memory import Channel
 
 from backseat_driver import tasks
-from backseat_driver.models import IngestTask
+from backseat_driver.models import IngestTask, JobState
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import INGEST_QUEUE, INGEST_TASK, make_celery_app
 from backseat_driver.transport.consume_one import consume_one
@@ -34,10 +34,14 @@ class _Failing(IngestWorker):
         raise ConnectionError("object store down")
 
 
-def _app_with(ingest_worker: IngestWorker) -> Celery:
+def _app_with(ingest_worker: IngestWorker, store: FakeJobStore | None = None) -> Celery:
     app = make_celery_app("memory://")
+    job_store = store or FakeJobStore()
     tasks.register_tasks(
-        app, lambda: ingest_worker, lambda: CaptionWorker(FakeCaptioner(), FakeJobStore(), FakeImageStore())
+        app,
+        lambda: ingest_worker,
+        lambda: CaptionWorker(FakeCaptioner(), job_store, FakeImageStore()),
+        lambda: job_store,
     )
     return app
 
@@ -74,15 +78,21 @@ def test_an_empty_queue_is_not_an_error() -> None:
 
 
 def test_a_task_that_keeps_failing_is_retried_then_dropped_and_the_job_fails() -> None:
-    worker = _Failing()
-    app = _app_with(worker)
-    _send(app)
+    worker, job_id, store = _Failing(), uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    app = _app_with(worker, store)
+    _send(app, job_id)
 
     with pytest.raises(RuntimeError, match="dropped"):
         consume_one(app, INGEST_QUEUE)
 
     assert worker.calls == tasks.MAX_RETRIES + 1
     assert _waiting(app) == 0
+    job = store.get_job(job_id)
+    assert (job.state, job.error) == (
+        JobState.FAILED,
+        "backseat_driver.ingest failed: ConnectionError: object store down",
+    )
 
 
 def test_a_malformed_task_is_dropped_without_running_the_worker() -> None:

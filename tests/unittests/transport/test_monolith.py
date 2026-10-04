@@ -81,7 +81,7 @@ def test_queue_runs_tasks_in_order_on_one_background_thread() -> None:
         seen.append(("caption", threading.current_thread().name))
         done.set()
 
-    queue.register(on_ingest, on_caption)
+    queue.register(on_ingest, on_caption, on_failure=lambda task, error: None)
 
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
     queue.enqueue_caption(
@@ -99,7 +99,48 @@ def test_failing_task_does_not_stop_later_tasks() -> None:
     def on_ingest(task: IngestTask) -> None:
         raise RuntimeError("boom")
 
-    queue.register(on_ingest, lambda task: done.set())
+    queue.register(on_ingest, lambda task: done.set(), on_failure=lambda task, error: None)
+
+    queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
+    queue.enqueue_caption(
+        CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
+    )
+
+    assert done.wait(timeout=5)
+
+
+def test_failing_task_is_reported_with_its_error() -> None:
+    queue = InProcessJobQueue()
+    reported: list[tuple[IngestTask | CaptionTask, Exception]] = []
+    done = threading.Event()
+
+    def on_ingest(task: IngestTask) -> None:
+        raise RuntimeError("boom")
+
+    def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
+        reported.append((task, error))
+        done.set()
+
+    queue.register(on_ingest, lambda task: None, on_failure=on_failure)
+    task = IngestTask(job_id=uuid4(), transaction_id="tx")
+
+    queue.enqueue_ingest(task)
+
+    assert done.wait(timeout=5)
+    assert [(t, str(e)) for t, e in reported] == [(task, "boom")]
+
+
+def test_a_failure_that_cannot_be_recorded_does_not_stop_later_tasks() -> None:
+    queue = InProcessJobQueue()
+    done = threading.Event()
+
+    def on_ingest(task: IngestTask) -> None:
+        raise RuntimeError("boom")
+
+    def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
+        raise ConnectionError("store down")
+
+    queue.register(on_ingest, lambda task: done.set(), on_failure=on_failure)
 
     queue.enqueue_ingest(IngestTask(job_id=uuid4(), transaction_id="tx"))
     queue.enqueue_caption(

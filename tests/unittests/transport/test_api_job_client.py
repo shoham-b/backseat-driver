@@ -66,6 +66,14 @@ def test_a_job_that_is_already_completed_is_not_polled() -> None:
     assert [probe.url for probe in http.gets] == [f"{API}/jobs/{JOB_ID}/descriptions"]
 
 
+def test_a_failed_job_raises_with_its_error_instead_of_polling_until_the_timeout() -> None:
+    http = FakeHttpClient(response=_job(JobState.PENDING))
+    http.responses_by_url[f"{API}/jobs/{JOB_ID}"] = _json({**_job(JobState.FAILED), "error": "caption failed: boom"})
+
+    with pytest.raises(RuntimeError, match="failed: caption failed: boom"):
+        _client(http).describe(max_scenes=None, timeout_seconds=10)
+
+
 def test_a_running_job_is_polled_until_it_is_completed() -> None:
     http = FakeHttpClient(response=_job(JobState.PENDING))
     http.responses_by_url[f"{API}/jobs/{JOB_ID}"] = _json(_job(JobState.COMPLETED, completed=2))

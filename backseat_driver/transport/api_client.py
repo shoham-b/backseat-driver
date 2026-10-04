@@ -42,6 +42,8 @@ class ApiJobClient:
         )
         deadline = self._clock() + timeout_seconds
         while job.state is not JobState.COMPLETED:
+            if job.state is JobState.FAILED:
+                raise RuntimeError(f"job {job.job_id} failed: {job.error}")
             if self._clock() >= deadline:
                 raise RuntimeError(
                     f"job {job.job_id} is still {job.state.value} "
