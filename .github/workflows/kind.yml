@@ -1,29 +1,15 @@
 name: Kubernetes
 
 # Deploys the real images to a kind cluster with KEDA and checks that the stack works and the caption workers
-# autoscale. Slower than the rest of CI, so it runs only when something it covers changes, plus nightly to catch
-# upstream drift (KEDA, base images, dependencies).
+# autoscale. Triggers match ci.yml (every PR, pushes to the default branch) so a change to the images, the manifests
+# or the jobs code can't skip it; the weekly run, like CodeQL and Scorecard, catches upstream drift (KEDA, base
+# images) when nothing has been pushed.
 on:
-  pull_request:
-    paths:
-      - deploy/**
-      - docker/Dockerfile*
-      - backseat_driver/jobs/**
-      - backseat_driver/captioning/**
-      - backseat_driver/tasks.py
-      - pyproject.toml
-      - uv.lock
-      - Justfile
-      - .github/workflows/kind.yml
   push:
     branches: [master, main]
-    paths:
-      - deploy/**
-      - docker/Dockerfile*
-      - backseat_driver/jobs/**
-      - backseat_driver/tasks.py
+  pull_request:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "0 8 * * 1"
   workflow_dispatch:
 
 permissions: {}

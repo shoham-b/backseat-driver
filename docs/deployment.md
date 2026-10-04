@@ -101,8 +101,8 @@ scale `caption-worker` up (at least 3 replicas), every caption to be recorded, a
 
 `deploy/kind-ci` is `deploy/kind` plus a stub model server (no weights to download), small resource requests so many
 replicas fit on a runner, and fast autoscaling (5 s polling, 1 scene per replica per 5 queued, 30 s scale-down window).
-The manifests, probes and ScaledObjects under test are otherwise the real ones. The workflow runs on pull requests that
-touch the deployment, the Dockerfile or the jobs code, on pushes to the main branch, nightly, and on demand.
+The manifests, probes and ScaledObjects under test are otherwise the real ones. Like `ci.yml`, it runs on every pull request and on pushes to the main branch, plus weekly (to catch upstream drift
+in KEDA or the base images) and on demand.
 
 The autoscaling component also switches RabbitMQ to the `rabbitmq:4-management` image and exposes port 15672, because
 KEDA reads queue depth from the management API.
