@@ -21,15 +21,23 @@ x-vlm-env: &vlm-env
 x-host-gateway: &host-gateway
   - "host.docker.internal:host-gateway"
 
+# The dataset lives in this bucket, so no worker mounts it. The development S3 store accepts any credentials, but
+# boto3 insists on some.
+x-dataset-store-env: &dataset-store-env
+  BACKSEAT_DRIVER_DATASET_BUCKET: nuscenes
+  BACKSEAT_DRIVER_S3_ENDPOINT_URL: http://s3:9090
+  AWS_ACCESS_KEY_ID: dev
+  AWS_SECRET_ACCESS_KEY: dev
+  AWS_DEFAULT_REGION: us-east-1
+
 x-worker: &worker
-  volumes:
-    - ./data:/app/data:ro
-    - hf-cache:/home/app/.cache/huggingface
   extra_hosts: *host-gateway
   environment:
-    <<: [*distributed-env, *vlm-env]
+    <<: [*distributed-env, *vlm-env, *dataset-store-env]
   depends_on:
     rabbitmq:
+      condition: service_healthy
+    s3:
       condition: service_healthy
     db-init:
       condition: service_completed_successfully
@@ -84,6 +92,19 @@ services:
       timeout: 5s
       retries: 12
 
+  # Development-only S3-compatible store (in memory, any credentials); production uses a real bucket.
+  s3:
+    image: adobe/s3mock:latest
+    environment:
+      COM_ADOBE_TESTING_S3MOCK_STORE_INITIAL_BUCKETS: nuscenes
+    ports:
+      - "127.0.0.1:9090:9090" # S3 API, for the workers running on the host (`just worker-*`)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   postgres:
     image: postgres:17
     environment:
@@ -127,9 +148,11 @@ services:
       - "8080:8080"
     extra_hosts: *host-gateway
     environment:
-      <<: [*distributed-env, *vlm-env]
+      <<: [*distributed-env, *vlm-env, *dataset-store-env]
     depends_on:
       rabbitmq:
+        condition: service_healthy
+      s3:
         condition: service_healthy
       db-init:
         condition: service_completed_successfully
@@ -140,9 +163,39 @@ services:
       retries: 5
       start_period: 10s
 
+  # One-shot: copies the dataset from ./data into the bucket (skipping what is already there), the only step that reads it.
+  # Needs the dataset in ./data first (`just run` downloads it). The workers read it from the bucket from then on.
+  dataset-upload:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        - PYTHON_VERSION
+      target: cli
+    command: ["dataset", "upload"]
+    volumes:
+      - ./data:/app/data:ro
+    environment:
+      <<: [*distributed-env, *dataset-store-env]
+      BACKSEAT_DRIVER_NUSCENES_VERSION: ${BACKSEAT_DRIVER_NUSCENES_VERSION:-v1.0-mini}
+      BACKSEAT_DRIVER_CAMERA_CHANNEL: ${BACKSEAT_DRIVER_CAMERA_CHANNEL:-CAM_FRONT}
+    depends_on:
+      s3:
+        condition: service_healthy
+    restart: "no"
+
   # Each service builds its own image target, so the ingest worker has no torch and the caption worker no nuscenes-devkit.
   ingest-worker:
     <<: *worker
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      s3:
+        condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
+      dataset-upload:
+        condition: service_completed_successfully
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -153,6 +206,8 @@ services:
   # Scale out with `just compose up --scale caption-worker=N`; each replica pulls from the same queue.
   caption-worker:
     <<: *worker
+    volumes:
+      - hf-cache:/home/app/.cache/huggingface
     build:
       context: .
       dockerfile: docker/Dockerfile

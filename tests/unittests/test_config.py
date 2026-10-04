@@ -4,7 +4,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from backseat_driver.config import Settings, VlmBackend, get_settings
+from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
 
 
 def test_defaults() -> None:
@@ -125,3 +125,16 @@ def test_cors_origins_override_the_derived_origins() -> None:
     s = Settings(cors_origins=["https://example.com"])
 
     assert s.cors_origins == ["https://example.com"]
+
+
+def test_the_distributed_mode_cannot_be_configured_without_a_dataset_bucket() -> None:
+    with pytest.raises(ValueError, match="BACKSEAT_DRIVER_DATASET_BUCKET"):
+        Settings(_env_file=None, mode=RunMode.DISTRIBUTED)
+
+
+def test_the_monolith_needs_no_dataset_bucket() -> None:
+    assert Settings(_env_file=None, mode=RunMode.MONOLITH).dataset_bucket is None
+
+
+def test_the_distributed_mode_is_configured_with_a_bucket() -> None:
+    assert Settings(_env_file=None, mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes").dataset_bucket == "nuscenes"

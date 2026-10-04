@@ -93,14 +93,18 @@ dev-distributed: infra
 serve:
     uv run fastapi run backseat_driver/api/app.py --host 0.0.0.0 --port {{api_port}}
 
-# LOCAL ONLY: RabbitMQ + Postgres in Docker on localhost, schema created (production gets these from Kubernetes)
+# LOCAL ONLY: RabbitMQ + Postgres + a dev S3 store in Docker on localhost, schema created (production gets these from Kubernetes)
 infra:
-    {{compose}} up -d --wait rabbitmq postgres
+    {{compose}} up -d --wait rabbitmq postgres s3
     uv run backseat-driver db init
 
 # Stop the stack and the infra started by `just infra`
 infra-down:
     {{compose}} down
+
+# Copy the local dataset into the dev S3 bucket (once; the host workers read it from there). Needs the BACKSEAT_DRIVER_DATASET_BUCKET block of .env.example
+dataset-upload: infra
+    uv run backseat-driver dataset upload
 
 # Host-run queue workers for local work (production runs them in Kubernetes); start the local infra first (needs Docker)
 worker-ingest: infra

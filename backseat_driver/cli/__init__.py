@@ -11,6 +11,8 @@ worker_app = typer.Typer(help="Run a queue worker (distributed mode)", no_args_i
 app.add_typer(worker_app, name="worker")
 db_app = typer.Typer(help="Database setup (distributed mode)", no_args_is_help=True)
 app.add_typer(db_app, name="db")
+dataset_app = typer.Typer(help="Dataset provisioning (distributed mode)", no_args_is_help=True)
+app.add_typer(dataset_app, name="dataset")
 
 
 def _print_version(value: bool) -> None:

@@ -7,7 +7,7 @@ from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import JobState
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
+from tests.fakes import FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
 from tests.integrationtests.conftest import ClientFactory
 
 
@@ -55,8 +55,8 @@ def test_list_descriptions_of_unknown_job_is_not_found(client: TestClient) -> No
 def test_job_runs_to_completion_through_both_workers(client_with: ClientFactory) -> None:
     queue, store = FakeJobQueue(), FakeJobStore()
     client = client_with({get_job_queue: lambda: queue, get_job_store: lambda: store})
-    ingest = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store)
-    caption = CaptionWorker(FakeCaptioner(), store)
+    ingest = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store, FakeImageStore())
+    caption = CaptionWorker(FakeCaptioner(), store, FakeImageStore())
 
     job_id = client.post("/jobs").json()["job_id"]
     for ingest_task in queue.ingest_tasks:
