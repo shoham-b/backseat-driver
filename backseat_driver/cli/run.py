@@ -18,8 +18,8 @@ from rich.progress import BarColumn, DownloadColumn, MofNCompleteColumn, Progres
 
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
-from backseat_driver.logger import LogFormat
-from backseat_driver.models import SceneKeyframe
+from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.models import CameraChannel, SceneKeyframe
 
 
 def log_progress(index: int, total: int, keyframe: SceneKeyframe) -> None:
@@ -33,7 +33,7 @@ def run(
     ] = None,
     version: Annotated[str | None, typer.Option(help="nuScenes dataset version, e.g. v1.0-mini")] = None,
     camera: Annotated[
-        list[str] | None,
+        list[CameraChannel] | None,
         typer.Option(help="Camera channel to use as the representative frame; repeat to describe several cameras"),
     ] = None,
     all_cameras: Annotated[

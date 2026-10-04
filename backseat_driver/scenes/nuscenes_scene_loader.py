@@ -20,15 +20,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import SceneKeyframe
+from backseat_driver.models import CameraChannel, SceneKeyframe
 from backseat_driver.scenes.scene_loader import SceneLoader
 
 if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes
 
 
-# The six cameras on a nuScenes vehicle, front-centre first then clockwise.
-ALL_CAMERA_CHANNELS = ("CAM_FRONT", "CAM_FRONT_RIGHT", "CAM_BACK_RIGHT", "CAM_BACK", "CAM_BACK_LEFT", "CAM_FRONT_LEFT")
+ALL_CAMERA_CHANNELS = tuple(CameraChannel)
 
 
 def open_nuscenes(version: str, dataroot: str) -> NuScenes:
