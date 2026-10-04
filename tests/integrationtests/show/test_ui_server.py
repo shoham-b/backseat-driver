@@ -176,8 +176,8 @@ async def test_without_an_api_there_is_no_image_route() -> None:
 async def test_result_files_in_the_output_directory_are_shown_without_an_api(tmp_path: Path) -> None:
     image = tmp_path / "a.jpg"
     image.write_bytes(b"jpeg bytes")
-    (tmp_path / "model-a.json").write_text(json.dumps([{**_description("a result file"), "image_path": str(image)}]))
-    app = create_ui_app(make_settings(output_dir=str(tmp_path)))
+    (tmp_path / "model-a.json").write_text(json.dumps([{**_description("a result file"), "image_path": image.name}]))
+    app = create_ui_app(make_settings(output_dir=str(tmp_path), nuscenes_dataroot=str(tmp_path)))
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ui") as ui:
         response = await ui.get("/")
 

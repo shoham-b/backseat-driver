@@ -6,8 +6,8 @@ S3 object) never reach the HTTP layer.
 """
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.read.image_keys import validate_image_key
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.images.image_keys import validate_image_key
+from backseat_driver.read.images.image_store import ImageStore
 
 
 class ImageService:

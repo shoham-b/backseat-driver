@@ -1,7 +1,7 @@
 """Port for how the workers reach keyframe images: by URI, with no filesystem shared between them.
 
 Image keys are dataset-relative paths (`samples/CAM_FRONT/<name>.jpg`), the same string `SceneKeyframe.image_path`
-holds in the distributed flow. Ingest turns a key into a URI for the queue message and the caption worker borrows a
+holds everywhere. Ingest turns a key into a URI for the queue message and the caption worker borrows a
 local copy of the object behind it.
 """
 

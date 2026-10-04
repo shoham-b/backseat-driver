@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.read.local_image_store import LocalImageStore
+from backseat_driver.read.images.local_image_store import LocalImageStore
 
 
 def test_the_uri_of_a_key_is_the_file_below_the_dataroot() -> None:

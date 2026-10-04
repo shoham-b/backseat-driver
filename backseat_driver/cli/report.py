@@ -31,12 +31,18 @@ def report(
         typer.Option(help="Completed job id to read from the API (repeatable; one job is one model's run)"),
     ] = None,
     api_url: Annotated[str | None, typer.Option(help="API to read --job from [default: the configured API]")] = None,
+    dataroot: Annotated[
+        str | None,
+        typer.Option(help="Dataset directory the result files' image keys are read from [default: the configured one]"),
+    ] = None,
 ) -> None:
     """Build an HTML report: scenes, each model's description, filters, and accuracy metrics."""
     settings = get_settings()
     output = output or Path(settings.output_dir) / "report.html"
     results = results or ([] if job else _default_results())
-    count = _write_report(results, output, job or [], api_url or settings.api_url)
+    count = _write_report(
+        results, output, job or [], api_url or settings.api_url, dataroot or settings.nuscenes_dataroot
+    )
     logger.info("wrote report for {} description(s) to {}", count, output)
 
 
@@ -47,14 +53,15 @@ def _default_results() -> list[Path]:
     return found
 
 
-def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: str) -> int:
+def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: str, dataroot: str) -> int:
+    from backseat_driver.read.images.local_image_store import LocalImageStore
     from backseat_driver.show.api_source import ApiReportSource
     from backseat_driver.show.description_source import DescriptionSource
     from backseat_driver.show.html_report_writer import save_html
     from backseat_driver.show.report_service import ReportService
     from backseat_driver.show.result_file_source import ResultFileSource
 
-    sources: list[DescriptionSource] = [ResultFileSource(results)]
+    sources: list[DescriptionSource] = [ResultFileSource(results, LocalImageStore(dataroot))]
     if jobs:
         sources.append(ApiReportSource(api_url, job_ids=jobs))
     rendered = ReportService(sources).render(embed_images=True)

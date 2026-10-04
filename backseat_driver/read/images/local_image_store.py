@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.images.image_store import ImageStore
 
 
 class LocalImageStore(ImageStore):

@@ -107,7 +107,7 @@ The first design was a shared volume: both workers mounted the same `./data` (or
 | Image bytes inside the task | Rejected for the reason in question 9. |
 | Every worker downloads the whole dataset to local disk | Rejected. Every replica would pull the full dataset (a few GB for mini, far more for the full set) for the sake of one image per task. |
 
-The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (the key already is a path, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
+The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (a key is a path below the dataroot, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
 
 
 ### 11. What goes into the bucket, and when?
@@ -116,7 +116,7 @@ The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_
 
 **Decision: upload the dataset once, and make the bucket its home.** A one-time `backseat-driver dataset upload` copies the metadata tables (`<version>/*.json`) and the images of the configured camera into the bucket, keeping the nuScenes layout, and skips anything already there so it can be rerun. After that:
 
-- **Ingest** downloads only the small metadata tables to a scratch directory and runs the devkit over them to find the keyframes. A keyframe's `image_path` becomes its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`) and the task carries that key's URI.
+- **Ingest** downloads only the small metadata tables to a scratch directory and runs the devkit over them to find the keyframes. A keyframe's `image_path` is its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`), as it is everywhere, and the task carries that key's URI.
 - **Caption workers** fetch that one object, caption it and delete it.
 - **No worker mounts the dataset.** Only the upload step reads it from disk.
 
@@ -186,6 +186,14 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 **The deployed UI mounts nothing.** `ui.yaml` drops both volumes and runs `fastapi run` with `BACKSEAT_DRIVER_UI_ALL_JOBS` and `BACKSEAT_DRIVER_API_URL=http://api`; its readiness probe is a new `/healthz` that does not call the API, because a probe that depends on the API would take the UI out of rotation whenever the API blinked. `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where the *browser* reaches the API for the live-inference card (a port-forward by default), separate from `BACKSEAT_DRIVER_API_URL` that the UI process itself uses. The example `describe` Job mounts nothing either: it runs `describe --mode distributed` against the API, so the UI shows its job like any other.
 
 **Revisit if:** the UI should filter or page through many jobs; the listing is capped at 500 and the newest-per-model rule is applied in the UI.
+
+### 17. What does `image_path` hold?
+
+**First attempt:** the devkit loader reported the path it had joined onto the dataroot, so in the monolith `image_path` was a filesystem path. The job flow needed a key that means the same image on any machine, so a `RelativeSceneLoader` wrapper stripped the dataroot back off by string prefix, and the report and UI guessed which of the two meanings a value had by checking whether the API had served it.
+
+**Decision: `image_path` is always the dataset-relative key** (`samples/CAM_FRONT/<name>.jpg`), which the devkit already holds as `sample_data["filename"]`. An `ImageStore` is the one thing that turns a key into bytes: `ScenePipeline` takes one just as `CaptionWorker` does, and the report resolves keys through the local dataroot, or through the API when it was given jobs. The wrapper and the guessing are gone.
+
+**Consequence:** result files written by `describe` hold keys, not absolute paths, so they are portable but need the dataroot (or an API that has the dataset) to render a report. Files written by an earlier version hold absolute paths and have to be generated again.
 
 ### What is still open
 

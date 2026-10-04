@@ -3,8 +3,9 @@ import tarfile
 from pathlib import Path
 
 import pytest
+from loguru import logger
 
-from backseat_driver.read.nuscenes_dataset import ensure_nuscenes_dataset
+from backseat_driver.read.dataset.nuscenes_dataset import LogEveryTenPercent, ensure_nuscenes_dataset
 
 
 def _archive(tmp_path: Path, *members: str) -> Path:
@@ -93,3 +94,29 @@ def test_download_reports_progress_to_the_callback(tmp_path: Path) -> None:
 
     assert seen
     assert seen[-1][0] == seen[-1][1]
+
+
+def test_the_default_progress_logs_each_ten_percent_once() -> None:
+    messages: list[str] = []
+    sink = logger.add(messages.append, format="{message}")
+    progress = LogEveryTenPercent()
+
+    try:
+        for downloaded in (5, 25, 26, 100):
+            progress(downloaded, 100)
+    finally:
+        logger.remove(sink)
+
+    assert [m.strip() for m in messages] == [f"nuScenes download {percent}%" for percent in range(10, 101, 10)]
+
+
+def test_the_default_progress_stays_quiet_when_the_total_is_unknown() -> None:
+    messages: list[str] = []
+    sink = logger.add(messages.append, format="{message}")
+
+    try:
+        LogEveryTenPercent()(500, None)
+    finally:
+        logger.remove(sink)
+
+    assert messages == []

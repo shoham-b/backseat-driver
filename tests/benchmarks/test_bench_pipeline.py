@@ -4,8 +4,6 @@ Everything runs against in-memory fakes, so the numbers track the orchestration 
 model (de)serialization overhead around the VLM rather than the VLM itself.
 """
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -14,7 +12,6 @@ from pytest_codspeed import BenchmarkFixture
 
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
 from backseat_driver.pipeline import ScenePipeline
-from backseat_driver.read.image_store import ImageStore
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.write.json_writer import write_json
@@ -23,30 +20,19 @@ from tests.fakes import (
     FakeJobQueue,
     FakeJobStore,
     FakeSceneLoader,
+    PassthroughImageStore,
     make_image_uri,
     make_keyframe,
 )
 
 SCENE_COUNTS = [10, 500]
 
-_LOCAL_COPY = Path("/fetched/bench.jpg")
-
-
-class _BenchImageStore(ImageStore):
-    """Does the least an image store can, so the numbers measure the worker and not a test double's bookkeeping
-    (FakeImageStore records every call and builds a path each time, which cost as much as the whole worker)."""
-
-    def uri_for(self, key: str) -> str:
-        return key
-
-    @contextmanager
-    def local_copy(self, uri: str) -> Iterator[Path]:
-        yield _LOCAL_COPY
-
 
 @pytest.mark.parametrize("scenes", SCENE_COUNTS)
 def test_pipeline_run(benchmark: BenchmarkFixture, scenes: int) -> None:
-    pipeline = ScenePipeline(FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), FakeCaptioner())
+    pipeline = ScenePipeline(
+        FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), FakeCaptioner(), PassthroughImageStore()
+    )
 
     descriptions = benchmark(pipeline.run)
 
@@ -60,7 +46,7 @@ def test_ingest_worker_fan_out(benchmark: BenchmarkFixture, scenes: int) -> None
     store = FakeJobStore()
     job_id = uuid4()
     store.create_job(job_id, max_scenes=None, transaction_id="bench")
-    worker = IngestWorker(loader, queue, store, _BenchImageStore())
+    worker = IngestWorker(loader, queue, store, PassthroughImageStore())
     task = IngestTask(job_id=job_id, transaction_id="bench")
 
     def run() -> None:
@@ -83,7 +69,7 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
         job_id = uuid4()
         store.create_job(job_id, max_scenes=None, transaction_id="bench")
         store.set_expected_scenes(job_id, scenes)
-        worker = CaptionWorker(captioner, store, _BenchImageStore())
+        worker = CaptionWorker(captioner, store, PassthroughImageStore())
         for keyframe in keyframes:
             worker.handle(
                 CaptionTask(job_id=job_id, transaction_id="bench", keyframe=keyframe, image_uri="fake://bench")
@@ -99,7 +85,9 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
 @pytest.mark.parametrize("scenes", SCENE_COUNTS)
 def test_write_json(benchmark: BenchmarkFixture, tmp_path: Path, scenes: int) -> None:
     captioner = FakeCaptioner("a city street with cars and pedestrians")
-    descriptions = ScenePipeline(FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), captioner).run()
+    descriptions = ScenePipeline(
+        FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), captioner, PassthroughImageStore()
+    ).run()
     output = tmp_path / "output" / "scene_descriptions.json"
 
     benchmark(write_json, descriptions, str(output))

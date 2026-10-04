@@ -16,17 +16,18 @@ from collections.abc import Callable
 
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.process.captioner import Captioner
-from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.read.dataset.scene_loader import SceneLoader
+from backseat_driver.read.images.image_store import ImageStore
 
 # Called before each keyframe is captioned with (1-based index, total, keyframe).
 ProgressCallback = Callable[[int, int, SceneKeyframe], None]
 
 
-def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, image_path: str) -> SceneDescription:
-    """Caption the image at `image_path` as the keyframe's scene. Shared by the batch pipeline and the caption worker.
+def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, local_path: str) -> SceneDescription:
+    """Caption the file at `local_path` as the keyframe's scene. Shared by the batch pipeline and the caption worker.
 
-    The path to read is separate from `keyframe.image_path`, which is what the description records: a worker captions
-    a local copy, but the result still names the dataset image.
+    The file to read is separate from `keyframe.image_path`, which is what the description records: the image is
+    captioned from a local copy, but the result still names it by its dataset key.
     """
     return SceneDescription(
         scene_token=keyframe.scene_token,
@@ -34,7 +35,7 @@ def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, image_path:
         camera_channel=keyframe.camera_channel,
         image_path=keyframe.image_path,
         reference_description=keyframe.reference_description,
-        description=captioner.caption(image_path),
+        description=captioner.caption(local_path),
         model_name=captioner.model_name,
     )
 
@@ -42,9 +43,10 @@ def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, image_path:
 class ScenePipeline:
     """Runs the loader → captioner pipeline over every scene in the dataset."""
 
-    def __init__(self, loader: SceneLoader, captioner: Captioner) -> None:
+    def __init__(self, loader: SceneLoader, captioner: Captioner, images: ImageStore) -> None:
         self._loader = loader
         self._captioner = captioner
+        self._images = images
 
     def run(self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None) -> list[SceneDescription]:
         keyframes = self._loader.load_keyframes()
@@ -57,5 +59,6 @@ class ScenePipeline:
         for index, keyframe in enumerate(keyframes, start=1):
             if on_progress:
                 on_progress(index, len(keyframes), keyframe)
-            descriptions.append(describe_keyframe(keyframe, self._captioner, keyframe.image_path))
+            with self._images.local_copy(self._images.uri_for(keyframe.image_path)) as local_path:
+                descriptions.append(describe_keyframe(keyframe, self._captioner, str(local_path)))
         return descriptions

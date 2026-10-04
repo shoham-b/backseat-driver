@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader
 
 
 class _FakeNuScenes:
@@ -28,11 +28,10 @@ class _FakeNuScenes:
         }
 
     def get(self, table: str, token: str) -> dict[str, Any]:
+        if table == "sample_data":
+            return {"filename": f"samples/CAM_FRONT/{token}.jpg"}
         assert table == "sample"
         return self._samples[token]
-
-    def get_sample_data_path(self, sample_data_token: str) -> str:
-        return f"/data/sets/nuscenes/samples/CAM_FRONT/{sample_data_token}.jpg"
 
 
 def test_load_keyframes_picks_the_middle_sample() -> None:
@@ -43,7 +42,7 @@ def test_load_keyframes_picks_the_middle_sample() -> None:
     assert keyframe.scene_token == "scene-token-1"
     assert keyframe.scene_name == "scene-0001"
     assert keyframe.camera_channel == "CAM_FRONT"
-    assert keyframe.image_path == "/data/sets/nuscenes/samples/CAM_FRONT/sd-2.jpg"
+    assert keyframe.image_path == "samples/CAM_FRONT/sd-2.jpg"
     assert keyframe.reference_description == "Parked truck, intersection"
 
 

@@ -20,7 +20,7 @@ from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers ever
 from backseat_driver.cli import app
 from backseat_driver.config import get_settings
 from backseat_driver.models import IngestTask, JobState
-from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
 from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
 from backseat_driver.read.s3.uploader import DatasetUploader
@@ -103,9 +103,8 @@ def test_describe_fetches_the_dataset_and_describes_every_scene_with_its_referen
     assert [d["scene_name"] for d in written] == ["scene-0000", "scene-0001"]
     assert [d["reference_description"] for d in written] == SCENE_LABELS
     assert [d["description"] for d in written] == [CAPTION] * 2
-    cache = tmp_path / "cache"
-    assert [Path(d["image_path"]) for d in written] == [cache / middle_image(i) for i in range(2)]
-    assert all(Path(d["image_path"]).is_file() for d in written)
+    assert [d["image_path"] for d in written] == [middle_image(i) for i in range(2)]
+    assert all((tmp_path / "cache" / d["image_path"]).is_file() for d in written)
 
 
 def test_describe_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) -> None:
@@ -133,6 +132,18 @@ def test_describe_then_report_scores_the_descriptions_against_the_labels(
     assert "scene-0000" in html
     assert "Parked truck, construction ahead" in html
     assert "data:image/jpeg;base64," in html  # images are inlined, so the page works without the dataset
+
+
+def test_report_reads_the_images_from_the_dataroot_given_to_describe(cli_env: dict[str, str], tmp_path: Path) -> None:
+    dataroot = str(tmp_path / "elsewhere")
+    env = {k: v for k, v in cli_env.items() if k != "BACKSEAT_DRIVER_NUSCENES_DATAROOT"}
+    runner.invoke(app, ["describe", "--camera", "front", "--dataroot", dataroot], env=env)
+
+    result = runner.invoke(app, ["report", "--dataroot", dataroot], env=env)
+    html = (tmp_path / "output" / "report.html").read_text()
+
+    assert result.exit_code == 0, result.output
+    assert "data:image/jpeg;base64," in html
 
 
 def test_describe_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str, str], tmp_path: Path) -> None:

@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from pytest_codspeed import BenchmarkFixture
 
-from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader
 
 SAMPLES_PER_SCENE = 40
 
@@ -35,10 +35,9 @@ class _SyntheticNuScenes:
             self.scene.append({"token": f"scene-token-{s}", "name": f"scene-{s:04d}", "first_sample_token": tokens[0]})
 
     def get(self, table: str, token: str) -> dict[str, Any]:
+        if table == "sample_data":
+            return {"filename": f"samples/CAM_FRONT/{token}.jpg"}
         return self._samples[token]
-
-    def get_sample_data_path(self, sample_data_token: str) -> str:
-        return f"{self.dataroot}/samples/CAM_FRONT/{sample_data_token}.jpg"
 
 
 @pytest.mark.parametrize("scenes", [10, 200])

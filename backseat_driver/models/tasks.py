@@ -12,4 +12,4 @@ class CaptionTask(JobReference):
     """Queue message: caption one scene's keyframe on behalf of a job."""
 
     keyframe: SceneKeyframe
-    image_uri: str  # where the image bytes are; the keyframe's own `image_path` only exists on the ingest side
+    image_uri: str  # where the image bytes are; the keyframe's `image_path` is only the key they are stored under

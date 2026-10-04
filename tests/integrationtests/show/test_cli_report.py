@@ -33,7 +33,7 @@ def output_dir(tmp_path: Path) -> Path:
                 scene_token="token-1",
                 scene_name="scene-0001",
                 camera_channel="CAM_FRONT",
-                image_path=str(image),
+                image_path=image.name,
                 description="a parked truck",
                 model_name=model,
                 reference_description="Parked truck",
@@ -44,8 +44,13 @@ def output_dir(tmp_path: Path) -> Path:
     return directory
 
 
+def _env(output_dir: Path) -> dict[str, str]:
+    # The fixture's image sits next to the output directory, so its parent is the dataroot the key resolves in.
+    return {"BACKSEAT_DRIVER_OUTPUT_DIR": str(output_dir), "BACKSEAT_DRIVER_NUSCENES_DATAROOT": str(output_dir.parent)}
+
+
 def test_report_defaults_to_every_result_in_the_output_dir(output_dir: Path) -> None:
-    result = runner.invoke(app, ["report"], env={"BACKSEAT_DRIVER_OUTPUT_DIR": str(output_dir)})
+    result = runner.invoke(app, ["report"], env=_env(output_dir))
 
     assert result.exit_code == 0, result.output
     assert "wrote report for 2 description(s)" in result.output
@@ -57,7 +62,9 @@ def test_report_defaults_to_every_result_in_the_output_dir(output_dir: Path) -> 
 def test_report_accepts_explicit_files_and_output(output_dir: Path, tmp_path: Path) -> None:
     target = tmp_path / "custom.html"
 
-    result = runner.invoke(app, ["report", str(output_dir / "model-a.json"), "--output", str(target)])
+    result = runner.invoke(
+        app, ["report", str(output_dir / "model-a.json"), "--output", str(target)], env=_env(output_dir)
+    )
 
     assert result.exit_code == 0, result.output
     assert "wrote report for 1 description(s)" in result.output
