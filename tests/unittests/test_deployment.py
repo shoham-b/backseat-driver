@@ -201,7 +201,7 @@ def test_example_run_job_is_a_valid_invocation_on_the_defined_volumes() -> None:
 
     assert job["metadata"]["namespace"] == yaml.safe_load((K8S / "kustomization.yaml").read_text())["namespace"]
     assert {v["persistentVolumeClaim"]["claimName"] for v in pod["volumes"] if "persistentVolumeClaim" in v} <= claims
-    assert pod["securityContext"]["fsGroup"] == 10001  # so the non-root user can write to the results volume
+    assert {v["name"] for v in pod["volumes"] if "emptyDir" in v} == {"output"}  # world-writable, so no fsGroup needed
 
 
 def test_cluster_runs_in_distributed_mode_not_the_monolith_default() -> None:
