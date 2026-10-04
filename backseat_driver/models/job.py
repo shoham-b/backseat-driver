@@ -40,3 +40,9 @@ class DeadLetter(BaseModel):
     payload: dict[str, Any]
     error: str
     failed_at: datetime
+
+
+class JobDeadLetter(DeadLetter):
+    """A dead letter listed across jobs, so it says which job it belongs to."""
+
+    job_id: UUID

@@ -101,6 +101,11 @@ class JobStorage:
         with self._session() as session:
             return list(session.scalars(statement).all())
 
+    def fetch_recent_dead_letters(self, limit: int) -> list[DeadLetterRow]:
+        statement = select(DeadLetterRow).order_by(DeadLetterRow.id.desc()).limit(limit)
+        with self._session() as session:
+            return list(session.scalars(statement).all())
+
     def insert_description(self, job_id: UUID, values: dict) -> None:
         """Idempotent: a redelivered scene and camera is ignored."""
         with self._session() as session, session.begin():

@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_transaction_id
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
-from backseat_driver.models import DeadLetter, IngestTask, Job, JobState, SceneDescription
+from backseat_driver.models import DeadLetter, IngestTask, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
@@ -80,6 +80,15 @@ async def list_jobs(
 async def get_job(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> Job:
     """Progress of a job: `pending` until ingest counts the scenes, then `running`, then `completed`."""
     return await run_in_threadpool(store.get_job, job_id)
+
+
+@router.get("/dead-letters")
+async def list_recent_dead_letters(
+    store: Annotated[JobStore, Depends(get_job_store)],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> list[JobDeadLetter]:
+    """The most recent tasks that ran out of retries across all jobs, newest first, each naming its job."""
+    return await run_in_threadpool(store.list_recent_dead_letters, limit)
 
 
 @router.get("/jobs/{job_id}/dead-letters", responses=NOT_FOUND_RESPONSE)

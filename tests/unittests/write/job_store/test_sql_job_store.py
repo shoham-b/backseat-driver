@@ -175,6 +175,23 @@ def test_dead_letters_round_trip_oldest_first_and_per_job(store: SqlJobStore) ->
     assert letters[0].model_dump(exclude={"failed_at"}) == _dead_letter("ingest").model_dump(exclude={"failed_at"})
 
 
+def test_recent_dead_letters_span_jobs_newest_first_up_to_the_limit(store: SqlJobStore) -> None:
+    first, second = uuid4(), uuid4()
+    store.create_job(first, None, "tx")
+    store.create_job(second, None, "tx")
+    store.record_dead_letter(first, _dead_letter("ingest"))
+    store.record_dead_letter(second, _dead_letter("caption"))
+    store.record_dead_letter(first, _dead_letter("caption"))
+
+    recent = store.list_recent_dead_letters(limit=2)
+
+    assert [(letter.job_id, letter.task) for letter in recent] == [(first, "caption"), (second, "caption")]
+
+
+def test_no_dead_letters_lists_none(store: SqlJobStore) -> None:
+    assert store.list_recent_dead_letters(limit=10) == []
+
+
 def test_a_dead_letter_does_not_change_the_state_by_itself(store: SqlJobStore) -> None:
     job_id = uuid4()
     store.create_job(job_id, None, "tx")

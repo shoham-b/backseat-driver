@@ -9,7 +9,7 @@ from threading import Lock
 from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import DeadLetter, Job, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
 
 
@@ -30,6 +30,7 @@ class InMemoryJobStore(JobStore):
         # The API's request threads and the in-process worker thread share this store.
         self._lock = Lock()
         self._jobs: dict[UUID, _Record] = {}
+        self._recent: list[JobDeadLetter] = []  # every dead letter in arrival order, for the cross-job listing
 
     def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
@@ -59,6 +60,11 @@ class InMemoryJobStore(JobStore):
     def record_dead_letter(self, job_id: UUID, dead_letter: DeadLetter) -> None:
         with self._lock:
             self._get(job_id).dead_letters.append(dead_letter)
+            self._recent.append(JobDeadLetter(job_id=job_id, **dead_letter.model_dump()))
+
+    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+        with self._lock:
+            return self._recent[::-1][:limit]
 
     def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
         with self._lock:

@@ -197,11 +197,11 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 ### Dead letters
 
-A task that runs out of retries marks its job `failed` (`Job.error`, first error kept, cut to 500 characters) and is also kept whole as a `dead_letters` row: the task (`ingest` or `caption`), its payload, the full error and the time. `GET /jobs/{id}/dead-letters` lists them, so a failed task can be inspected or re-enqueued by hand. The state still comes from `Job.error` alone; a dead letter adds detail and changes nothing. It is written at the same two places that call `fail_job`: the Celery `on_failure` hook (called only once retries are spent) and the in-process queue's failure callback. A malformed message is dead-lettered too when its payload still names a job.
+A task that runs out of retries marks its job `failed` (`Job.error`, first error kept, cut to 500 characters) and is also kept whole as a `dead_letters` row: the task (`ingest` or `caption`), its payload, the full error and the time. `GET /jobs/{id}/dead-letters` lists a job's, and `GET /dead-letters?limit=` the newest across all jobs (each naming its job), so a failed task can be inspected or re-enqueued by hand. The state still comes from `Job.error` alone; a dead letter adds detail and changes nothing. It is written at the same two places that call `fail_job`: the Celery `on_failure` hook (called only once retries are spent) and the in-process queue's failure callback. A malformed message is dead-lettered too when its payload still names a job.
 
 **Why in the job store and not a RabbitMQ dead-letter exchange.** The failure belongs on the job users poll, and the monolith has no broker. Celery's retries also republish a new message instead of redelivering, so a quorum queue's `x-delivery-limit` never counts them.
 
-**Revisit if:** the database being down matters. Then neither `fail_job` nor the dead letter can be written; that is logged and the job stays `running`. A broker dead-letter exchange as a second net would cover it. Existing databases need the new `dead_letters` table; `db init` creates it.
+**Revisit if:** a task should be dead-lettered before its job exists or when its payload names none (it is only logged, since a dead letter belongs to a job), or the database being down matters. Then neither `fail_job` nor the dead letter can be written; that is logged and the job stays `running`. A broker dead-letter exchange as a second net would cover it. Existing databases need the new `dead_letters` table; `db init` creates it.
 
 ### What is still open
 

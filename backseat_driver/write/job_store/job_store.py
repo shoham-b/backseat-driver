@@ -9,7 +9,7 @@ descriptions have been recorded (and whether an error was recorded), never store
 from abc import ABC, abstractmethod
 from uuid import UUID
 
-from backseat_driver.models import DeadLetter, Job, JobState, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobDeadLetter, JobState, SceneDescription
 
 
 class JobStore(ABC):
@@ -43,6 +43,10 @@ class JobStore(ABC):
     @abstractmethod
     def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
         """Oldest first. Raises NotFoundError for an unknown job."""
+
+    @abstractmethod
+    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+        """The newest `limit` dead letters across all jobs, newest first."""
 
     @abstractmethod
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:

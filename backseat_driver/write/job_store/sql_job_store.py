@@ -5,7 +5,7 @@ Postgres when distributed; the monolith runs the same code over a SQLite file so
 from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import DeadLetter, Job, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.orm import JobRow
 from backseat_driver.write.job_store.storage import JobStorage
@@ -49,6 +49,18 @@ class SqlJobStore(JobStore):
                 failed_at=row.failed_at,
             )
             for row in self._storage.fetch_dead_letters(job_id)
+        ]
+
+    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+        return [
+            JobDeadLetter(
+                job_id=row.job_id,
+                task=row.task,  # ty: ignore[invalid-argument-type]
+                payload=row.payload,
+                error=row.error,
+                failed_at=row.failed_at,
+            )
+            for row in self._storage.fetch_recent_dead_letters(limit)
         ]
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:

@@ -76,6 +76,29 @@ def test_dead_letters_of_a_job_are_listed_with_their_payload(client_with: Client
     ]
 
 
+def test_recent_dead_letters_span_jobs_newest_first_and_name_their_job(client_with: ClientFactory) -> None:
+    store, first, second = FakeJobStore(), uuid4(), uuid4()
+    for job_id in (first, second):
+        store.create_job(job_id, None, "tx")
+        store.record_dead_letter(
+            job_id,
+            DeadLetter(task="caption", payload={}, error=f"error {job_id}", failed_at=datetime.now(UTC)),
+        )
+    client = client_with({get_job_store: lambda: store})
+
+    letters = client.get("/dead-letters").json()
+    limited = client.get("/dead-letters", params={"limit": 1}).json()
+
+    assert [letter["job_id"] for letter in letters] == [str(second), str(first)]
+    assert [letter["job_id"] for letter in limited] == [str(second)]
+
+
+def test_recent_dead_letters_reject_a_limit_out_of_range(client: TestClient) -> None:
+    response = client.get("/dead-letters", params={"limit": 0})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
 def test_job_runs_to_completion_through_both_workers(client_with: ClientFactory) -> None:
     queue, store = FakeJobQueue(), FakeJobStore()
     client = client_with({get_job_queue: lambda: queue, get_job_store: lambda: store})
