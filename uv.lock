@@ -110,6 +110,7 @@ api = [
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
     { name = "python-multipart" },
+    { name = "rich" },
     { name = "sqlalchemy" },
     { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
@@ -122,6 +123,7 @@ caption-worker = [
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
+    { name = "rich" },
     { name = "sqlalchemy" },
     { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
@@ -135,6 +137,7 @@ cli = [
     { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
+    { name = "rich" },
     { name = "sqlalchemy" },
     { name = "torch", version = "2.14.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin'" },
     { name = "torch", version = "2.14.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin'" },
@@ -144,6 +147,7 @@ cli = [
 core = [
     { name = "loguru" },
     { name = "pydantic-settings" },
+    { name = "rich" },
     { name = "typer" },
 ]
 dev = [
@@ -162,6 +166,7 @@ dev = [
     { name = "pytest-codspeed" },
     { name = "pytest-cov" },
     { name = "python-multipart" },
+    { name = "rich" },
     { name = "ruff" },
     { name = "schemathesis" },
     { name = "selenium" },
@@ -183,6 +188,7 @@ ingest-worker = [
     { name = "nuscenes-devkit" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
+    { name = "rich" },
     { name = "sqlalchemy" },
     { name = "typer" },
 ]
@@ -200,6 +206,7 @@ systemtest = [
     { name = "pydantic-settings" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
+    { name = "rich" },
     { name = "typer" },
 ]
 vlm = [
@@ -220,6 +227,7 @@ api = [
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.9" },
     { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "rich", specifier = ">=13" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", specifier = ">=4.44,<6" },
@@ -231,6 +239,7 @@ caption-worker = [
     { name = "pillow", specifier = ">=10.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "rich", specifier = ">=13" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", specifier = ">=4.44,<6" },
@@ -243,6 +252,7 @@ cli = [
     { name = "pillow", specifier = ">=10.4" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "rich", specifier = ">=13" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "torch", specifier = ">=2.4", index = "https://download.pytorch.org/whl/cpu" },
     { name = "transformers", specifier = ">=4.44,<6" },
@@ -251,6 +261,7 @@ cli = [
 core = [
     { name = "loguru", specifier = ">=0.7" },
     { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "rich", specifier = ">=13" },
     { name = "typer", specifier = ">=0.12" },
 ]
 dev = [
@@ -269,6 +280,7 @@ dev = [
     { name = "pytest-codspeed", specifier = ">=5.0.3" },
     { name = "pytest-cov", specifier = ">=6" },
     { name = "python-multipart", specifier = ">=0.0.12" },
+    { name = "rich", specifier = ">=13" },
     { name = "ruff", specifier = ">=0.11" },
     { name = "schemathesis", specifier = ">=3.0" },
     { name = "selenium", specifier = ">=4.25" },
@@ -289,6 +301,7 @@ ingest-worker = [
     { name = "nuscenes-devkit", specifier = ">=1.1.11" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic-settings", specifier = ">=2.9" },
+    { name = "rich", specifier = ">=13" },
     { name = "sqlalchemy", specifier = ">=2.0" },
     { name = "typer", specifier = ">=0.12" },
 ]
@@ -304,6 +317,7 @@ systemtest = [
     { name = "pydantic-settings", specifier = ">=2.9" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
+    { name = "rich", specifier = ">=13" },
     { name = "typer", specifier = ">=0.12" },
 ]
 vlm = [

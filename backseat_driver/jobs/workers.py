@@ -36,7 +36,7 @@ class IngestWorker:
                 self._queue.enqueue_caption(
                     CaptionTask(job_id=task.job_id, transaction_id=task.transaction_id, keyframe=keyframe)
                 )
-            logger.bind(scenes=len(keyframes)).info("ingest fanned out")
+            logger.info("ingest fanned out {} scenes to caption workers", len(keyframes))
 
 
 class CaptionWorker:
@@ -50,4 +50,4 @@ class CaptionWorker:
         with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
             description = describe_keyframe(task.keyframe, self._captioner)
             self._store.record_description(task.job_id, description)
-            logger.bind(scene=task.keyframe.scene_name).info("scene described")
+            logger.debug("described {} ({})", task.keyframe.scene_name, task.keyframe.camera_channel)
