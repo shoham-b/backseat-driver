@@ -62,6 +62,10 @@ class FakeJobStore(JobStore):
             created_at=created_at,
         )
 
+    def list_jobs(self) -> list[Job]:
+        jobs = [self.get_job(job_id) for job_id in reversed(self._jobs)]
+        return sorted(jobs, key=lambda job: job.created_at, reverse=True)
+
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self._get(job_id)
         return sorted(self._descriptions[job_id].values(), key=lambda d: d.scene_name)
@@ -111,6 +115,8 @@ def make_settings(**overrides: Any) -> Settings:
     A model is chosen for every backend, since building a captioner without one fails on purpose.
     """
     models: dict[str, Any] = {
+        # The monolith keeps jobs in memory, not in a SQLite file in the working directory.
+        "jobs_db_path": "",
         "vlm_model_name": "fake-model",
         "ollama_model_name": "fake-model",
         "anthropic_model_name": "fake-model",

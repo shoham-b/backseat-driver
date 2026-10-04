@@ -35,6 +35,15 @@ class _EngineFactory:
         return self._engine
 
 
+def test_a_sqlite_engine_waits_on_a_locked_file_and_is_shareable_across_threads() -> None:
+    engines = _EngineFactory()
+
+    JobStorage("sqlite:///jobs.db", engine_factory=engines).ping()
+
+    [(_, kwargs)] = engines.calls
+    assert kwargs["connect_args"] == {"timeout": 10, "check_same_thread": False}
+
+
 def test_constructing_storage_never_creates_an_engine() -> None:
     engines = _EngineFactory()
 

@@ -1,6 +1,6 @@
 """SQLAlchemy ORM tables for the persistence layer. Query logic lives in `storage.py`."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, func
@@ -19,7 +19,11 @@ class JobRow(Base):
     transaction_id: Mapped[str] = mapped_column(String)
     max_scenes: Mapped[int | None] = mapped_column(Integer)
     expected_scenes: Mapped[int | None] = mapped_column(Integer)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The client-side default has microsecond resolution (CURRENT_TIMESTAMP has seconds on SQLite), so jobs created in
+    # the same second still sort in creation order.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), default=lambda: datetime.now(UTC)
+    )
 
 
 class SceneDescriptionRow(Base):
