@@ -36,4 +36,5 @@ class SceneDescriptionRow(Base):
     image_path: Mapped[str] = mapped_column(String)
     description: Mapped[str] = mapped_column(String)
     model_name: Mapped[str] = mapped_column(String)
+    reference_description: Mapped[str | None] = mapped_column(String)
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

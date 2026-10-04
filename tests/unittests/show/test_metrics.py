@@ -5,10 +5,40 @@ from hypothesis import strategies as st
 from backseat_driver.show.metrics import content_words, score
 
 
-def test_content_words_drops_stopwords_and_folds_plurals() -> None:
+def test_content_words_drops_stopwords_and_stems() -> None:
     words = content_words("The Trucks are parked at an intersection")
 
-    assert words == {"truck", "parked", "intersection"}
+    assert words == content_words("truck park intersection")
+    assert len(words) == 3
+
+
+@pytest.mark.parametrize(
+    ("variant", "base"),
+    [
+        ("buses", "bus"),
+        ("lorries", "lorry"),
+        ("glasses", "glass"),
+        ("turning", "turn"),
+        ("turned", "turn"),
+        ("stopping", "stop"),
+        ("parked", "park"),
+        ("driving", "drive"),
+        ("lanes", "lane"),
+        ("people", "person"),
+    ],
+)
+def test_inflected_forms_meet_their_base_word(variant: str, base: str) -> None:
+    assert content_words(variant) == content_words(base)
+
+
+def test_content_words_drops_caption_boilerplate() -> None:
+    words = content_words("The image shows a truck")
+
+    assert words == {"truck"}
+
+
+def test_short_words_are_not_over_stemmed() -> None:
+    assert content_words("bus red king string") == {"bus", "red", "king", "string"}
 
 
 def test_score_full_overlap_is_perfect() -> None:

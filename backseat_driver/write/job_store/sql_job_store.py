@@ -26,8 +26,7 @@ class SqlJobStore(JobStore):
             raise NotFoundError(f"job {job_id} not found")
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        # The nuScenes reference label is only used by the CLI report; the table has no column for it.
-        self._storage.insert_description(job_id, description.model_dump(exclude={"reference_description"}))
+        self._storage.insert_description(job_id, description.model_dump())
 
     def get_job(self, job_id: UUID) -> Job:
         found = self._storage.fetch_job(job_id)
@@ -49,6 +48,7 @@ class SqlJobStore(JobStore):
                 image_path=row.image_path,
                 description=row.description,
                 model_name=row.model_name,
+                reference_description=row.reference_description,
                 generated_at=row.generated_at,
             )
             for row in self._storage.fetch_descriptions(job_id)
