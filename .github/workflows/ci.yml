@@ -196,7 +196,8 @@ jobs:
         run: |
           kubectl apply -k deploy/kind-ci
           kubectl -n backseat-driver rollout status deploy/api --timeout=300s
-          kubectl -n backseat-driver rollout status deploy/ingest-worker deploy/caption-worker deploy/stub-ollama --timeout=180s
+          # There is no ingest-worker to wait for: with KEDA, ingest runs as short Jobs that KEDA starts when a task is queued.
+          kubectl -n backseat-driver rollout status deploy/caption-worker deploy/stub-ollama --timeout=180s
 
       # The dependency cache is off: this job builds images, and zizmor treats a shared cache next to a build as a
       # poisoning risk. The one group installed here is small.

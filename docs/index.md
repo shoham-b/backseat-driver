@@ -2,6 +2,8 @@
 
 Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model.
 
+Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and an in-memory job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API and the dataset in `data/`. See [Distributed mode](distributed.md) for the microservices and [Running it](running.md) for how to start either.
+
 ## Quick start
 
 ```bash

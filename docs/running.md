@@ -1,12 +1,12 @@
 # Running it
 
-There are several ways to run the project. They all run the same code and read the same `BACKSEAT_DRIVER_*` settings; they differ in *where* the pieces run.
+There are several ways to run the project. The repository is a monorepo of microservices that can also be debugged as a monolith; debugging as a monolith drops S3 and RabbitMQ (and Postgres). They all run the same code and read the same `BACKSEAT_DRIVER_*` settings; they differ in *where* the pieces run.
 
 ## The three modes
 
 | Mode | What runs where | Commands |
 |---|---|---|
-| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store, so no broker, database or workers are needed. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just run` |
+| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store and the dataset read from `data/`, so the broker (RabbitMQ), the object store (S3), the database and the separate workers are all dropped. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just run` |
 | **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
 | **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just k8s-up` for a local kind cluster with autoscaling; `just serve` is the API's command outside a container |
 
@@ -43,11 +43,11 @@ compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ 
 ```
 
 - **One Dockerfile, a target per service.** `docker/Dockerfile` builds `cli` (the pipeline, `db init`, the report UI; entrypoint `backseat-driver`), `api` (`fastapi run`), `ingest-worker` (nuscenes-devkit, no torch) and `caption-worker` (torch, no nuscenes-devkit). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}`, which the Kubernetes manifests pull. All run as the non-root user `app` (uid 10001).
-- **`BACKSEAT_DRIVER_MODE` decides whether `/ready` needs infrastructure.** In the default `monolith` mode the queue and store live in the API process, so `just dev` is ready with nothing else running. In `distributed` mode (compose, Kubernetes, `just dev-distributed`) the API checks RabbitMQ and Postgres, so one started without them reports not-ready. `just infra` (local only; run for you by `just dev-distributed` and `just worker-*`, never needed in Kubernetes) starts both in Docker, publishes them on `127.0.0.1:5672` / `5432` (the defaults in `.env.example`) and creates the schema.
+- **`BACKSEAT_DRIVER_MODE` decides whether `/ready` needs infrastructure.** In the default `monolith` mode the queue and store live in the API process, so `just dev` is ready with nothing else running. In `distributed` mode (compose, Kubernetes, `just dev-distributed`) the API checks RabbitMQ and Postgres, so one started without them reports not-ready. `just infra` (local only; run for you by `just dev-distributed` and `just worker-*`, never needed in Kubernetes) starts them (plus the dev S3 store) in Docker, publishes them on `127.0.0.1:5672` / `5432` / `9090` (the defaults in `.env.example`; set the `BACKSEAT_DRIVER_DATASET_BUCKET` block there for host-run workers and run `uv run backseat-driver dataset upload` once) and creates the schema.
 - **Containers don't read `.env`.** Its `localhost` URLs would be wrong inside a container. Compose instead interpolates the captioner settings (`BACKSEAT_DRIVER_VLM_BACKEND`, model names, `ANTHROPIC_API_KEY`, …) from your shell or `.env`, so `BACKSEAT_DRIVER_VLM_BACKEND=ollama just up` and a `.env` entry behave the same. Broker and database URLs always point at the compose services.
 - **Ollama on the host.** Containers reach it at `host.docker.internal:11434`; override with `BACKSEAT_DRIVER_COMPOSE_OLLAMA_URL`.
 - **Model weights are cached** in the `hf-cache` volume, so repeat runs don't re-download them.
-- **The dataset is never baked into an image.** Compose bind-mounts `./data` read-only; Kubernetes mounts the `nuscenes-data` claim. Queue messages carry image *paths*, so every worker must see the same files at the same path.
+- **The dataset is never baked into an image.** Compose bind-mounts `./data` read-only; Kubernetes mounts the `nuscenes-data` claim. Only the one-shot `dataset upload` reads it from disk: it copies the dataset into an S3-compatible bucket, ingest reads the metadata tables from there and the queue messages carry each image's object URI, so no worker has the dataset on disk (`just infra` and compose start a development store, `s3`, on `127.0.0.1:9090`; see [Distributed mode](distributed.md)).
 
 ## Docker Compose
 

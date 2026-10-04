@@ -7,10 +7,15 @@ kind: Component
 resources:
   - autoscaling.yaml
 patches:
-  # KEDA owns the replica count; a fixed one here would be reset on every `kubectl apply`.
+  # The ingest ScaledJob replaces the always-on ingest worker.
   - target: {kind: Deployment, name: ingest-worker}
     patch: |-
-      - {op: remove, path: /spec/replicas}
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest-worker
+  # KEDA owns the replica count; a fixed one here would be reset on every `kubectl apply`.
   - target: {kind: Deployment, name: caption-worker}
     patch: |-
       - {op: remove, path: /spec/replicas}

@@ -4,19 +4,43 @@ Everything runs against in-memory fakes, so the numbers track the orchestration 
 model (de)serialization overhead around the VLM rather than the VLM itself.
 """
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
 from pytest_codspeed import BenchmarkFixture
 
+from backseat_driver.datasets.image_store import ImageStore
 from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
 from backseat_driver.scenes.pipeline import ScenePipeline
 from backseat_driver.scenes.writer import write_json
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
+from tests.fakes import (
+    FakeCaptioner,
+    FakeJobQueue,
+    FakeJobStore,
+    FakeSceneLoader,
+    make_image_uri,
+    make_keyframe,
+)
 
 SCENE_COUNTS = [10, 500]
+
+_LOCAL_COPY = Path("/fetched/bench.jpg")
+
+
+class _BenchImageStore(ImageStore):
+    """Does the least an image store can, so the numbers measure the worker and not a test double's bookkeeping
+    (FakeImageStore records every call and builds a path each time, which cost as much as the whole worker)."""
+
+    def uri_for(self, key: str) -> str:
+        return key
+
+    @contextmanager
+    def local_copy(self, uri: str) -> Iterator[Path]:
+        yield _LOCAL_COPY
 
 
 @pytest.mark.parametrize("scenes", SCENE_COUNTS)
@@ -35,7 +59,7 @@ def test_ingest_worker_fan_out(benchmark: BenchmarkFixture, scenes: int) -> None
     store = FakeJobStore()
     job_id = uuid4()
     store.create_job(job_id, max_scenes=None, transaction_id="bench")
-    worker = IngestWorker(loader, queue, store)
+    worker = IngestWorker(loader, queue, store, _BenchImageStore())
     task = IngestTask(job_id=job_id, transaction_id="bench")
 
     def run() -> None:
@@ -58,9 +82,11 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
         job_id = uuid4()
         store.create_job(job_id, max_scenes=None, transaction_id="bench")
         store.set_expected_scenes(job_id, scenes)
-        worker = CaptionWorker(captioner, store)
+        worker = CaptionWorker(captioner, store, _BenchImageStore())
         for keyframe in keyframes:
-            worker.handle(CaptionTask(job_id=job_id, transaction_id="bench", keyframe=keyframe))
+            worker.handle(
+                CaptionTask(job_id=job_id, transaction_id="bench", keyframe=keyframe, image_uri="fake://bench")
+            )
         store.get_job(job_id)
         return store.list_descriptions(job_id)
 
@@ -85,7 +111,9 @@ def test_caption_task_round_trip(benchmark: BenchmarkFixture, scenes: int) -> No
     """Serialize and re-validate queue messages, the work done per message on the broker boundary."""
     job_id = uuid4()
     payloads = [
-        CaptionTask(job_id=job_id, transaction_id="bench", keyframe=make_keyframe(n)).model_dump(mode="json")
+        CaptionTask(
+            job_id=job_id, transaction_id="bench", keyframe=make_keyframe(n), image_uri=make_image_uri(n)
+        ).model_dump(mode="json")
         for n in range(scenes)
     ]
 

@@ -36,20 +36,43 @@ spec:
         value: "20" # one replica per 20 waiting scenes
       authenticationRef: {name: rabbitmq-management}
 ---
+# Ingest is a short run-to-completion task (read the metadata tables, publish one message per scene), so each queued
+# ingest task gets its own Job that exits when done and nothing runs while the queue is empty. The component deletes the
+# base ingest-worker Deployment in its favour. The task is acked only after it succeeded, so a Job that dies mid-way
+# leaves the message to be redelivered to the next one.
 apiVersion: keda.sh/v1alpha1
-kind: ScaledObject
+kind: ScaledJob
 metadata:
   name: ingest-worker
 spec:
-  scaleTargetRef:
-    name: ingest-worker
-  minReplicaCount: 1
+  pollingInterval: 5
   maxReplicaCount: 3
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 5
+  jobTargetRef:
+    backoffLimit: 3
+    template:
+      metadata:
+        labels: {app: ingest-worker}
+      spec:
+        restartPolicy: Never
+        securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+        containers:
+          - name: worker
+            image: ghcr.io/shoham-b/backseat-driver-ingest-worker
+            imagePullPolicy: IfNotPresent
+            args: [worker, ingest, --once]
+            envFrom:
+              - configMapRef: {name: backseat-driver-config}
+              - secretRef: {name: backseat-driver-secrets}
+            securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+            resources:
+              requests: {cpu: 100m, memory: 512Mi}
   triggers:
     - type: rabbitmq
       metadata:
         protocol: http
         queueName: backseat_driver.ingest
         mode: QueueLength
-        value: "2" # one replica per 2 waiting jobs
+        value: "1" # one Job per waiting task
       authenticationRef: {name: rabbitmq-management}
