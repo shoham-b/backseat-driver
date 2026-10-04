@@ -12,6 +12,7 @@ Usage::
 from typing import Annotated
 
 import typer
+from loguru import logger
 
 from backseat_driver.cli import app
 from backseat_driver.config import VlmBackend, get_settings
@@ -66,11 +67,11 @@ def run(
     captioner = build_captioner(settings, backend=backend, model_name=model)
     pipeline = ScenePipeline(loader=loader, captioner=captioner)
 
-    typer.secho(f"Loading scenes from {dataroot!r} ({version})", fg=typer.colors.CYAN)
+    logger.info("loading scenes from {!r} ({})", dataroot, version)
     descriptions = pipeline.run(max_scenes=max_scenes)
 
     write_json(descriptions, output)
-    typer.secho(f"Wrote {len(descriptions)} scene description(s) to {output}", fg=typer.colors.GREEN)
+    logger.info("wrote {} scene description(s) to {}", len(descriptions), output)
 
     for d in descriptions:
         typer.echo(f"  {d.scene_name} [{d.camera_channel}]: {d.description}")

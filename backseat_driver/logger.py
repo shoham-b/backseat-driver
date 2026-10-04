@@ -46,3 +46,4 @@ def setup_logging(fmt: LogFormat = LogFormat.COLORED, service: str = "backseat_d
         )
     # Without this, a worker that fails a task logs nothing: Celery reports through stdlib logging, not loguru.
     logging.basicConfig(handlers=[_InterceptHandler()], level=logging.INFO, force=True)
+    logging.captureWarnings(True)
