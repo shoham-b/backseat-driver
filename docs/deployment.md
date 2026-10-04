@@ -15,7 +15,7 @@ can be checked without a cluster or a daemon are also pinned by `tests/unittests
 | `caption-worker` | `backseat-driver worker caption` | downloads one keyframe from the bucket and runs the VLM on it (torch, no nuscenes-devkit, no dataset on disk) |
 
 Model weights are cached under `HF_HOME` (`/home/app/.cache/huggingface`); mount a volume there to survive restarts.
-`.github/workflows/docker.yml` publishes them as `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}:latest`.
+`.github/workflows/docker.yml` publishes them as `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}:latest` on every push to main (unstable). Each release (`release-please.yml`) publishes the same four images tagged with the release version, e.g. `:v0.2.0`; pin those in production.
 
 ## Docker Compose
 

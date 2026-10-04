@@ -16,7 +16,7 @@
 | Lint / types | [ruff](https://docs.astral.sh/ruff/), [ty](https://github.com/astral-sh/ty) | `just lint` / `just typecheck` |
 | Docs | [MkDocs](https://www.mkdocs.org/) + Material + mkdocstrings | This site, published via GitHub Pages (`.github/workflows/pages.yml`) |
 | Containers | Docker (multi-stage `docker/Dockerfile`, one target per service: `cli`, `api`, `ingest-worker`, `caption-worker`), Docker Compose | See "Deployment" below |
-| CI/CD | GitHub Actions — `ci.yml` (lint/typecheck/test), `docker.yml` (build+push images), `codeql.yml`, `release-please.yml`/`release.yml`, `semantic-pr.yml`, `dependabot-auto-merge.yml` | |
+| CI/CD | GitHub Actions — `ci.yml` (lint/typecheck/test), `docker.yml` (build+push images), `codeql.yml`, `release-please.yml` (release, wheel/sdist, version-tagged images), `semantic-pr.yml`, `dependabot-auto-merge.yml` | |
 
 ## The shape
 
