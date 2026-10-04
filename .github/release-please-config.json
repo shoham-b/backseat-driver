@@ -2,7 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "release-type": "python",
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": ["deploy/production/kustomization.yaml"]
+    }
   },
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true

@@ -1,0 +1,25 @@
+# Node drains evict one pod at a time. The caption worker uses maxUnavailable because KEDA may hold it at one replica,
+# where a minAvailable of 1 would block every drain.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: api}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ui
+spec:
+  minAvailable: 1
+  selector: {matchLabels: {app: ui}}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caption-worker
+spec:
+  maxUnavailable: 1
+  selector: {matchLabels: {app: caption-worker}}
