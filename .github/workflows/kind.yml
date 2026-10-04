@@ -133,9 +133,10 @@ jobs:
         with:
           enable-cache: false
 
-      # Only the systemtest dependency group: the tests are black-box HTTP, so they need neither torch nor the project's.
+      # The systemtest group without dev (which pulls in torch): the tests are black-box HTTP. The project itself is
+      # installed, because tests/conftest.py imports backseat_driver.
       - name: System and smoke tests against the cluster
-        run: uv run --only-group systemtest pytest tests/systemtests tests/smoketests -v --tb=short --api-url http://localhost:8080
+        run: uv run --no-dev --group systemtest pytest tests/systemtests tests/smoketests -v --tb=short --api-url http://localhost:8080
 
       - name: Autoscaling
         run: deploy/kind-ci/check-scaling.sh
