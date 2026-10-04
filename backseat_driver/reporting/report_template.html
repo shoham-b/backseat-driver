@@ -63,7 +63,7 @@
   .scene { display: grid; grid-template-columns: minmax(220px, 360px) 1fr; gap: 24px; padding: 16px; transition: transform .2s, box-shadow .2s; }
   .scene:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(20,24,40,.06), 0 16px 36px rgba(20,24,40,.12); }
   .figure { overflow: hidden; border-radius: 12px; align-self: start; background: var(--bg); }
-  .scene img { width: 100%; display: block; transition: transform .4s ease; }
+  .scene img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; transition: transform .4s ease; }
   .scene:hover img { transform: scale(1.04); }
   .title { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; margin-bottom: 6px; }
   .title h3 { margin: 0; font-size: 19px; letter-spacing: -.01em; }
@@ -74,6 +74,7 @@
   .ref { color: var(--muted); margin: 0 0 14px; font-size: 14px; font-style: italic; }
   .scene-scores { margin: 6px 0 14px; }
   .cam-label { margin-top: 4px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
   .entry { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 10px; background: color-mix(in srgb, var(--bg) 55%, transparent); }
   .entry-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
   .model { font-weight: 700; }
@@ -313,11 +314,12 @@ function render() {
           return tab;
         })
       : [node("span", { className: "camera", textContent: cameraLabel(view.camera_channel) })];
-    const title = node("div", { className: "title" }, node("h3", { textContent: view.scene_name }), ...tabs);
+    const title = node("div", { className: "title" }, node("h3", { textContent: view.scene_name }));
     const body = node("div", {}, title,
       node("p", { className: "ref", textContent: view.reference ? `Reference: ${view.reference}` : "No reference label" }),
       ...renderSceneScores(token, new Set(view.entries.map(e => e.model_name))),
-      node("div", { className: "field-label cam-label", textContent: `${cameraLabel(view.camera_channel)} camera captions` }),
+      node("div", { className: "field-label cam-label", textContent: "Camera" }),
+      node("div", { className: "tabs" }, ...tabs),
       ...view.entries.map(renderEntry));
     const img = node("img", { src: view.image, alt: `${cameraLabel(view.camera_channel)} camera keyframe of ${view.scene_name}`, loading: "lazy", title: "Click to enlarge" });
     img.addEventListener("click", () => { el("lightbox-img").src = img.src; lightbox.showModal(); });
