@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `worker ingest --once` and a KEDA `ScaledJob` that runs ingest as a Job per queued task
 - `datasets/` package: the distributed workers read the nuScenes dataset from an S3-compatible bucket (`BACKSEAT_DRIVER_DATASET_BUCKET`, `BACKSEAT_DRIVER_S3_ENDPOINT_URL`, `AWS_*` credentials) instead of a shared volume. `ImageStore` / `DatasetStore` ports with local and S3 adapters, `StoredSceneLoader` (ingest reads only the metadata tables) and `CaptionTask.image_uri`
 - `dataset upload` CLI command and a `dataset-upload` compose service / Kubernetes Job: the one-time copy of the dataset into the bucket
 - Development S3 store (`adobe/s3mock`) in docker compose, `just infra` and the Kubernetes base

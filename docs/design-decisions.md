@@ -150,6 +150,23 @@ Two details came out of testing it. The devkit refuses to open a dataset unless 
 **Revisit if:** there is a need to run the API on a machine without the dataset but without a broker, which has not come up.
 
 
+### 14. Where does ingest run: the API, a worker, or a Job?
+
+**Options:** the API does the fan-out itself as a background task; an always-on ingest worker; or a run-to-completion Job per request.
+
+The API option is attractive now that ingest only reads metadata, and the monolith already works that way. It was not chosen for the distributed mode: it puts nuscenes-devkit into an API image that is deliberately kept without it, runs the metadata load and fan-out on a serving pod, and has no recovery if the pod dies after answering 202 but before publishing every message (the job would stay `running` forever).
+
+**Decision: keep the queue, and run ingest as a Job per queued task.**
+
+- The API still publishes an `IngestTask`, so the message is durable and redelivered if the Job dies.
+- On Kubernetes with KEDA, a `ScaledJob` starts one Job per waiting ingest message (`worker ingest --once`) that handles it and exits, so nothing runs while the queue is empty. The component deletes the always-on Deployment in its favour.
+- Without KEDA (the base manifests) and in docker compose, ingest stays a plain long-running worker consuming the same queue, so everything works without KEDA installed.
+
+**Why `--once` is not a Celery worker that stops.** The obvious implementation was to let a normal Celery worker run and make it shut down after its first task. Run against a real RabbitMQ, that handled all three queued messages: with prefetch the next message is started before the shutdown flag is looked at. `--once` therefore fetches a single message with a plain `basic_get`, runs it through the registered task (retries included), and acks it only afterwards. A task that still fails after its retries is dropped, as with the Celery workers, and the Job exits non-zero so the failure is visible. A Job that crashes before the ack leaves the message to be redelivered to the next Job. This was checked on a real RabbitMQ: three messages queued, one handled, two left.
+
+**Revisit if:** the Job's pod start-up cost starts to dominate a job's latency; an always-on worker with a short idle timeout would then be the better trade.
+
+
 ### What is still open
 
 - **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
