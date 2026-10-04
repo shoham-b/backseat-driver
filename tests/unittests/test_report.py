@@ -55,7 +55,7 @@ def test_build_report_without_reference_leaves_scores_empty() -> None:
 
     report = build_report(descriptions)
 
-    assert report.scenes[0].entries[0].score is None
+    assert report.scene_scores[0].score is None
     assert report.models[0].f1 is None
 
 
@@ -121,3 +121,19 @@ def test_build_report_still_rejects_the_same_model_twice_on_one_camera() -> None
 
     with pytest.raises(ValueError, match=r"CAM_BACK.*more than once"):
         build_report(descriptions)
+
+
+def test_build_report_scores_a_scene_once_per_model_over_all_its_cameras() -> None:
+    reference = "parked truck, turn left"
+    descriptions = [
+        _desc(1, "a", "a parked truck", reference, camera="CAM_FRONT"),
+        _desc(1, "a", "a left turn", reference, camera="CAM_BACK"),
+    ]
+
+    report = build_report(descriptions)
+
+    [scene_score] = report.scene_scores
+    assert scene_score.cameras == 2
+    assert scene_score.score is not None
+    assert scene_score.score.recall == 1.0
+    assert report.models[0].scenes == 1
