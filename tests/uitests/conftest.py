@@ -1,4 +1,4 @@
-"""Browser fixtures: the real `backseat-driver ui` server in a subprocess, driven by headless Chrome via Selenium.
+"""Browser fixtures: the real report UI server (`fastapi run`) in a subprocess, driven by headless Chrome via Selenium.
 
 Set CHROME_BIN / CHROMEDRIVER to use a specific browser and driver; otherwise Selenium Manager finds or downloads
 them. A browser that cannot start fails the test run on purpose — a silently skipped UI suite proves nothing.
@@ -75,30 +75,22 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
 
 def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
-    command = [
-        sys.executable,
-        "-m",
-        "backseat_driver.cli",
-        "ui",
-        "--no-open",
-        "--port",
-        str(port),
-        *map(str, result_files),
-    ]
-    server = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    command = [sys.executable, "-m", "fastapi", "run", "backseat_driver/reporting/ui_server.py", "--port", str(port)]
+    env = {**os.environ, "BACKSEAT_DRIVER_OUTPUT_DIR": str(result_files[0].parent)}
+    server = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             if server.poll() is not None:
                 pytest.fail(
-                    f"`ui` exited early ({server.returncode}):\n{server.stdout.read() if server.stdout else ''}"
+                    f"the UI exited early ({server.returncode}):\n{server.stdout.read() if server.stdout else ''}"
                 )
             with socket.socket() as sock:
                 if sock.connect_ex(("127.0.0.1", port)) == 0:
                     break
             time.sleep(0.2)
         else:
-            pytest.fail("`ui` did not start listening within 30s")
+            pytest.fail("the UI did not start listening within 30s")
         yield f"http://127.0.0.1:{port}/"
     finally:
         server.terminate()

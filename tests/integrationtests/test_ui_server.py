@@ -2,6 +2,7 @@
 
 import json
 from http import HTTPStatus
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -10,11 +11,12 @@ import pytest
 from backseat_driver.captioning.http_client import HttpResponse
 from backseat_driver.errors import HttpStatusError
 from backseat_driver.reporting.api_source import ApiReportSource
-from backseat_driver.reporting.ui_server import UiConfig, create_ui_app, get_source
-from tests.fakes import FakeHttpClient
+from backseat_driver.reporting.ui_server import create_ui_app, get_source
+from tests.fakes import FakeHttpClient, make_settings
 
 API = "http://api"
 KEY = "samples/CAM_FRONT/a.jpg"
+OUTPUT_DIR = Path(__file__).parent / "no_results"  # does not exist: the pages here come from the API only
 
 
 def _job(job_id: str) -> dict[str, object]:
@@ -54,8 +56,9 @@ def _http_with_jobs(*jobs: tuple[str, list[dict[str, object]]]) -> FakeHttpClien
     return http
 
 
-def _ui(http: FakeHttpClient | None, api_url: str | None = API) -> httpx.AsyncClient:
-    app = create_ui_app(UiConfig(all_jobs=True, api_url=api_url, live_api_url="http://localhost:8080"))
+def _ui(http: FakeHttpClient | None, all_jobs: bool = True) -> httpx.AsyncClient:
+    settings = make_settings(api_url=API, ui_all_jobs=all_jobs, output_dir=str(OUTPUT_DIR))
+    app = create_ui_app(settings)
     if http is not None:
         app.dependency_overrides[get_source] = lambda: ApiReportSource(API, http)
     return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ui")
@@ -164,7 +167,28 @@ async def test_unknown_paths_are_not_found_in_the_json_envelope() -> None:
 
 
 async def test_without_an_api_there_is_no_image_route() -> None:
-    async with _ui(None, api_url=None) as ui:
+    async with _ui(None, all_jobs=False) as ui:
         response = await ui.get(f"/images/{KEY}")
 
     assert response.status_code == HTTPStatus.NOT_FOUND
+
+
+async def test_result_files_in_the_output_directory_are_shown_without_an_api(tmp_path: Path) -> None:
+    image = tmp_path / "a.jpg"
+    image.write_bytes(b"jpeg bytes")
+    (tmp_path / "model-a.json").write_text(json.dumps([{**_description("a result file"), "image_path": str(image)}]))
+    app = create_ui_app(make_settings(output_dir=str(tmp_path)))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://ui") as ui:
+        response = await ui.get("/")
+
+    assert response.status_code == HTTPStatus.OK
+    assert b"a result file" in response.content
+    assert b"data:image" in response.content
+
+
+async def test_starting_with_nothing_to_show_fails_fast(tmp_path: Path) -> None:
+    app = create_ui_app(make_settings(output_dir=str(tmp_path)))
+
+    with pytest.raises(ValueError, match="no result files"):
+        async with app.router.lifespan_context(app):
+            pass

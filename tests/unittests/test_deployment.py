@@ -103,7 +103,7 @@ def test_container_args_are_valid_cli_invocations() -> None:
     for container in containers:
         _parse_without_running([str(arg) for arg in container["args"]])
 
-    assert {c["args"][0] for c in containers} == {"dataset", "db", "worker", "ui"}
+    assert {c["args"][0] for c in containers} == {"dataset", "db", "worker"}
 
 
 def test_our_images_are_the_ones_the_docker_workflow_publishes() -> None:
@@ -180,9 +180,8 @@ def test_compose_ui_service_serves_on_all_interfaces() -> None:
 
     ui = compose["services"]["ui"]
 
-    assert ui["command"][0] == "ui"
-    assert ui["environment"]["BACKSEAT_DRIVER_UI_HOST"] == "0.0.0.0"
-    assert "--no-open" in ui["command"]
+    assert ui["entrypoint"][:2] == ["fastapi", "run"]
+    assert ui["entrypoint"][ui["entrypoint"].index("--host") + 1] == "0.0.0.0"
     assert ui["profiles"] == ["ui"]
 
 
@@ -311,7 +310,7 @@ def test_the_report_ui_mounts_no_volume_and_probes_without_the_api() -> None:
 
     assert "volumes" not in pods["ui"]
     assert "volumeMounts" not in ui
-    assert "--all-jobs" in ui["args"]
+    assert {"name": "BACKSEAT_DRIVER_UI_ALL_JOBS", "value": "true"} in ui["env"]
     assert ui["readinessProbe"]["httpGet"]["path"] == "/healthz"
 
 
