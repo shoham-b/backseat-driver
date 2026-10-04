@@ -6,41 +6,38 @@ Showing the results is a separate role. It reads what was written and never take
 
 ## Rung 1: the pipeline
 
-```
-  read                 process                write
-┌──────────────┐     ┌────────────────┐     ┌────────────────┐
-│ SceneLoader  │ ──▶ │   Captioner    │ ──▶ │  write_json    │
-│ local disk   │     │ BLIP / Ollama /│     │ one JSON file  │
-│              │     │ Claude         │     │                │
-└──────────────┘     └────────────────┘     └────────────────┘
-        one process · one function call · `pipeline.py`
+```mermaid
+flowchart LR
+    subgraph proc["one process · one function call · pipeline.py"]
+        direction LR
+        R["<b>read</b><br/>SceneLoader<br/>local disk"] --> P["<b>process</b><br/>Captioner<br/>BLIP / Ollama / Claude"] --> W["<b>write</b><br/>write_json<br/>one JSON file"]
+    end
 ```
 
 ```bash
 just describe --camera front        # = uv run backseat-driver describe ...
 ```
 
-`describe` loads the keyframes, calls `describe_keyframe` for each, and writes the list. Nothing is queued, stored or served. This is the whole program, and the code that runs it is [`pipeline.py`](../backseat_driver/pipeline.py).
+`describe` loads the keyframes, calls `describe_keyframe` for each, and writes the list. Nothing is queued, stored or served. This is the whole program, and the code that runs it is [`pipeline.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py).
 
 **Code, in reading order**
 
 | Step | Port | Adapter | Wired in |
 |---|---|---|---|
-| read | [`SceneLoader`](../backseat_driver/read/scene_loader.py) | [`NuScenesSceneLoader`](../backseat_driver/read/nuscenes_scene_loader.py) | [`stacks.pipeline`](../backseat_driver/stacks.py) |
-| process | [`Captioner`](../backseat_driver/process/captioner.py) | [`BackendCaptioner`](../backseat_driver/process/backend_captioner.py) over a [HuggingFace](../backseat_driver/process/backends/huggingface.py), [Ollama](../backseat_driver/process/backends/ollama.py) or [Anthropic](../backseat_driver/process/backends/anthropic.py) backend | [`process.factory`](../backseat_driver/process/factory.py) |
-| write | | [`write_json`](../backseat_driver/write/json_writer.py) | [`cli/describe.py`](../backseat_driver/cli/describe.py) |
+| read | [`SceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/scene_loader.py) | [`NuScenesSceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/nuscenes_scene_loader.py) | [`stacks.pipeline`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
+| process | [`Captioner`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/captioner.py) | [`BackendCaptioner`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backend_captioner.py) over a [HuggingFace](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/huggingface.py), [Ollama](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/ollama.py) or [Anthropic](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/anthropic.py) backend | [`process.factory`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/factory.py) |
+| write | | [`write_json`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/json_writer.py) | [`cli/describe.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/cli/describe.py) |
 
-Tests: [`test_pipeline.py`](../tests/unittests/test_pipeline.py), [`tests/unittests/read/`](../tests/unittests/read), [`process/`](../tests/unittests/process), [`write/`](../tests/unittests/write), and the command itself in [`test_pipeline_end_to_end.py`](../tests/integrationtests/cli/test_pipeline_end_to_end.py).
+Tests: [`test_pipeline.py`](https://github.com/shoham-b/backseat-driver/blob/main/tests/unittests/test_pipeline.py), [`tests/unittests/read/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/read), [`process/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/process), [`write/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/write), and the command itself in [`test_pipeline_end_to_end.py`](https://github.com/shoham-b/backseat-driver/blob/main/tests/integrationtests/cli/test_pipeline_end_to_end.py).
 
 ## Rung 2: the seam
 
-```
-  read              transport                process               write
-┌──────────┐     ┌ ─ ─ ─ ─ ─ ─ ─ ┐        ┌─────────────┐       ┌──────────────┐
-│ ingest   │ ──▶   JobQueue         ──▶    │ caption     │ ────▶ │ JobStore     │
-│ worker   │     │ in memory     │         │ worker      │       │ SQLite file  │
-└──────────┘     └ ─ ─ ─ ─ ─ ─ ─ ┘        └─────────────┘       └──────────────┘
-        still one process · one thread · the API monolith (`just dev`)
+```mermaid
+flowchart LR
+    subgraph proc["still one process · one thread · the API monolith (just dev)"]
+        direction LR
+        R["<b>read</b><br/>ingest worker"] --> Q(["<b>transport</b><br/>JobQueue<br/>in memory"]) --> P["<b>process</b><br/>caption worker"] --> W["<b>write</b><br/>JobStore<br/>SQLite file"]
+    end
 ```
 
 ```bash
@@ -53,29 +50,35 @@ The API turns the run into tasks. **Ingest** is the read step turned into a prod
 
 | What | Where |
 |---|---|
-| The seam, in one docstring | [`transport/__init__.py`](../backseat_driver/transport/__init__.py) |
-| The queue port and its in-process adapter | [`JobQueue`](../backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](../backseat_driver/transport/in_process_job_queue.py) |
-| Read as a producer; process and write per task | [`IngestWorker`, `CaptionWorker`](../backseat_driver/transport/workers.py), both reusing [`describe_keyframe`](../backseat_driver/pipeline.py) |
-| The job store the workers write to | [`JobStore`](../backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](../backseat_driver/write/job_store/in_memory_job_store.py) |
-| The front door | [`POST /jobs`](../backseat_driver/api/routers/jobs.py) |
-| Wired in | [`stacks.seam`](../backseat_driver/stacks.py) |
+<<<<<<< HEAD
+| The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
+| The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
+| Read as a producer; process and write per task | [`IngestWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py) |
+| The job store the workers write to | [`JobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/in_memory_job_store.py) |
+| The front door | [`POST /jobs`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/api/routers/jobs.py) |
+| Wired in | [`stacks.seam`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
+=======
+| The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
+| The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
+| Read as a producer; process and write per task | [`IngestWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py) |
+| The job store the workers write to | [`JobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/in_memory_job_store.py) |
+| The front door | [`POST /jobs`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/api/routers/jobs.py) |
+| Wired in | [`stacks.seam`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
+>>>>>>> 23ffc87 (docs: fix links, diagrams and stale claims; split architecture into APIs and Technology)
 
-Tests: [`tests/unittests/transport/`](../tests/unittests/transport), [`write/job_store/`](../tests/unittests/write/job_store), and the API end to end in [`tests/integrationtests/api/`](../tests/integrationtests/api).
+Tests: [`tests/unittests/transport/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/transport), [`write/job_store/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/write/job_store), and the API end to end in [`tests/integrationtests/api/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/integrationtests/api).
 
 ## Rung 3: machines
 
-```
-  read                 transport                 process                  write
-┌───────────┐     ┌ ─ ─ ─ ─ ─ ─ ─ ┐         ┌──────────────┐         ┌──────────────┐
-│ ingest    │ ──▶   RabbitMQ         ──▶     │ caption      │ ──────▶ │ Postgres     │
-│ pod       │     │               │          │ pods × N     │         │              │
-└─────┬─────┘     └ ─ ─ ─ ─ ─ ─ ─ ┘         └──────▲───────┘         └──────────────┘
-      │ tables                                      │ one image
-      ▼                                             │
-┌────────────────────────────────────────────────────┴──────┐
-│ S3 bucket: the dataset (read/s3/)                           │
-└─────────────────────────────────────────────────────────────┘
-        separate services · `just up` · Kubernetes
+```mermaid
+flowchart LR
+    subgraph svc["separate services · just up · Kubernetes"]
+        direction LR
+        R["<b>read</b><br/>ingest pod"] --> Q(["<b>transport</b><br/>RabbitMQ"]) --> P["<b>process</b><br/>caption pods × N"] --> W["<b>write</b><br/>Postgres"]
+        S[("S3 bucket<br/>the dataset · read/s3/")]
+        R -- "tables" --> S
+        S -- "one image" --> P
+    end
 ```
 
 Once the queue crosses machines, two things stop working, and the two remaining additions replace them:
@@ -89,13 +92,13 @@ Once the queue crosses machines, two things stop working, and the two remaining 
 
 | What | Where |
 |---|---|
-| RabbitMQ as the queue | [`CeleryJobQueue`](../backseat_driver/transport/celery_job_queue.py), the tasks and worker entrypoints in [`tasks.py`](../backseat_driver/tasks.py), `worker ingest --once` in [`consume_one.py`](../backseat_driver/transport/consume_one.py) |
-| The dataset in a bucket | [`read/s3/`](../backseat_driver/read/s3): [`S3DatasetStore`](../backseat_driver/read/s3/s3_dataset_store.py), [`StoredSceneLoader`](../backseat_driver/read/s3/stored_scene_loader.py), the one-time [`DatasetUploader`](../backseat_driver/read/s3/uploader.py) |
-| Results in Postgres | [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) over [`orm.py`](../backseat_driver/write/job_store/orm.py) and [`storage.py`](../backseat_driver/write/job_store/storage.py) |
-| Submitting from the CLI | [`ApiJobClient`](../backseat_driver/transport/api_client.py) behind `describe --mode distributed` |
-| Wired in | [`stacks.machines`](../backseat_driver/stacks.py), `celery_queue`, `postgres_store`, `stored_loader` |
+| RabbitMQ as the queue | [`CeleryJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/celery_job_queue.py), the tasks and worker entrypoints in [`tasks.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/tasks.py), `worker ingest --once` in [`consume_one.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/consume_one.py) |
+| The dataset in a bucket | [`read/s3/`](https://github.com/shoham-b/backseat-driver/tree/main/backseat_driver/read/s3): [`S3DatasetStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/s3_dataset_store.py), [`StoredSceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/stored_scene_loader.py), the one-time [`DatasetUploader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/uploader.py) |
+| Results in Postgres | [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over [`orm.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/orm.py) and [`storage.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/storage.py) |
+| Submitting from the CLI | [`ApiJobClient`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/api_client.py) behind `describe --mode distributed` |
+| Wired in | [`stacks.machines`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py), `celery_queue`, `postgres_store`, `stored_loader` |
 
-Tests: [`tests/unittests/read/s3/`](../tests/unittests/read/s3), [`tests/integrationtests/read/s3/`](../tests/integrationtests/read/s3), [`tests/unittests/transport/`](../tests/unittests/transport) and [`tests/integrationtests/transport/`](../tests/integrationtests/transport).
+Tests: [`tests/unittests/read/s3/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/read/s3), [`tests/integrationtests/read/s3/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/integrationtests/read/s3), [`tests/unittests/transport/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/transport) and [`tests/integrationtests/transport/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/integrationtests/transport).
 
 ## What changes, and what does not
 
@@ -136,7 +139,7 @@ The core never imports the added packages. `tests/unittests/test_layering.py` ch
 
 ## The wiring in one file
 
-[`stacks.py`](../backseat_driver/stacks.py) is where the table above becomes code. It has one recipe per rung, and each only builds the adapters for it:
+[`stacks.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) is where the table above becomes code. It has one recipe per rung, and each only builds the adapters for it:
 
 | Port | Rung 1: pipeline | Rung 2: seam | Rung 3: machines |
 |---|---|---|---|
@@ -159,10 +162,19 @@ uv run backseat-driver describe --mode distributed --output output/cluster.json
 
 ## Describe and show
 
-```
- DESCRIBE                                         SHOW
- read ─▶ process ─▶ write ──▶ output/*.json ─────▶ report, ui
-                         └──▶ job store ─▶ API ──▶ ui --all-jobs
+```mermaid
+flowchart LR
+    subgraph describe["describe"]
+        direction LR
+        R[read] --> P[process] --> W[write]
+    end
+    subgraph show["show"]
+        direction LR
+        O["report, ui"]
+        A["ui --all-jobs"]
+    end
+    W --> F["output/*.json"] --> O
+    W --> J[("job store")] --> API[API] --> A
 ```
 
 `describe` produces descriptions. `report` and `ui` (`show/`) read them from JSON files, or from the API's completed jobs, score them against the nuScenes label and render the comparison page. They never run a model or open the dataset, so the UI deployment mounts nothing.

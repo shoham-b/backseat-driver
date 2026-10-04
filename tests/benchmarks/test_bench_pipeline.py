@@ -15,7 +15,8 @@ from pytest_codspeed import BenchmarkFixture
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.read.image_store import ImageStore
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.transport.caption_worker import CaptionWorker
+from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.write.json_writer import write_json
 from tests.fakes import (
     FakeCaptioner,

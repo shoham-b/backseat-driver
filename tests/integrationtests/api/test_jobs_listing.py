@@ -7,7 +7,8 @@ from fastapi.testclient import TestClient
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.models import IngestTask, JobState
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.transport.caption_worker import CaptionWorker
+from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import (
     FakeCaptioner,
     FakeImageStore,

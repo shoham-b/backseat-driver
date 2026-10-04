@@ -5,7 +5,7 @@ Thank you for your interest in contributing!
 ## Setup
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/shoham-b/backseat-driver.git
 cd backseat-driver
 uv sync --group dev
 pre-commit install

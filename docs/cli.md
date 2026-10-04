@@ -12,7 +12,7 @@ Print the installed version and exit.
 
 ```bash
 uv run backseat-driver --version
-# backseat-driver 0.1.0
+# backseat-driver <version>
 ```
 
 ---
@@ -132,14 +132,6 @@ A job that is still running is an error rather than a partial report. When debug
 ## `worker`
 
 `backseat-driver worker ingest|caption` run the distributed queue workers. `worker ingest --once` handles a single queued ingest task and exits, for the Kubernetes Job that KEDA starts per task.
-
-| Option | Default | Description |
-|---|---|---|
-| `--host` | `127.0.0.1` | Interface to serve on |
-| `--port` | `8081` | Port to serve on |
-| `--open/--no-open` | `--open` | Open the page in a browser |
-
-The page is rebuilt from the files on each start; restart after a new `describe`.
 
 ---
 

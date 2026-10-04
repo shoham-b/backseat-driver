@@ -39,16 +39,14 @@ The batch pipeline (`backseat-driver describe`) works in all three: on the host 
 
 ## How the pieces relate
 
+```mermaid
+flowchart LR
+    A["just describe<br/>just docker-run<br/>k8s example Job"] --> D["backseat-driver describe<br/>(batch: loader → captioner → output/*.json)"]
+    B["just dev / just serve<br/>compose / k8s api"] --> F["FastAPI app"]
+    F -- "distributed mode" --> Q(["RabbitMQ"]) --> W["ingest / caption workers"] --> PG[("Postgres")]
 ```
-just describe ─────────────┐
-just docker-run ──────┼─▶ backseat-driver describe          (batch: loader → captioner → output/*.json)
-k8s CronJob `pipeline`┘
 
-just dev / just serve ─┐
-compose / k8s `api` ───┴─▶ fastapi app ──▶ RabbitMQ ──▶ ingest / caption workers ──▶ Postgres
-                           (/describe is synchronous; in distributed mode /jobs and /ready need RabbitMQ and Postgres;
-                            in the default monolith mode `just dev` runs the workers inside the API process)
-```
+`/describe` is synchronous. In distributed mode `/jobs` and `/ready` need RabbitMQ and Postgres; in the default monolith mode `just dev` runs the workers inside the API process.
 
 - **One Dockerfile, a target per service.** `docker/Dockerfile` builds `cli` (the pipeline, `db init`, the report UI; entrypoint `backseat-driver`), `api` (`fastapi run`), `ingest-worker` (nuscenes-devkit, no torch) and `caption-worker` (torch, no nuscenes-devkit). Compose builds them locally; CI pushes them to `ghcr.io/shoham-b/backseat-driver-{cli,api,ingest-worker,caption-worker}`, which the Kubernetes manifests pull. All run as the non-root user `app` (uid 10001).
 - **`BACKSEAT_DRIVER_MODE` decides whether `/ready` needs infrastructure.** In the default `monolith` mode the queue and store live in the API process, so `just dev` is ready with nothing else running. In `distributed` mode (compose, Kubernetes, `just dev-distributed`) the API checks RabbitMQ and Postgres, so one started without them reports not-ready. `just infra` (local only; run for you by `just dev-distributed` and `just worker-*`, never needed in Kubernetes) starts them (plus the dev S3 store) in Docker, publishes them on `127.0.0.1:5672` / `5432` / `9090` (the defaults in `.env.example`; set the `BACKSEAT_DRIVER_DATASET_BUCKET` block there for host-run workers and run `uv run backseat-driver dataset upload` once) and creates the schema.
