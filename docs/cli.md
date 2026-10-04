@@ -38,7 +38,7 @@ uv run backseat-driver describe [OPTIONS]
 | `--version` | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera used as the representative frame: `front`, `front_right`, `back_right`, `back`, `back_left` or `front_left` (nuScenes' `CAM_FRONT` etc.). Repeat it (`--camera front --camera back`) to describe several cameras |
 | `--all-cameras` | — | — | Describe all six cameras of every scene. Cannot be combined with `--camera` |
-| `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two give verbose, prompt-driven descriptions |
+| `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two are prompted for a short keyword list in the style of the nuScenes labels |
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` / `..._ANTHROPIC_MODEL_NAME` | **required** (no default) | Model for the chosen backend, e.g. `Salesforce/blip-image-captioning-base`, `llava`, `claude-haiku-4-5-20251001`. Fails fast if neither the flag nor the variable is set |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
 | `--max-scenes` | — | (all scenes) | Only process the first N scenes (all of a scene's cameras count as one) |

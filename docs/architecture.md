@@ -102,7 +102,7 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | Package | Responsibility |
 |---|---|
 | [`backseat_driver.models`](../backseat_driver/models/__init__.py) | Shared domain models (Pydantic), one module per subject: `scene.py` (`SceneKeyframe`, `SceneDescription`), `job.py` (`Job`, `JobState`, `JobReference`), `tasks.py` (`IngestTask`, `CaptionTask`) |
-| [`backseat_driver.process`](../backseat_driver/process/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
+| [`backseat_driver.process`](../backseat_driver/process/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (prompt-driven keyword lists), each running a `CaptionModel`, chosen via `build_captioner` |
 | [`backseat_driver.read`](../backseat_driver/read/) | `SceneLoader`, `ImageStore`, the nuScenes loader and local store; `read/s3/` is the bucket-backed variant (distributed) |
 | [`backseat_driver.write`](../backseat_driver/write/) | `write_json`; `write/job_store/` holds the `JobStore` port and its SQLite/Postgres adapters (distributed) |
 | [`backseat_driver.pipeline`](../backseat_driver/pipeline.py) | `ScenePipeline` and `describe_keyframe`: read then process |

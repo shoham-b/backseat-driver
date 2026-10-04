@@ -32,8 +32,8 @@ The demo runs on nuScenes; the loader is the only dataset-specific step.
    midpoint of the scene rather than the first frame). The dataset is downloaded into `data/sets/nuscenes` on first use.
 2. **Runs a VLM** — a [`Captioner`](backseat_driver/process/captioner.py) pairs a runtime with a model:
    a local HuggingFace `image-to-text` model (e.g. `Salesforce/blip-image-captioning-base`, CPU-only, terse captions),
-   a local [Ollama](https://ollama.com) server (e.g. `llava`), or the hosted Claude API, the last two for verbose,
-   prompt-driven descriptions. Pick one with `--backend` and `--model`.
+   a local [Ollama](https://ollama.com) server (e.g. `llava`), or the hosted Claude API, the last two prompted for a
+   short keyword list in the style of the nuScenes labels. Pick one with `--backend` and `--model`.
 3. **Outputs the results** — [`write/json_writer.py`](backseat_driver/write/json_writer.py) writes one JSON object
    per scene and camera to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
 
