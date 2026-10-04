@@ -1,8 +1,8 @@
 # Backseat Driver — dev task runner
 # Install just: https://github.com/casey/just
 
-# Git for Windows' `sh` by full path: it needs no PATH setup, and a bare `bash` resolves to WSL, which has no `uv`.
-set windows-shell := ["C:/Program Files/Git/usr/bin/sh.exe", "-cu"]
+# Windows PowerShell on Windows, `sh` elsewhere: nothing to install or put on PATH. Recipes that are POSIX-only carry [unix]; those with a Windows equivalent have a [windows] twin.
+set windows-powershell := true
 
 # The compose file lives in docker/, but paths and .env resolve from the repo root.
 compose := "docker compose -f docker/docker-compose.yml --project-directory ."
@@ -44,6 +44,7 @@ test:
     uv run pytest tests/unittests tests/integrationtests --cov --cov-report=term-missing
 
 # System tests: builds the Docker Compose stack and runs system + smoke tests against it. With API_URL set, skips Docker and runs the system tests against that running API instead
+[unix]
 test-system:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -53,6 +54,10 @@ test-system:
         trap '{{compose}} --profile test down' EXIT
         {{compose}} --profile test run --build --rm systemtest
     fi
+
+[windows]
+test-system:
+    if ($env:API_URL) { uv run pytest tests/systemtests -v --api-url $env:API_URL } else { try { {{compose}} --profile test run --build --rm systemtest } finally { {{compose}} --profile test down } }
 
 # Performance benchmarks (pytest-codspeed); run under `codspeed run` for CodSpeed measurements
 bench:
@@ -83,8 +88,13 @@ dev:
     uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
 # Same server as `dev`, but in distributed mode: /jobs goes through RabbitMQ + Postgres (`just infra`) to host workers (`just worker-ingest`, `just worker-caption`)
+[unix]
 dev-distributed: infra
     BACKSEAT_DRIVER_MODE=distributed uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
+
+[windows]
+dev-distributed: infra
+    $env:BACKSEAT_DRIVER_MODE = "distributed"; uv run fastapi dev backseat_driver/api/app.py --host {{api_host}} --port {{api_port}}
 
 # Production-mode server, all interfaces. Monolith unless BACKSEAT_DRIVER_MODE=distributed (Kubernetes sets it; locally `just infra` first)
 serve:
@@ -127,6 +137,7 @@ k8s-render:
     kubectl kustomize deploy/k8s
 
 # Validate the rendered manifests against the Kubernetes schemas (no cluster needed)
+[unix]
 k8s-validate:
     kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
     uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
@@ -141,6 +152,7 @@ kind_cluster := "backseat-driver"
 kubectl := "kubectl --context kind-" + kind_cluster
 
 # Local Kubernetes (kind): builds the images, loads them, installs KEDA and deploys with queue-depth autoscaling. API on :8080
+[unix]
 k8s-up:
     mkdir -p data
     kind get clusters | grep -qx {{kind_cluster}} || kind create cluster --config deploy/kind/cluster.yaml
@@ -180,7 +192,14 @@ hooks:
 check:
     uv run pre-commit run --all-files
 
+[unix]
 clean:
     rm -rf dist/ site/ .pytest_cache/ htmlcov/ coverage.xml junit.xml
     find . -type d -name __pycache__ -exec rm -rf {} +
     find . -type f -name "*.pyc" -delete
+
+[windows]
+clean:
+    'dist', 'site', '.pytest_cache', 'htmlcov', 'coverage.xml', 'junit.xml' | Where-Object { Test-Path $_ } | Remove-Item -Recurse -Force
+    Get-ChildItem -Recurse -Directory -Filter __pycache__ | Remove-Item -Recurse -Force
+    Get-ChildItem -Recurse -File -Filter *.pyc | Remove-Item -Force

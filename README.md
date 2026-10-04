@@ -140,8 +140,8 @@ just typecheck    # type check
 just docs         # build docs
 ```
 
-The Justfile runs on Linux, macOS and Windows. On Windows it uses `sh` from Git for Windows at its default
-location, `C:\Program Files\Git\usr\bin\sh.exe`; edit `windows-shell` in the Justfile if yours is elsewhere.
+The Justfile runs on Linux, macOS and Windows. On Windows it uses Windows PowerShell, so there is nothing extra to
+install. The local-Kubernetes recipes (`k8s-up`, `k8s-validate`) are POSIX-only; run them from WSL or Git Bash.
 
 See [docs/development.md](docs/development.md) for the full task list and [AGENTS.md](AGENTS.md) for
 codebase conventions.
