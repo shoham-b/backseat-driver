@@ -7,7 +7,6 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -16,7 +15,6 @@ from loguru import logger
 
 from backseat_driver.cli import app
 from backseat_driver.config import get_settings
-from backseat_driver.models import SceneDescription
 
 
 @app.command(rich_help_panel="Show")
@@ -38,7 +36,7 @@ def report(
     settings = get_settings()
     output = output or Path(settings.output_dir) / "report.html"
     results = results or ([] if job else _default_results())
-    count = _write_report(results, output, jobs=job or [], jobs_api_url=api_url or settings.api_url)
+    count = _write_report(results, output, job or [], api_url or settings.api_url)
     logger.info("wrote report for {} description(s) to {}", count, output)
 
 
@@ -49,32 +47,16 @@ def _default_results() -> list[Path]:
     return found
 
 
-def _write_report(
-    results: list[Path],
-    output: Path,
-    api_url: str | None = None,
-    jobs: list[str] | None = None,
-    jobs_api_url: str | None = None,
-) -> int:
+def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: str) -> int:
     from backseat_driver.show.api_source import ApiReportSource
-    from backseat_driver.show.html_report_writer import file_data_uri, write_html
-    from backseat_driver.show.report import build_report
+    from backseat_driver.show.description_source import DescriptionSource
+    from backseat_driver.show.html_report_writer import save_html
+    from backseat_driver.show.report_service import ReportService
+    from backseat_driver.show.result_file_source import ResultFileSource
 
-    descriptions = [
-        SceneDescription.model_validate(item)
-        for path in results
-        for item in json.loads(path.read_text(encoding="utf-8"))
-    ]
-    source = ApiReportSource(jobs_api_url or "")
-    api_images: set[str] = set()
-    for job_id in jobs or []:
-        job_descriptions = source.descriptions(job_id)
-        api_images.update(d.image_path for d in job_descriptions)
-        descriptions += job_descriptions
-
-    def read_image(image_path: str) -> str:
-        # A job's image_path is a dataset key the API serves; a result file's is a local path.
-        return source.image(image_path) if image_path in api_images else file_data_uri(image_path)
-
-    write_html(build_report(descriptions), str(output), api_url, read_image)
-    return len(descriptions)
+    sources: list[DescriptionSource] = [ResultFileSource(results)]
+    if jobs:
+        sources.append(ApiReportSource(api_url, job_ids=jobs))
+    rendered = ReportService(sources).render(embed_images=True)
+    save_html(rendered.html, output)
+    return rendered.description_count

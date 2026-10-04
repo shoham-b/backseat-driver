@@ -1,10 +1,9 @@
 import json
-from pathlib import Path
 
 import pytest
 
 from backseat_driver.models import SceneDescription
-from backseat_driver.show.html_report_writer import write_html
+from backseat_driver.show.html_report_writer import render_html
 from backseat_driver.show.report import build_report
 
 
@@ -66,37 +65,24 @@ def test_build_report_rejects_duplicate_model_for_a_scene() -> None:
         build_report(descriptions)
 
 
-def test_write_html_embeds_data_and_image(tmp_path: Path) -> None:
-    image = tmp_path / "scene.jpg"
-    image.write_bytes(b"\xff\xd8fake")
-    description = _desc(1, "a", "</script> truck").model_copy(update={"image_path": str(image)})
-    output = tmp_path / "out" / "report.html"
+def test_render_html_embeds_the_report_data_and_each_image_as_the_caller_resolves_it() -> None:
+    report = build_report([_desc(1, "a", "</script> truck")])
 
-    write_html(build_report([description]), str(output))
+    html = render_html(report, None, lambda image_path: f"resolved:{image_path}")
 
-    html = output.read_text(encoding="utf-8")
-    assert "data:image/jpeg;base64," in html
+    assert "resolved:/img/1.jpg" in html
     assert "<\\/script> truck" in html
     assert json.loads(html.split('type="application/json">')[1].split("</script>")[0])["models"][0]["model_name"] == "a"
 
 
-def test_write_html_embeds_the_api_url_only_when_given(tmp_path: Path) -> None:
-    image = tmp_path / "scene.jpg"
-    image.write_bytes(b"\xff\xd8fake")
-    report = build_report([_desc(1, "a", "truck").model_copy(update={"image_path": str(image)})])
-
-    write_html(report, str(tmp_path / "live.html"), "http://api:1")
-    write_html(report, str(tmp_path / "static.html"), None)
-
-    assert '"api_url": "http://api:1"' in (tmp_path / "live.html").read_text(encoding="utf-8")
-    assert '"api_url": null' in (tmp_path / "static.html").read_text(encoding="utf-8")
-
-
-def test_write_html_fails_fast_on_missing_image(tmp_path: Path) -> None:
+def test_render_html_embeds_the_api_url_only_when_given() -> None:
     report = build_report([_desc(1, "a", "truck")])
 
-    with pytest.raises(FileNotFoundError):
-        write_html(report, str(tmp_path / "report.html"))
+    live = render_html(report, "http://api:1", str)
+    static = render_html(report, None, str)
+
+    assert '"api_url": "http://api:1"' in live
+    assert '"api_url": null' in static
 
 
 def test_build_report_keeps_each_camera_of_a_scene_as_its_own_row() -> None:

@@ -16,6 +16,7 @@ from backseat_driver.process.http_client import HttpClient, HttpResponse
 from backseat_driver.read.image_store import ImageStore
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.show.description_source import DescriptionSource
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
 
@@ -226,6 +227,23 @@ class FakeHttpClient(HttpClient):
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         self.probes.append(Probe(url, headers, timeout))
         return self._reachable
+
+
+class FakeDescriptionSource(DescriptionSource):
+    """Serves canned descriptions and an image body made of the `image_path`; links images only given a prefix."""
+
+    def __init__(self, descriptions: list[SceneDescription], link_prefix: str | None = None) -> None:
+        self._descriptions = descriptions
+        self._link_prefix = link_prefix
+
+    def descriptions(self) -> list[SceneDescription]:
+        return self._descriptions
+
+    def image(self, image_path: str) -> HttpResponse:
+        return HttpResponse(image_path.encode(), "image/test")
+
+    def image_link(self, image_path: str) -> str | None:
+        return None if self._link_prefix is None else f"{self._link_prefix}{image_path}"
 
 
 class FakeCeleryConnection:
