@@ -1,14 +1,14 @@
 from datetime import UTC, datetime
-from unittest import mock
+from typing import Any
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.engine import Engine
 
-from backseat_driver.jobs import storage
 from backseat_driver.jobs.orm import SceneDescriptionRow
-from backseat_driver.jobs.storage import JobStorage
+from backseat_driver.jobs.storage import JobStorage, description_insert
 
 
 def _values(n: int = 1) -> dict:
@@ -23,34 +23,45 @@ def _values(n: int = 1) -> dict:
     }
 
 
-def test_constructing_storage_never_creates_an_engine() -> None:
-    with mock.patch.object(storage, "create_engine") as create_engine:
-        JobStorage("postgresql+psycopg://host/db")
+class _EngineFactory:
+    """Stands in for sqlalchemy's `create_engine`: records each call and hands out `engine`."""
 
-    create_engine.assert_not_called()
+    def __init__(self, engine: Engine | None = None) -> None:
+        self.calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+        self._engine = engine or create_engine("sqlite://")
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Engine:
+        self.calls.append((args, kwargs))
+        return self._engine
+
+
+def test_constructing_storage_never_creates_an_engine() -> None:
+    engines = _EngineFactory()
+
+    JobStorage("postgresql+psycopg://host/db", engine_factory=engines)
+
+    assert engines.calls == []
 
 
 def test_engine_is_created_once_with_bounded_pool_and_fast_connect_timeout() -> None:
-    with mock.patch.object(storage, "create_engine") as create_engine:
-        job_storage = JobStorage("postgresql+psycopg://host/db")
+    engines = _EngineFactory()
+    job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=engines)
 
-        job_storage.ping()
-        job_storage.ping()
+    job_storage.ping()
+    job_storage.ping()
 
-    create_engine.assert_called_once_with(
-        "postgresql+psycopg://host/db",
-        pool_size=4,
-        max_overflow=0,
-        pool_pre_ping=True,
-        connect_args={"connect_timeout": 10},
-    )
+    assert engines.calls == [
+        (
+            ("postgresql+psycopg://host/db",),
+            {"pool_size": 4, "max_overflow": 0, "pool_pre_ping": True, "connect_args": {"connect_timeout": 10}},
+        )
+    ]
 
 
 def test_ping_is_false_and_does_not_raise_when_database_is_unreachable() -> None:
-    with mock.patch.object(storage, "create_engine") as create_engine:
-        create_engine.return_value.connect.side_effect = OperationalError("SELECT 1", {}, Exception("refused"))
+    unreachable = create_engine("sqlite:////no/such/directory/jobs.db")
 
-        reachable = JobStorage("postgresql+psycopg://host/db").ping()
+    reachable = JobStorage("postgresql+psycopg://host/db", engine_factory=_EngineFactory(unreachable)).ping()
 
     assert reachable is False
 
@@ -60,11 +71,13 @@ def test_ping_is_true_when_database_answers(sqlite_storage: JobStorage) -> None:
 
 
 def test_ping_propagates_unexpected_errors() -> None:
-    with mock.patch.object(storage, "create_engine") as create_engine:
-        create_engine.return_value.connect.side_effect = RuntimeError("not a database error")
+    def connect() -> Any:
+        raise RuntimeError("not a database error")
 
-        with pytest.raises(RuntimeError, match="not a database error"):
-            JobStorage("postgresql+psycopg://host/db").ping()
+    broken = create_engine("sqlite://", creator=connect)
+
+    with pytest.raises(RuntimeError, match="not a database error"):
+        JobStorage("postgresql+psycopg://host/db", engine_factory=_EngineFactory(broken)).ping()
 
 
 def test_fetch_unknown_job_is_none(sqlite_storage: JobStorage) -> None:
@@ -162,10 +175,7 @@ def test_ensure_schema_is_idempotent(sqlite_storage: JobStorage) -> None:
 
 def test_description_insert_compiles_to_postgres_on_conflict_do_nothing() -> None:
     # The SQLite stand-in is lenient; this pins the SQL the real database receives.
-    captured = []
-    with mock.patch.object(storage, "create_engine"), mock.patch.object(storage, "sessionmaker") as sessionmaker:
-        sessionmaker.return_value.return_value.__enter__.return_value.execute.side_effect = captured.append
-        JobStorage("postgresql+psycopg://host/db").insert_description(uuid4(), _values(1))
+    statement = description_insert(uuid4(), _values(1))
 
-    sql = str(captured[0].compile(dialect=postgresql.dialect()))
+    sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "ON CONFLICT (job_id, scene_token) DO NOTHING" in sql

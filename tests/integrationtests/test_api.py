@@ -1,33 +1,20 @@
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from http import HTTPStatus
-from unittest.mock import MagicMock
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
-from backseat_driver.api.app import app
+from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
 from backseat_driver.captioning.captioner import Captioner
-from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, make_settings
+from tests.integrationtests.conftest import ClientFactory
 
 
 class _UnhealthyCaptioner(FakeCaptioner):
     def healthcheck(self) -> bool:
         return False
-
-
-@contextmanager
-def _override_captioner(factory: Callable[[], Captioner]) -> Iterator[None]:
-    original = app.dependency_overrides.get(get_captioner)
-    app.dependency_overrides[get_captioner] = factory
-    try:
-        yield
-    finally:
-        if original is None:
-            app.dependency_overrides.pop(get_captioner, None)
-        else:
-            app.dependency_overrides[get_captioner] = original
 
 
 def test_liveness(client: TestClient) -> None:
@@ -56,9 +43,10 @@ def test_readiness_healthy(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_readiness_unhealthy_backend() -> None:
-    with _override_captioner(lambda: _UnhealthyCaptioner()):
-        response = TestClient(app).get("/ready")
+def test_readiness_unhealthy_backend(client_with: ClientFactory) -> None:
+    client = client_with({get_captioner: lambda: _UnhealthyCaptioner()})
+
+    response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
     error = response.json()["error"]
@@ -68,20 +56,22 @@ def test_readiness_unhealthy_backend() -> None:
 
 
 def test_get_captioner_reads_from_app_state() -> None:
-    mock_request = MagicMock()
-    mock_request.app.state.captioner = FakeCaptioner()
+    service = create_app(make_settings())
+    service.state.captioner = FakeCaptioner()
+    request = Request({"type": "http", "app": service})
 
-    result = get_captioner(mock_request)
+    result = get_captioner(request)
 
-    assert result is mock_request.app.state.captioner
+    assert result is service.state.captioner
 
 
-def test_error_response_shape_on_unhandled_exception() -> None:
+def test_error_response_shape_on_unhandled_exception(client_with: ClientFactory) -> None:
     def _raise() -> Captioner:
         raise RuntimeError("boom")
 
-    with _override_captioner(_raise):
-        response = TestClient(app, raise_server_exceptions=False).get("/ready")
+    client = client_with({get_captioner: _raise}, raise_server_exceptions=False)
+
+    response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
     error = response.json()["error"]
@@ -118,9 +108,9 @@ def test_describe_rejects_empty_file(client: TestClient) -> None:
     [(get_job_queue, FakeJobQueue(healthy=False)), (get_job_store, FakeJobStore(healthy=False))],
 )
 def test_readiness_unhealthy_queue_or_store(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch, dependency: Callable[..., object], unhealthy: object
+    client_with: ClientFactory, dependency: Callable[..., object], unhealthy: object
 ) -> None:
-    monkeypatch.setitem(app.dependency_overrides, dependency, lambda: unhealthy)
+    client = client_with({dependency: lambda: unhealthy})
 
     response = client.get("/ready")
 

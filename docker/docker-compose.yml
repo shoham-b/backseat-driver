@@ -168,8 +168,7 @@ services:
       dockerfile: docker/Dockerfile.systemtest
       args:
         - PYTHON_VERSION
-    environment:
-      API_URL: http://api:8080
+    command: [".venv/bin/pytest", "tests/systemtests", "tests/smoketests", "-v", "--tb=short", "--api-url", "http://api:8080"]
     depends_on:
       api:
         condition: service_healthy

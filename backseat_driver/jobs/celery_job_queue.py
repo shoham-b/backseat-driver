@@ -6,7 +6,8 @@ work without importing the worker code (and therefore without torch or nuscenes-
 Celery is imported lazily, so unit tests and the batch CLI never need it.
 """
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -56,8 +57,9 @@ def make_celery_app(broker_url: str) -> "Celery":
 class CeleryJobQueue(JobQueue):
     """`JobQueue` that publishes to RabbitMQ through Celery. Constructing it never connects."""
 
-    def __init__(self, broker_url: str) -> None:
+    def __init__(self, broker_url: str, make_app: Callable[[str], Any] = make_celery_app) -> None:
         self._broker_url = broker_url
+        self._make_app = make_app
         self._app: Celery | None = None
 
     def enqueue_ingest(self, task: IngestTask) -> None:
@@ -79,5 +81,5 @@ class CeleryJobQueue(JobQueue):
 
     def _get_app(self) -> "Celery":
         if self._app is None:
-            self._app = make_celery_app(self._broker_url)
+            self._app = self._make_app(self._broker_url)
         return self._app

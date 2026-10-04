@@ -75,9 +75,17 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
 
 def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
-    env = {**os.environ, "BACKSEAT_DRIVER_UI_PORT": str(port)}  # exercises the Settings -> command wiring too
-    command = [sys.executable, "-m", "backseat_driver.cli", "ui", "--no-open", *map(str, result_files)]
-    server = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    command = [
+        sys.executable,
+        "-m",
+        "backseat_driver.cli",
+        "ui",
+        "--no-open",
+        "--port",
+        str(port),
+        *map(str, result_files),
+    ]
+    server = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:

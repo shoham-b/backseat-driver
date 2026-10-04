@@ -1,6 +1,6 @@
-import sys
-import types
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 from PIL import Image
@@ -9,28 +9,25 @@ from backseat_driver.captioning.huggingface_backend import HuggingFaceBackend
 from backseat_driver.captioning.model import CaptionModel
 
 
+class _FakePipelineFactory:
+    """Stands in for `transformers.pipeline` so no model is ever downloaded; records the models it was asked for."""
+
+    def __init__(self) -> None:
+        self.models: list[str] = []
+
+    def __call__(self, model_name: str) -> Callable[..., Any]:
+        self.models.append(model_name)
+
+        def run(image: Image.Image) -> list[dict[str, str]]:
+            return [{"generated_text": f"  a caption from {model_name}  "}]
+
+        return run
+
+
 def test_healthcheck_returns_true() -> None:
-    backend = HuggingFaceBackend()
+    backend = HuggingFaceBackend(_FakePipelineFactory())
 
     assert backend.healthcheck() is True
-
-
-@pytest.fixture
-def fake_transformers(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    """Stubs `transformers.pipeline` so no model is ever downloaded in tests."""
-    call_count: list[str] = []
-
-    def fake_pipeline_factory(task: str, model: str) -> object:
-        call_count.append(model)
-
-        def _run(image: Image.Image) -> list[dict[str, str]]:
-            return [{"generated_text": f"  a caption from {model}  "}]
-
-        return _run
-
-    fake_module = types.SimpleNamespace(pipeline=fake_pipeline_factory)
-    monkeypatch.setitem(sys.modules, "transformers", fake_module)
-    return call_count
 
 
 @pytest.fixture
@@ -40,29 +37,31 @@ def image_path(tmp_path: Path) -> str:
     return str(path)
 
 
-def test_generate_returns_stripped_generated_text(image_path: str, fake_transformers: list[str]) -> None:
-    backend = HuggingFaceBackend()
+def test_generate_returns_stripped_generated_text(image_path: str) -> None:
+    backend = HuggingFaceBackend(_FakePipelineFactory())
 
     description = backend.generate(image_path, CaptionModel("fake/model"))
 
     assert description == "a caption from fake/model"
 
 
-def test_generate_loads_pipeline_once_per_model(image_path: str, fake_transformers: list[str]) -> None:
-    backend = HuggingFaceBackend()
+def test_generate_loads_pipeline_once_per_model(image_path: str) -> None:
+    factory = _FakePipelineFactory()
+    backend = HuggingFaceBackend(factory)
     model = CaptionModel("fake/model")
 
     backend.generate(image_path, model)
     backend.generate(image_path, model)
 
-    assert fake_transformers == ["fake/model"]
+    assert factory.models == ["fake/model"]
 
 
-def test_one_backend_serves_several_models(image_path: str, fake_transformers: list[str]) -> None:
-    backend = HuggingFaceBackend()
+def test_one_backend_serves_several_models(image_path: str) -> None:
+    factory = _FakePipelineFactory()
+    backend = HuggingFaceBackend(factory)
 
     first = backend.generate(image_path, CaptionModel("model/a"))
     second = backend.generate(image_path, CaptionModel("model/b"))
 
     assert (first, second) == ("a caption from model/a", "a caption from model/b")
-    assert fake_transformers == ["model/a", "model/b"]
+    assert factory.models == ["model/a", "model/b"]

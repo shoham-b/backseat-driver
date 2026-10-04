@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Annotated
 
@@ -34,10 +33,9 @@ def smoke(
         typer.echo("pytest is not installed — run: uv sync --group dev", err=True)
         raise typer.Exit(1) from None
 
-    if api_url:
-        os.environ["API_URL"] = api_url
-
     args = [str(_PROJECT_ROOT / "tests" / "smoketests")]
+    if api_url:
+        args += ["--api-url", api_url]
     if verbose:
         args.append("-v")
 
