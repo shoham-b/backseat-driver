@@ -1,14 +1,17 @@
-"""Postgres adapter for the `JobStore` port: maps persistence rows (`orm.py`/`storage.py`) to domain models."""
+"""SQL adapter for the `JobStore` port: maps persistence rows (`orm.py`/`storage.py`) to domain models.
+
+Postgres when distributed; the monolith runs the same code over a SQLite file so its jobs survive a restart."""
 
 from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.jobs.job_store import JobStore, derive_state
+from backseat_driver.jobs.orm import JobRow
 from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import Job, SceneDescription
 
 
-class PostgresJobStore(JobStore):
+class SqlJobStore(JobStore):
     def __init__(self, storage: JobStorage) -> None:
         self._storage = storage
 
@@ -31,16 +34,10 @@ class PostgresJobStore(JobStore):
         if found is None:
             raise NotFoundError(f"job {job_id} not found")
 
-        job, completed_scenes = found
-        return Job(
-            job_id=job_id,
-            transaction_id=job.transaction_id,
-            state=derive_state(job.expected_scenes, completed_scenes),
-            max_scenes=job.max_scenes,
-            expected_scenes=job.expected_scenes,
-            completed_scenes=completed_scenes,
-            created_at=job.created_at,
-        )
+        return _to_job(*found)
+
+    def list_jobs(self) -> list[Job]:
+        return [_to_job(row, completed) for row, completed in self._storage.fetch_jobs()]
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self.get_job(job_id)  # raises NotFoundError, so an unknown job isn't reported as "no descriptions"
@@ -59,3 +56,15 @@ class PostgresJobStore(JobStore):
 
     def healthcheck(self) -> bool:
         return self._storage.ping()
+
+
+def _to_job(job: JobRow, completed_scenes: int) -> Job:
+    return Job(
+        job_id=job.job_id,
+        transaction_id=job.transaction_id,
+        state=derive_state(job.expected_scenes, completed_scenes),
+        max_scenes=job.max_scenes,
+        expected_scenes=job.expected_scenes,
+        completed_scenes=completed_scenes,
+        created_at=job.created_at,
+    )

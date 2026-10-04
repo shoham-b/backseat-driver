@@ -12,7 +12,7 @@ from backseat_driver.config import RunMode, VlmBackend
 from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
 from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import JobState
 from tests.fakes import FakeJobQueue, FakeJobStore, make_settings
 from tests.integrationtests.conftest import ClientFactory
@@ -152,7 +152,7 @@ def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
 
     assert isinstance(state.captioner, BackendCaptioner)
     assert isinstance(state.job_queue, CeleryJobQueue)
-    assert isinstance(state.job_store, PostgresJobStore)
+    assert isinstance(state.job_store, SqlJobStore)
     assert health.status_code == HTTPStatus.OK
 
 

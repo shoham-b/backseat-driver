@@ -23,8 +23,8 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 
 | Mode | Queue / store | Used by |
 |---|---|---|
-| `monolith` (default) | `InProcessJobQueue` / `InMemoryJobStore` — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are lost on restart |
-| `distributed` | `CeleryJobQueue` (RabbitMQ) / `PostgresJobStore` | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
+| `monolith` (default) | `InProcessJobQueue` / `SqlJobStore` over a SQLite file — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner. No RabbitMQ and no Postgres | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`), so they survive a restart |
+| `distributed` | `CeleryJobQueue` (RabbitMQ) / `SqlJobStore` | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
 
 To debug the distributed path locally, run `just dev-distributed` (starts RabbitMQ + Postgres in Docker and the API on the host with `BACKSEAT_DRIVER_MODE=distributed`), then `just worker-ingest` and `just worker-caption` in other terminals.
 
@@ -34,7 +34,7 @@ The API's HTTP surface is identical in both modes; only where the work runs diff
 
 | Service | Command | Role |
 |---|---|---|
-| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
+| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs` (the jobs, newest first, optionally by state), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, plus the synchronous `/describe` |
 | `ingest-worker` | `backseat-driver worker ingest` | Reads the dataset, fans out one caption task per scene |
 | `caption-worker` | `backseat-driver worker caption` | Captions one keyframe and stores the result; scale horizontally |
 | `db-init` | `backseat-driver db init` | One-shot: creates the tables |

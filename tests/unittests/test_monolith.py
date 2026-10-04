@@ -12,7 +12,7 @@ from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
 from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
 from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
-from backseat_driver.jobs.postgres_job_store import PostgresJobStore
+from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import CaptionTask, IngestTask, JobState
 from backseat_driver.scenes.pipeline import describe_keyframe
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
@@ -28,13 +28,19 @@ def test_distributed_mode_builds_celery_and_postgres() -> None:
     queue, store = build_job_backend(settings, FakeCaptioner())
 
     assert isinstance(queue, CeleryJobQueue)
-    assert isinstance(store, PostgresJobStore)
+    assert isinstance(store, SqlJobStore)
+
+
+def test_monolith_keeps_jobs_in_memory_when_no_database_file_is_configured() -> None:
+    _, store = build_job_backend(Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""), FakeCaptioner())
+
+    assert isinstance(store, InMemoryJobStore)
 
 
 def test_monolith_job_runs_to_completion_without_a_broker() -> None:
     keyframes = [make_keyframe(1), make_keyframe(2)]
     queue, store = build_job_backend(
-        Settings(_env_file=None, mode=RunMode.MONOLITH),
+        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""),
         FakeCaptioner(),
         build_loader=lambda settings: FakeSceneLoader(keyframes),
     )
@@ -48,6 +54,16 @@ def test_monolith_job_runs_to_completion_without_a_broker() -> None:
         time.sleep(0.01)
 
     assert [d.scene_name for d in store.list_descriptions(job_id)] == ["scene-0001", "scene-0002"]
+
+
+def test_listing_jobs_returns_the_newest_first() -> None:
+    store, first, second = InMemoryJobStore(), uuid4(), uuid4()
+    store.create_job(first, None, "tx-1")
+    store.create_job(second, None, "tx-2")
+
+    jobs = store.list_jobs()
+
+    assert [job.job_id for job in jobs] == [second, first]
 
 
 def test_queue_runs_tasks_in_order_on_one_background_thread() -> None:

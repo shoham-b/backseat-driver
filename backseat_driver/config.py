@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     anthropic_model_name: str | None = None
     anthropic_api_key: SecretStr | None = None
 
+    # Where the monolith keeps its jobs (a SQLite file), so they survive a restart and the report UI can list them.
+    # Empty keeps them in memory only. Distributed mode uses `database_url` instead.
+    jobs_db_path: str = "output/jobs.db"
+
     # How the API runs `/jobs`. Monolith by default so local dev needs nothing else running; docker compose
     # sets `distributed`.
     mode: RunMode = RunMode.MONOLITH
