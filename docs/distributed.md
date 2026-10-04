@@ -1,6 +1,6 @@
 # Distributed mode
 
-The batch CLI is the primary deliverable: one process, one flow — `SceneLoader` → `Captioner` → JSON. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The queue workers call the same `SceneLoader` and `Captioner` abstract classs and the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs.
+This is rung 3 of [From pipeline to cluster](ladder.md). The batch CLI is the primary deliverable: one process, one flow, read → process → write. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The ingest worker is the read step turned into a producer, and the caption worker runs the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs. Across machines two more pieces appear because nothing is shared any more: the dataset moves to a bucket (`read/s3/`) and the results to a database (`write/job_store/`).
 
 ```
 Client ──REST──▶ API ──(1) create job──▶ Postgres
@@ -23,7 +23,7 @@ Client ──REST──▶ API ──(1) create job──▶ Postgres
 
 This repository is a monorepo of microservices (`api`, `ingest-worker`, `caption-worker`, the report UI, one-shot `dataset-upload` and `db-init`), each built into its own image from the same package. The same code can also be debugged as a monolith: one process runs the API and both workers together. **Debugging as a monolith drops S3 and RabbitMQ** (and Postgres): the queue is in-process, job state is a SQLite file, and images are read in place from the local dataroot, so nothing but the API and the dataset on disk is needed.
 
-`BACKSEAT_DRIVER_MODE` picks which of the two the API runs `/jobs` as; `jobs.factory.build_job_backend` wires the matching `JobQueue` and `JobStore`.
+`BACKSEAT_DRIVER_MODE` picks which of the two the API runs `/jobs` as; `stacks.build_job_backend` wires the matching `JobQueue` and `JobStore`.
 
 | Mode | Queue / store | Used by |
 |---|---|---|
@@ -52,7 +52,7 @@ Run it with `just up` (and `just compose up --scale caption-worker=4` to add wor
 
 ## Design choices
 
-- **Messages carry references, not pixels, and workers share no filesystem.** The dataset lives in an S3-compatible bucket (`DatasetStore` / `ImageStore` ports in `datasets/`), put there once by `dataset upload` in its own layout (`<version>/*.json`, `samples/<camera>/*`). Ingest downloads only the metadata tables and puts each keyframe's object URI in `CaptionTask.image_uri`; the caption worker downloads that one image to a temporary file, captions it and deletes it. The keyframe's `image_path` is the dataset-relative key, so stored descriptions name the dataset image. In the monolith `LocalImageStore` passes the local path straight through. Configure the bucket with `BACKSEAT_DRIVER_DATASET_BUCKET` (no default; the workers refuse to start without it) and `BACKSEAT_DRIVER_S3_ENDPOINT_URL` for non-AWS stores; credentials come from the standard `AWS_*` variables. Why this and not a shared volume, a copy per job or ingest in the API: [Design Decisions](design-decisions.md#distributed-mode-and-the-monolith).
+- **Messages carry references, not pixels, and workers share no filesystem.** The dataset lives in an S3-compatible bucket (`DatasetStore` / `ImageStore` ports in `read/` and `read/s3/`), put there once by `dataset upload` in its own layout (`<version>/*.json`, `samples/<camera>/*`). Ingest downloads only the metadata tables and puts each keyframe's object URI in `CaptionTask.image_uri`; the caption worker downloads that one image to a temporary file, captions it and deletes it. The keyframe's `image_path` is the dataset-relative key, so stored descriptions name the dataset image. In the monolith `LocalImageStore` passes the local path straight through. Configure the bucket with `BACKSEAT_DRIVER_DATASET_BUCKET` (no default; the workers refuse to start without it) and `BACKSEAT_DRIVER_S3_ENDPOINT_URL` for non-AWS stores; credentials come from the standard `AWS_*` variables. Why this and not a shared volume, a copy per job or ingest in the API: [Design Decisions](design-decisions.md#distributed-mode-and-the-monolith).
 - **Ingest can run as a Job per queued task.** With KEDA on Kubernetes, a `ScaledJob` starts one Job per waiting ingest message (`worker ingest --once`: one `basic_get`, run, ack, exit), so nothing runs while the queue is empty; without KEDA, and in compose, it is a plain consumer of the same queue. `--once` fetches the message itself rather than stopping a Celery worker, which would prefetch and run the next message first.
 - **Job state is derived, not stored.** `pending` until ingest records `expected_scenes`, `running` while `completed < expected`, `completed` after. There is no "mark done" step to race between workers.
 - **At-least-once, idempotent.** A message is acked only after its result is written. `(job_id, scene_token)` is the primary key and inserts use `ON CONFLICT DO NOTHING`, so redelivery is harmless.

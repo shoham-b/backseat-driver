@@ -1,4 +1,4 @@
-# One-off batch run of the pipeline (`backseat-driver run`) writing result JSON to the `results` volume that the
+# One-off batch run of the pipeline (`backseat-driver describe`) writing result JSON to the `results` volume that the
 # ui Deployment serves. Apply after the base: kubectl apply -f deploy/k8s/examples/run-job.yaml
 # Change the args to pick another backend or model; the API key for the anthropic backend comes from the Secret.
 apiVersion: batch/v1
@@ -16,7 +16,7 @@ spec:
         - name: run
           image: ghcr.io/shoham-b/backseat-driver-cli:latest
           imagePullPolicy: IfNotPresent
-          args: [run, --camera, front, --backend, huggingface]
+          args: [describe, --camera, front, --backend, huggingface]
           envFrom:
             - configMapRef: {name: backseat-driver-config}
             - secretRef: {name: backseat-driver-secrets}

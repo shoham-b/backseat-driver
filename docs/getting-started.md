@@ -3,7 +3,7 @@
 ## 1. The demo dataset
 
 The pipeline is demonstrated on the nuScenes **v1.0-mini** driving dataset. It can't be redistributed in this repo,
-so the first `run` downloads it into `data/sets/nuscenes` (gitignored) and re-downloads it when the archive at
+so the first `describe` downloads it into `data/sets/nuscenes` (gitignored) and re-downloads it when the archive at
 `BACKSEAT_DRIVER_NUSCENES_URL` changes. The dataroot is only a cache, so deleting it is always safe. Override its
 location with `--dataroot` or `BACKSEAT_DRIVER_NUSCENES_DATAROOT`.
 
@@ -13,7 +13,7 @@ location with `--dataroot` or `BACKSEAT_DRIVER_NUSCENES_DATAROOT`.
 
 ```bash
 uv sync --group dev
-uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --camera front --model Salesforce/blip-image-captioning-base
 ```
 
 **Docker (no local Python needed beyond Docker itself):**
@@ -26,7 +26,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 `output/<backend>__<model>.json` (inferred from the backend and model). The first run downloads the VLM weights
 (e.g. `Salesforce/blip-image-captioning-base`, ~1GB) from HuggingFace and caches them.
 
-**Useful options** (`uv run backseat-driver run --help` for the full list):
+**Useful options** (`uv run backseat-driver describe --help` for the full list):
 
 | Option | Default | Description |
 |---|---|---|

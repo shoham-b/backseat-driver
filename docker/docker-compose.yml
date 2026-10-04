@@ -5,7 +5,7 @@ x-distributed-env: &distributed-env
   BACKSEAT_DRIVER_RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
   BACKSEAT_DRIVER_DATABASE_URL: postgresql+psycopg://backseat_driver:backseat_driver@postgres:5432/backseat_driver
 
-# Captioner settings, interpolated from the shell or .env so the container paths use the same backend as `just run`.
+# Captioner settings, interpolated from the shell or .env so the container paths use the same backend as `just describe`.
 # The .env file itself is not passed through: its localhost URLs are wrong inside a container.
 x-vlm-env: &vlm-env
   BACKSEAT_DRIVER_VLM_BACKEND: ${BACKSEAT_DRIVER_VLM_BACKEND:-huggingface}
@@ -71,7 +71,7 @@ services:
       args:
         - PYTHON_VERSION
       target: cli
-    entrypoint: ["fastapi", "run", "backseat_driver/reporting/ui_server.py", "--host", "0.0.0.0", "--port", "8081"]
+    entrypoint: ["fastapi", "run", "backseat_driver/show/ui_server.py", "--host", "0.0.0.0", "--port", "8081"]
     volumes:
       - ./data:/app/data:ro
       - ./output:/app/output:ro
@@ -162,7 +162,7 @@ services:
       start_period: 10s
 
   # One-shot: copies the dataset from ./data into the bucket (skipping what is already there), the only step that reads it.
-  # Needs the dataset in ./data first (`just run` downloads it). The workers read it from the bucket from then on.
+  # Needs the dataset in ./data first (`just describe` downloads it). The workers read it from the bucket from then on.
   dataset-upload:
     build:
       context: .

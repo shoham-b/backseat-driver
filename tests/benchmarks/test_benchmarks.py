@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 
 from backseat_driver.models import SceneDescription, SceneKeyframe
-from backseat_driver.scenes.pipeline import ScenePipeline, describe_keyframe
-from backseat_driver.scenes.writer import write_json
+from backseat_driver.pipeline import ScenePipeline, describe_keyframe
+from backseat_driver.write.json_writer import write_json
 from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
 
 pytest.importorskip("pytest_codspeed")

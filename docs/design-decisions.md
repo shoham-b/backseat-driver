@@ -107,7 +107,7 @@ The first design was a shared volume: both workers mounted the same `./data` (or
 | Image bytes inside the task | Rejected for the reason in question 9. |
 | Every worker downloads the whole dataset to local disk | Rejected. Every replica would pull the full dataset (a few GB for mini, far more for the full set) for the sake of one image per task. |
 
-The `ImageStore` port (`datasets/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (the key already is a path, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
+The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (the key already is a path, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
 
 
 ### 11. What goes into the bucket, and when?
@@ -175,7 +175,7 @@ Details that came with it:
 
 ### 16. Making the report UI independent of volumes and of job ids
 
-Reading from the API still left two limits: the deployed UI mounted the dataset volume (it served `run` result files whose images are local paths), and job ids had to be given when it started. Neither was worth keeping.
+Reading from the API still left two limits: the deployed UI mounted the dataset volume (it served `describe` result files whose images are local paths), and job ids had to be given when it started. Neither was worth keeping.
 
 **The UI discovers jobs itself.** `BACKSEAT_DRIVER_UI_ALL_JOBS` makes the UI re-read the completed jobs from `GET /jobs` on every page load, so a job that finishes shows up on the next refresh and no id has to be passed. Where several jobs ran the same model the newest one wins, so a rerun replaces rather than duplicates. The static `report` command is unchanged and still embeds everything.
 
@@ -183,7 +183,7 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 **The UI is a FastAPI app, not a hand-written server.** It began as a stdlib `BaseHTTPRequestHandler`, which meant hand-rolled routing, error mapping and headers beside an API that already has all of that. It is now a small FastAPI app run like the API (`fastapi run`, `just ui`), with no CLI command of its own and its options as `BACKSEAT_DRIVER_UI_*` settings: the `ApiReportSource` and the page are built per request through `Depends` chains from `Settings`, errors go through exception handlers into the API's JSON envelope (`error_body`), and tests drive it in-process with `httpx.ASGITransport` instead of real sockets. The cost is `fastapi[standard]` in the `cli` group, which the API image already has.
 
-**The deployed UI mounts nothing.** `ui.yaml` drops both volumes and runs `fastapi run` with `BACKSEAT_DRIVER_UI_ALL_JOBS` and `BACKSEAT_DRIVER_API_URL=http://api`; its readiness probe is a new `/healthz` that does not call the API, because a probe that depends on the API would take the UI out of rotation whenever the API blinked. `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where the *browser* reaches the API for the live-inference card (a port-forward by default), separate from `BACKSEAT_DRIVER_API_URL` that the UI process itself uses. The `results` volume remains only for the example `run` Job; its output is viewed locally with `just ui`.
+**The deployed UI mounts nothing.** `ui.yaml` drops both volumes and runs `fastapi run` with `BACKSEAT_DRIVER_UI_ALL_JOBS` and `BACKSEAT_DRIVER_API_URL=http://api`; its readiness probe is a new `/healthz` that does not call the API, because a probe that depends on the API would take the UI out of rotation whenever the API blinked. `BACKSEAT_DRIVER_UI_PUBLIC_API_URL` is where the *browser* reaches the API for the live-inference card (a port-forward by default), separate from `BACKSEAT_DRIVER_API_URL` that the UI process itself uses. The `results` volume remains only for the example `describe` Job; its output is viewed locally with `just ui`.
 
 **Revisit if:** the UI should filter or page through many jobs; the listing is capped at 500 and the newest-per-model rule is applied in the UI.
 
@@ -191,6 +191,6 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 - **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
 - **Nothing expires the uploaded dataset.** It is the source of truth, so it stays until deleted; give the bucket whatever lifecycle rule suits the dataset.
-- **The example run job still uses the dataset volume.** It is the only consumer left, and runs `run` over the dataset on disk.
+- **The example run job still uses the dataset volume.** It is the only consumer left, and runs `describe` over the dataset on disk.
 - **Old queued messages are rejected.** `CaptionTask.image_uri` is required, so tasks queued by an earlier version fail validation.
 - **The full Docker stack and a real cluster were not run for this change.** Unit and integration tests, the rendered manifests, `docker compose config`, a boto3 round trip against S3Mock and the RabbitMQ `basic_get` check were.

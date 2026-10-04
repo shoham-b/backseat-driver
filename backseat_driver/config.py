@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     cors_origins: list[str] = []
     log_format: Literal["colored", "json"] = "colored"
 
-    # Model-comparison UI (`just ui`, `fastapi run backseat_driver/reporting/ui_server.py`)
+    # Model-comparison UI (`just ui`, `fastapi run backseat_driver/show/ui_server.py`)
     ui_host: str = "127.0.0.1"
     ui_port: int = 8081
     # Also show the API's completed jobs (re-read on every page load, newest per model), besides the result files.
@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     dataset_bucket: str | None = None
     s3_endpoint_url: str | None = None
 
-    # Pipeline output: `run` writes <output_dir>/<backend>__<model>.json unless told otherwise
+    # Pipeline output: `describe` writes <output_dir>/<backend>__<model>.json unless told otherwise
     output_dir: str = "output"
 
     def model_name_for(self, backend: VlmBackend | None = None, model_name: str | None = None) -> str:

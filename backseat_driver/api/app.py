@@ -17,12 +17,11 @@ from backseat_driver.api.routers.health import router as health_router
 from backseat_driver.api.routers.images import router as images_router
 from backseat_driver.api.routers.jobs import router as jobs_router
 from backseat_driver.api.state import AppState
-from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, get_settings
-from backseat_driver.datasets.factory import build_image_store
 from backseat_driver.errors import BackseatDriverError
-from backseat_driver.jobs.factory import build_job_backend
 from backseat_driver.logger import LogFormat, setup_logging
+from backseat_driver.process.factory import build_captioner
+from backseat_driver.stacks import build_image_store, build_job_backend
 
 
 def create_app(settings: Settings) -> FastAPI:

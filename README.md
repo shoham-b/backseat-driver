@@ -17,16 +17,24 @@ Built for the "Scene Description via VLM" take-home assignment (see [home_assign
 
 ## What it does
 
+```
+   read/                     process/                    write/
+┌─────────────┐          ┌──────────────┐          ┌──────────────┐
+│ SceneLoader │ ───────▶ │  Captioner   │ ───────▶ │  write_json  │
+└─────────────┘          └──────────────┘          └──────────────┘
+```
+
+
 The demo runs on nuScenes; the loader is the only dataset-specific step.
 
-1. **Loads a scene** — [`scenes/nuscenes_scene_loader.py`](backseat_driver/scenes/nuscenes_scene_loader.py) reads the
+1. **Loads a scene** — [`read/nuscenes_scene_loader.py`](backseat_driver/read/nuscenes_scene_loader.py) reads the
    dataset via `nuscenes-devkit` and picks one representative keyframe image per scene and camera (at the
    midpoint of the scene rather than the first frame). The dataset is downloaded into `data/sets/nuscenes` on first use.
-2. **Runs a VLM** — a [`Captioner`](backseat_driver/captioning/captioner.py) pairs a runtime with a model:
+2. **Runs a VLM** — a [`Captioner`](backseat_driver/process/captioner.py) pairs a runtime with a model:
    a local HuggingFace `image-to-text` model (e.g. `Salesforce/blip-image-captioning-base`, CPU-only, terse captions),
    a local [Ollama](https://ollama.com) server (e.g. `llava`), or the hosted Claude API, the last two for verbose,
    prompt-driven descriptions. Pick one with `--backend` and `--model`.
-3. **Outputs the results** — [`scenes/writer.py`](backseat_driver/scenes/writer.py) writes one JSON object
+3. **Outputs the results** — [`write/json_writer.py`](backseat_driver/write/json_writer.py) writes one JSON object
    per scene and camera to `output/<backend>__<model>.json` (e.g. `output/huggingface__Salesforce-blip-image-captioning-base.json`):
 
    ```json
@@ -47,13 +55,13 @@ The demo runs on nuScenes; the loader is the only dataset-specific step.
    `reference_description` is nuScenes' own human-written scene label. `backseat-driver report` and `ui` use it to score
    and compare the output files of different models side by side.
 
-Swapping the dataset means writing another [`SceneLoader`](backseat_driver/scenes/scene_loader.py); the VLM side
-([`Captioner`](backseat_driver/captioning/captioner.py)) doesn't change. Both are abstract ports composed in
-[`scenes/pipeline.py`](backseat_driver/scenes/pipeline.py), so the orchestration logic never imports
+Swapping the dataset means writing another [`SceneLoader`](backseat_driver/read/scene_loader.py); the VLM side
+([`Captioner`](backseat_driver/process/captioner.py)) doesn't change. Both are abstract ports composed in
+[`pipeline.py`](backseat_driver/pipeline.py), so the orchestration logic never imports
 nuscenes-devkit, transformers, or torch directly and is fully unit-testable with fakes.
 
 The same captioning is also available as a service: `POST /describe` captions one uploaded image, and `POST /jobs`
-runs a whole dataset asynchronously (see [Microservices, or one monolith](#microservices-or-one-monolith)).
+runs a whole dataset asynchronously (see [One pipeline, three ways to run it](#one-pipeline-three-ways-to-run-it)).
 
 ## Assumptions
 
@@ -69,7 +77,7 @@ Stated explicitly, per the assignment's request:
   images to run on. It is not bundled (its license doesn't permit redistribution), so the loader downloads
   v1.0-mini into `data/sets/nuscenes` (gitignored) on first use and re-downloads when the archive changes.
 - **Batch job is the primary shape.** The assignment describes a pipeline over a *set* of scenes, so the CLI
-  (`backseat-driver run`) producing one JSON file is the main deliverable. The HTTP API is the optional deployment
+  (`backseat-driver describe`) producing one JSON file is the main deliverable. The HTTP API is the optional deployment
   of the same pipeline, answering "how would you deploy this" — see [docs/architecture.md#deployment](docs/architecture.md#deployment).
 - **No GPU, no batching.** Scenes are captioned one at a time, and the HuggingFace example runs on CPU, matching "no need for
   large models or GPU inference." For v1.0-mini's 10 scenes this is seconds-to-low-minutes after the model
@@ -83,11 +91,11 @@ Stated explicitly, per the assignment's request:
 uv sync --group dev
 
 # 2. Run the pipeline (downloads the nuScenes v1.0-mini dataset and the model on first use)
-uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --camera front --model Salesforce/blip-image-captioning-base
 # → output/huggingface__Salesforce-blip-image-captioning-base.json
 
 # 3. Compare the models you have run
-uv run backseat-driver ui    # http://localhost:8081
+just ui    # http://localhost:8081
 ```
 
 Or fully containerized, no local Python required:
@@ -100,9 +108,9 @@ Full setup instructions (including the HTTP API) are in
 **[docs/getting-started.md](docs/getting-started.md)**. Full documentation is published at
 **https://shoham-b.github.io/backseat-driver/**.
 
-## Microservices, or one monolith
+## One pipeline, three ways to run it
 
-Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and a SQLite (or in-memory) job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API. See [Distributed mode](docs/distributed.md) for the microservices and [Running it](docs/running.md) for how to start either.
+Backseat Driver is one idea: **read** the scenes, **process** each image with a vision-language model, **write** the descriptions. `describe` runs it in one process, and that is the whole program. The same three steps can also run as tasks over a queue: in one process for local development (`just dev`, no broker, bucket or database), or as separate services where RabbitMQ sits between read and process, the dataset lives in S3 and the results in Postgres. Showing the results (`report`, `ui`) is a separate role that only reads what was written. See [From pipeline to cluster](docs/ladder.md) for the three rungs and where each piece enters the code, and [Running it](docs/running.md) for how to start each.
 
 ## How this was tested
 
@@ -136,7 +144,7 @@ autoscaling via KEDA); see **[docs/deployment.md](docs/deployment.md)**.
 ## Development
 
 ```bash
-just run          # run the pipeline
+just describe          # run the pipeline
 just ui           # model-comparison UI over ./output (http://localhost:8081)
 just dev          # API dev server with hot reload (monolith mode: no broker/database needed)
 just dev-distributed  # same, against RabbitMQ + Postgres in Docker
@@ -153,7 +161,7 @@ See [docs/development.md](docs/development.md) for the full task list and [AGENT
 codebase conventions.
 
 The project was scaffolded from [python-project-template](https://github.com/shoham-b/python-project-template)
-(`models/` → capability packages (`captioning/`, `scenes/`, `jobs/`) → `cli/`+`api/`, containerized, CI, typed, tested at four levels)
+(`models/` → the read, process and write packages → `cli/`+`api/`, containerized, CI, typed, tested at four levels)
 and then adapted to this domain; [docs/development.md](docs/development.md) lists what was stripped from the generic scaffold.
 
 ## Docker

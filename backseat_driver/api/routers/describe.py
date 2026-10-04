@@ -14,8 +14,8 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
-from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.errors import UnprocessableError
+from backseat_driver.process.captioner import Captioner
 
 _PLAIN_SUFFIX = re.compile(r"\.[a-z0-9]{1,8}")
 

@@ -15,8 +15,8 @@ default:
     @just --list
 
 # Run the scene-description pipeline over the local nuScenes dataset
-run *ARGS:
-    uv run backseat-driver run {{ARGS}}
+describe *ARGS:
+    uv run backseat-driver describe {{ARGS}}
 
 # Build the static model-comparison HTML report from result JSON files
 report *ARGS:
@@ -24,7 +24,7 @@ report *ARGS:
 
 # Serve the model-comparison UI: every JSON in output/, plus the API's jobs with BACKSEAT_DRIVER_UI_ALL_JOBS=true
 ui:
-    uv run fastapi run backseat_driver/reporting/ui_server.py --host {{ui_host}} --port {{ui_port}}
+    uv run fastapi run backseat_driver/show/ui_server.py --host {{ui_host}} --port {{ui_port}}
 
 # Auto-fix and format
 fmt:
@@ -116,9 +116,9 @@ worker-ingest: infra
 worker-caption: infra
     uv run backseat-driver worker caption
 
-# The pipeline in the cli container (same as `just run`, but containerised): `just docker-run --max-scenes 2`
+# The pipeline in the cli container (same as `just describe`, but containerised): `just docker-run --max-scenes 2`
 docker-run *ARGS:
-    {{compose}} --profile cli run --build --rm cli run {{ARGS}}
+    {{compose}} --profile cli run --build --rm cli describe {{ARGS}}
 
 # Distributed mode, all in Docker: API + RabbitMQ + Postgres + ingest/caption workers
 up:

@@ -74,7 +74,7 @@ USER 10001
 ENV PATH=/app/.venv/bin:$PATH \
     HF_HOME=/home/app/.cache/huggingface
 ENTRYPOINT ["backseat-driver"]
-CMD ["run"]
+CMD ["describe"]
 
 # ── Stage 7: ingest worker runtime — reads the dataset, fans out caption tasks ──
 # Same libGL/libglib need as the CLI (nuscenes-devkit -> opencv); no torch.

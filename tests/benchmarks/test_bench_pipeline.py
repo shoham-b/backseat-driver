@@ -12,11 +12,11 @@ from uuid import uuid4
 import pytest
 from pytest_codspeed import BenchmarkFixture
 
-from backseat_driver.datasets.image_store import ImageStore
-from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
-from backseat_driver.scenes.pipeline import ScenePipeline
-from backseat_driver.scenes.writer import write_json
+from backseat_driver.pipeline import ScenePipeline
+from backseat_driver.read.image_store import ImageStore
+from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.write.json_writer import write_json
 from tests.fakes import (
     FakeCaptioner,
     FakeJobQueue,

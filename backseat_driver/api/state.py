@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 
-from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.config import Settings
-from backseat_driver.datasets.image_store import ImageStore
-from backseat_driver.jobs.job_queue import JobQueue
-from backseat_driver.jobs.job_store import JobStore
+from backseat_driver.process.captioner import Captioner
+from backseat_driver.read.image_store import ImageStore
+from backseat_driver.transport.job_queue import JobQueue
+from backseat_driver.write.job_store.job_store import JobStore
 
 
 @dataclass(frozen=True)

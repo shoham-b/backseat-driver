@@ -15,9 +15,9 @@ from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_request_id
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
-from backseat_driver.jobs.job_queue import JobQueue
-from backseat_driver.jobs.job_store import JobStore
 from backseat_driver.models import IngestTask, Job, JobState, SceneDescription
+from backseat_driver.transport.job_queue import JobQueue
+from backseat_driver.write.job_store.job_store import JobStore
 
 router = APIRouter(tags=["jobs"])
 
