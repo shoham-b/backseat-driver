@@ -31,7 +31,7 @@ def test_caption_sends_image_prompt_and_auth_and_joins_text_blocks(image_path: s
     assert posted.payload["model"] == "claude-test"
     image_block = posted.payload["messages"][0]["content"][0]
     assert image_block["source"]["media_type"] == "image/jpeg"
-    assert "single short phrase" in posted.payload["system"]
+    assert "only the caption" in posted.payload["system"]
 
 
 def test_caption_rejects_unsupported_image_type(tmp_path: Path) -> None:

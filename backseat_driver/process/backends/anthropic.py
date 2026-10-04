@@ -23,7 +23,7 @@ _MEDIA_TYPES_BY_SUFFIX = {
 }
 # Claude otherwise pads answers with preambles and markdown, which breaks the one-line caption contract.
 _SYSTEM_PROMPT = (
-    "You caption images. Reply with a single short phrase describing the scene, "
+    "You caption images. Reply with only the caption in the format the user asks for, "
     "with no preamble, no markdown and no line breaks."
 )
 
