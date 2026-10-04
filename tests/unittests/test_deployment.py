@@ -17,7 +17,7 @@ from backseat_driver.api.app import app as api_app
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app as cli_app
 from backseat_driver.config import RunMode, Settings
-from backseat_driver.transport.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
+from backseat_driver.transport.celery_app import CAPTION_QUEUE, INGEST_QUEUE
 
 ROOT = Path(__file__).parents[2]
 K8S = ROOT / "deploy" / "k8s"

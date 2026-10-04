@@ -10,7 +10,7 @@ from kombu.transport.memory import Channel
 from backseat_driver import tasks
 from backseat_driver.models import IngestTask
 from backseat_driver.transport.caption_worker import CaptionWorker
-from backseat_driver.transport.celery_job_queue import INGEST_QUEUE, INGEST_TASK, make_celery_app
+from backseat_driver.transport.celery_app import INGEST_QUEUE, INGEST_TASK, make_celery_app
 from backseat_driver.transport.consume_one import consume_one
 from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe

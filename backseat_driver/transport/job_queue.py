@@ -1,6 +1,7 @@
-"""Port for the distributed mode's work queue — how the API and the workers hand work to each other.
+"""Port for the work queue — how the API and the workers hand work to each other.
 
-The broker-backed implementation (Celery over RabbitMQ) lives next to it in `celery_job_queue.py`.
+The monolith runs it on a thread (`in_process_job_queue.py`); the distributed mode runs it over a
+broker (Celery over RabbitMQ, `celery_job_queue.py`).
 """
 
 from abc import ABC, abstractmethod
