@@ -60,7 +60,7 @@ def describe(
     backend: Annotated[
         VlmBackend | None,
         typer.Option(
-            help="Monolith: captioner backend: huggingface (terse BLIP), ollama or anthropic (verbose, prompt-driven)"
+            help="Monolith: captioner backend: huggingface (terse BLIP), ollama or anthropic (prompt-driven)"
         ),
     ] = None,
     model: Annotated[str | None, typer.Option(help="Monolith: model name for the chosen backend")] = None,
