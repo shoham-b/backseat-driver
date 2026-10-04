@@ -1,16 +1,14 @@
-"""Handlers for the two queue workers.
+"""Handler for the ingest worker: the read step as a producer.
 
-Plain classes over abstract ports, like `ScenePipeline`, so they are unit-testable with
-fakes. They know nothing about Celery: `backseat_driver.tasks` wraps `handle` in a task. A
-handler returns only once its work is durably recorded, which is what lets the task be
-acked afterwards (at-least-once delivery), and every step is safe to run twice.
+A plain class over abstract ports, like `ScenePipeline`, so it is unit-testable with fakes. It
+knows nothing about Celery: `backseat_driver.tasks` wraps `handle` in a task. `handle` returns only
+once its work is durably recorded, which is what lets the task be acked afterwards (at-least-once
+delivery), and every step is safe to run twice.
 """
 
 from loguru import logger
 
 from backseat_driver.models import CaptionTask, IngestTask
-from backseat_driver.pipeline import describe_keyframe
-from backseat_driver.process.captioner import Captioner
 from backseat_driver.read.image_store import ImageStore
 from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.transport.job_queue import JobQueue
@@ -44,19 +42,3 @@ class IngestWorker:
                     )
                 )
             logger.info("ingest fanned out {} scenes to caption workers", len(keyframes))
-
-
-class CaptionWorker:
-    """Captions one scene's keyframe from a local copy of its image and records the result."""
-
-    def __init__(self, captioner: Captioner, store: JobStore, images: ImageStore) -> None:
-        self._captioner = captioner
-        self._store = store
-        self._images = images
-
-    def handle(self, task: CaptionTask) -> None:
-        with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
-            with self._images.local_copy(task.image_uri) as local_path:
-                description = describe_keyframe(task.keyframe, self._captioner, str(local_path))
-            self._store.record_description(task.job_id, description)
-            logger.debug("described {} ({})", task.keyframe.scene_name, task.keyframe.camera_channel)

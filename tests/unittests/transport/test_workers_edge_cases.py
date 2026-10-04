@@ -5,7 +5,8 @@ from uuid import UUID, uuid4
 import pytest
 
 from backseat_driver.models import CaptionTask, IngestTask, JobState
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.transport.caption_worker import CaptionWorker
+from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import (
     FakeCaptioner,
     FakeImageStore,

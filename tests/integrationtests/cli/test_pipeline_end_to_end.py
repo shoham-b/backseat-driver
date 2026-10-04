@@ -25,7 +25,8 @@ from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
 from backseat_driver.read.s3.uploader import DatasetUploader
 from backseat_driver.stacks import build_image_store, build_job_backend
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.transport.caption_worker import CaptionWorker
+from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import DiskS3Client, FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, make_settings
 from tests.nuscenes_dataset import (
     SCENE_LABELS,

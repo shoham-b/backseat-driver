@@ -29,10 +29,11 @@ from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
 from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
 from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
+from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.job_store import JobStore
 from backseat_driver.write.job_store.sql_job_store import SqlJobStore
