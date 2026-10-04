@@ -39,7 +39,7 @@ The `ui` service exits at startup when `./output` has no result files yet — ru
 | Object | Notes |
 |---|---|
 | `api` Deployment (2) + Service | liveness `/health`, readiness `/ready` (VLM, broker and database reachable) |
-| `ingest-worker` (1), `caption-worker` (2) | each from its own image; `kubectl -n backseat-driver scale deploy/caption-worker --replicas=N`, or autoscale (below). |
+| `ingest-worker` (1), `caption-worker` (2) | each from its own image; `kubectl -n backseat-driver scale deploy/caption-worker --replicas=N`, or autoscale (below). With KEDA the ingest Deployment is replaced by a Job per queued ingest task |
 | `dataset-upload` Job | copies the dataset from the `nuscenes-data` volume into the bucket (skipping images already there); retries until the volume and the bucket are up |
 | `db-init` Job | creates the tables; the API and workers recover on their own once it has succeeded |
 | `postgres` StatefulSet, `rabbitmq` Deployment | evaluation-grade; point `BACKSEAT_DRIVER_DATABASE_URL` / `_RABBITMQ_URL` at managed services in production |
@@ -74,7 +74,7 @@ include the namespace, e.g. `http://guest:guest@rabbitmq.backseat-driver:15672/`
 | Deployment | Queue | Scale | Replicas |
 |---|---|---|---|
 | `caption-worker` | `backseat_driver.caption` | 1 per 20 waiting scenes | 1–8 |
-| `ingest-worker` | `backseat_driver.ingest` | 1 per 2 waiting jobs | 1–3 |
+| `ingest-worker` (a `ScaledJob`) | `backseat_driver.ingest` | one Job per waiting ingest task, none while the queue is empty | 0–3 at a time |
 
 The minimum is 1, not 0: a new caption replica loads the model before consuming, and scaling to zero would add that to
 the first job. Scaling down is safe because acks are late: a replica removed mid-caption has its message redelivered, and

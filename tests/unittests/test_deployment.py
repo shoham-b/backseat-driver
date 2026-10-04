@@ -21,6 +21,7 @@ from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
 
 ROOT = Path(__file__).parents[2]
 K8S = ROOT / "deploy" / "k8s"
+KEDA = ROOT / "deploy" / "components" / "keda-autoscaling"
 ENV_PREFIX = "BACKSEAT_DRIVER_"
 
 
@@ -220,19 +221,34 @@ def test_each_worker_runs_its_own_image() -> None:
 
 
 def test_autoscalers_target_the_workers_and_watch_the_queues_they_consume() -> None:
-    component = ROOT / "deploy" / "components" / "keda-autoscaling"
     scaled = {
-        doc["metadata"]["name"]: doc
-        for doc in _documents(component / "autoscaling.yaml")
-        if doc["kind"] == "ScaledObject"
+        doc["metadata"]["name"]: doc for doc in _documents(KEDA / "autoscaling.yaml") if doc["kind"] == "ScaledObject"
     }
     deployments = {doc["metadata"]["name"] for doc in _of_kind("Deployment")}
 
     queues = {name: obj["spec"]["triggers"][0]["metadata"]["queueName"] for name, obj in scaled.items()}
 
-    assert queues == {"ingest-worker": INGEST_QUEUE, "caption-worker": CAPTION_QUEUE}
+    assert queues == {"caption-worker": CAPTION_QUEUE}
     assert {obj["spec"]["scaleTargetRef"]["name"] for obj in scaled.values()} <= deployments
     assert all(obj["spec"]["minReplicaCount"] >= 1 for obj in scaled.values())  # the model must stay loaded
+
+
+def _ingest_scaled_job() -> dict[str, Any]:
+    (job,) = [doc for doc in _documents(KEDA / "autoscaling.yaml") if doc["kind"] == "ScaledJob"]
+    return job
+
+
+def test_ingest_runs_as_a_job_per_queued_task_with_keda() -> None:
+    job = _ingest_scaled_job()
+    (container,) = job["spec"]["jobTargetRef"]["template"]["spec"]["containers"]
+    patched = yaml.safe_load((KEDA / "kustomization.yaml").read_text())["patches"]
+
+    _parse_without_running([str(arg) for arg in container["args"]])
+
+    assert job["spec"]["triggers"][0]["metadata"]["queueName"] == INGEST_QUEUE
+    assert container["args"] == ["worker", "ingest", "--once"]  # a Job must exit after its task
+    assert container["image"] == "ghcr.io/shoham-b/backseat-driver-ingest-worker"
+    assert any("$patch: delete" in p["patch"] and p["target"]["name"] == "ingest-worker" for p in patched)
 
 
 def _compose_services() -> dict[str, Any]:
@@ -253,6 +269,10 @@ def test_no_worker_mounts_the_dataset_in_the_cluster() -> None:
 
     assert "dataset-upload" in mounting
     assert not {name for name in mounting if name.endswith("-worker")}
+    assert not any(
+        volume.get("persistentVolumeClaim", {}).get("claimName") == "nuscenes-data"
+        for volume in _ingest_scaled_job()["spec"]["jobTargetRef"]["template"]["spec"].get("volumes", [])
+    )
 
 
 def test_only_the_upload_service_mounts_the_dataset_in_compose() -> None:
