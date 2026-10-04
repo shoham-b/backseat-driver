@@ -84,6 +84,7 @@ The MkDocs docs live in `docs/` and are published to GitHub Pages. Build locally
   3. `tests/smoketests/` — live HTTP; requires a running service (pass `--api-url` to override the target).
   4. `tests/uitests/` — Selenium + headless Chrome against the real `ui` server.
   5. `tests/systemtests/` — Docker Compose, runs everything containerised.
+- **Unit test logic, keep adapters thin**: Put decisions and transformations in plain classes/functions behind the ports and unit test those. Adapters (FastAPI routes, Postgres/SQLAlchemy, Celery, HTTP clients) only translate and delegate, so they are covered by integration/smoke/system tests, not unit tests. Don't write unit tests that mock a framework or database, and don't chase 100% coverage: `fail_under` is 95 and the gap is expected to be adapter glue. If an adapter needs a test to feel safe, move the logic out of it instead.
 - **AAA structure**: Every test must follow Arrange → Act → Assert with a blank line between each phase. Name the sections with a comment only when the block is non-obvious; otherwise the blank lines are enough.
   ```python
   def test_something():
