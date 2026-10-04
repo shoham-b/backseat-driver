@@ -5,12 +5,17 @@ from pathlib import Path
 from fastapi import Request
 
 from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.datasets.image_service import ImageService
 from backseat_driver.jobs.job_queue import JobQueue
 from backseat_driver.jobs.job_store import JobStore
 
 
 def get_captioner(request: Request) -> Captioner:
     return request.app.state.captioner  # type: ignore[no-any-return]
+
+
+def get_image_service(request: Request) -> ImageService:
+    return request.app.state.image_service  # type: ignore[no-any-return]
 
 
 def get_job_queue(request: Request) -> JobQueue:

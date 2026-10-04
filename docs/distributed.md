@@ -38,7 +38,7 @@ The API's HTTP surface is identical in both modes; only where the work runs diff
 
 | Service | Command | Role |
 |---|---|---|
-| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, `GET /jobs` (the jobs newest first, optionally by state), plus the synchronous `/describe` |
+| `api` | `fastapi run backseat_driver/api/app.py` | `POST /jobs` (202), `GET /jobs/{id}`, `GET /jobs/{id}/descriptions`, `GET /jobs` (the jobs newest first, optionally by state), `GET /images/{key}` (a keyframe image by its dataset key, from the local dataroot or the bucket), plus the synchronous `/describe` |
 | `ingest-worker` | `backseat-driver worker ingest` | Downloads the dataset's metadata tables from the bucket, finds the keyframes and fans out one caption task per scene. `--once` handles a single task and exits (a Job per queued task, see below) |
 | `caption-worker` | `backseat-driver worker caption` | Downloads one keyframe from the bucket, captions it and stores the result; scale horizontally |
 | `dataset-upload` | `backseat-driver dataset upload` | One-shot: copies the dataset from disk into the bucket (the only step that reads it from disk; reruns skip images already there) |

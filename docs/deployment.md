@@ -38,14 +38,14 @@ The `ui` service exits at startup when `./output` has no result files yet — ru
 
 | Object | Notes |
 |---|---|
-| `api` Deployment (2) + Service | liveness `/health`, readiness `/ready` (VLM, broker and database reachable) |
+| `api` Deployment (2) + Service | liveness `/health`, readiness `/ready` (VLM, broker and database reachable); serves `GET /images/{key}` from the dataset bucket, so it takes the same `DATASET_BUCKET` and `AWS_*` configuration as the workers and refuses to start without it |
 | `ingest-worker` (1), `caption-worker` (2) | each from its own image; `kubectl -n backseat-driver scale deploy/caption-worker --replicas=N`, or autoscale (below). With KEDA the ingest Deployment is replaced by a Job per queued ingest task |
 | `dataset-upload` Job | copies the dataset from the `nuscenes-data` volume into the bucket (skipping images already there); retries until the volume and the bucket are up |
 | `db-init` Job | creates the tables; the API and workers recover on their own once it has succeeded |
 | `postgres` StatefulSet, `rabbitmq` Deployment | evaluation-grade; point `BACKSEAT_DRIVER_DATABASE_URL` / `_RABBITMQ_URL` at managed services in production |
 | `s3` Deployment + Service | development-only S3 store (in memory, any credentials) with the `nuscenes` bucket; in production delete `object-store.yaml` and set `BACKSEAT_DRIVER_DATASET_BUCKET`, the `AWS_*` credentials and (for non-AWS stores) `BACKSEAT_DRIVER_S3_ENDPOINT_URL` |
-| `ui` Deployment + Service | the model-comparison report over the `results` volume |
-| `nuscenes-data`, `results` PVCs | the dataset (read-only; mounted by the `dataset-upload` Job, the `ui` and the example run job, by no worker) and the result JSON files the example run job writes |
+| `ui` Deployment + Service | the model-comparison report, built on every load from the completed jobs on the API (`--all-jobs`) with images proxied from it; mounts no volume and needs only the API's address. `--public-api-url` is where the browser reaches the API for the live card (a `port-forward` by default) |
+| `nuscenes-data`, `results` PVCs | the dataset (read-only; mounted by the `dataset-upload` Job and the example run job, by no worker and not by the UI) and the result JSON files the example run job writes |
 
 ```bash
 kubectl apply -k deploy/k8s

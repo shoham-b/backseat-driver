@@ -167,10 +167,37 @@ The API option is attractive now that ingest only reads metadata, and the monoli
 **Revisit if:** the Job's pod start-up cost starts to dominate a job's latency; an always-on worker with a short idle timeout would then be the better trade.
 
 
+### 15. Where does the report UI get its data and images?
+
+**Options:** keep reading result files and a dataset volume; have the UI talk to the database and the bucket directly; or have it read everything from the API.
+
+**Decision: from the API.** A finished job's descriptions already come from `GET /jobs/{id}/descriptions`, and the missing piece was the image bytes, so the API gained `GET /images/{key}`. The UI holding database or bucket credentials was rejected: it would put them in a second service for no benefit, and the API is the one place that already knows how to read both. `report --job <id>` (repeatable, one job per model) embeds the images it fetches, so the report needs the API and nothing else.
+
+Details that came with it:
+
+- **The API goes through a business-logic layer.** The route does not read the store: `ImageService` validates the key, reads the image, and turns a missing object into the domain's `NotFoundError`, so a store's own errors (a missing file, a missing S3 object) never reach the HTTP layer. That is the same layering the rest of the API follows.
+- **The endpoint is not a file server.** It serves only keys under `samples/` with an image suffix, rejects empty, `.` and `..` segments and backslashes before the store is asked, and the local store refuses any key that resolves outside the dataroot. Metadata tables are not served.
+- **HTTP caching.** Images never change under their key, so responses carry an `ETag` and `Cache-Control: public, max-age=86400, immutable`, and a matching `If-None-Match` gets `304`. That is the whole caching story for the API; nothing is cached on the server.
+- **One error format.** The API and the report UI server answer errors in the same JSON envelope (`error_format.error_body`, the Google API error format), and `HttpStatusError` carries an upstream status so the UI can pass a missing image on as a 404 instead of calling every upstream failure a bad gateway.
+- **The API needs the bucket in distributed mode.** A distributed `Settings` cannot be built without `BACKSEAT_DRIVER_DATASET_BUCKET`, so the API fails when its settings load, like the workers. Its image gained the S3 client.
+- **A running job is an error.** The report is built when the command runs, and a partial one would look complete, so `--job` fails fast on a job that is not `completed`.
+
+### 16. Making the report UI independent of volumes and of job ids
+
+Reading from the API still left two limits: the deployed UI mounted the dataset volume (it served `run` result files whose images are local paths), and job ids had to be given when it started. Neither was worth keeping.
+
+**The UI discovers jobs itself.** `ui --all-jobs` re-reads the completed jobs from `GET /jobs` on every page load, so a job that finishes shows up on the next refresh and no id has to be passed. Where several jobs ran the same model the newest one wins, so a rerun replaces rather than duplicates. `--job <id>` still pins specific jobs. The static `report` command is unchanged and still embeds everything.
+
+**The UI proxies images, it does not embed them.** A page of hundreds of scenes with base64 images would be many megabytes per load. Instead the page points each image at the UI's own `/images/<key>`, which forwards to the API (the same key rule as the API's endpoint, checked before anything is forwarded) and returns the bytes with immutable caching headers, so the browser fetches each image once. The browser only ever talks to the UI: no CORS, no second address to expose. Result files given on the command line keep their embedded images, so local use is unchanged.
+
+**The deployed UI mounts nothing.** `ui.yaml` drops both volumes and runs `ui --all-jobs --api-url http://api`; its readiness probe is a new `/healthz` that does not call the API, because a probe that depends on the API would take the UI out of rotation whenever the API blinked. `--public-api-url` is where the *browser* reaches the API for the live-inference card (a port-forward by default), separate from `--api-url` that the UI process itself uses. The `results` volume remains only for the example `run` Job; its output is viewed locally with `ui output/*.json`.
+
+**Revisit if:** the UI should filter or page through many jobs; the listing is capped at 500 and the newest-per-model rule is applied in the UI.
+
 ### What is still open
 
 - **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
 - **Nothing expires the uploaded dataset.** It is the source of truth, so it stays until deleted; give the bucket whatever lifecycle rule suits the dataset.
-- **The report UI and the example run job still use the dataset volume.** The workers no longer do.
+- **The example run job still uses the dataset volume.** It is the only consumer left, and runs `run` over the dataset on disk.
 - **Old queued messages are rejected.** `CaptionTask.image_uri` is required, so tasks queued by an earlier version fail validation.
-- **The full Docker stack and a real cluster were not run for this change.** Unit and integration tests, the rendered manifests, `docker compose config` and a boto3 round trip against S3Mock were.
+- **The full Docker stack and a real cluster were not run for this change.** Unit and integration tests, the rendered manifests, `docker compose config`, a boto3 round trip against S3Mock and the RabbitMQ `basic_get` check were.

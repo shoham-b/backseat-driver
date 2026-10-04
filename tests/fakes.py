@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from backseat_driver.captioning.captioner import Captioner
-from backseat_driver.captioning.http_client import HttpClient
+from backseat_driver.captioning.http_client import HttpClient, HttpResponse
 from backseat_driver.config import Settings
 from backseat_driver.datasets.dataset_store import DatasetStore
 from backseat_driver.datasets.image_store import ImageStore
@@ -203,6 +203,8 @@ class FakeHttpClient(HttpClient):
     def __init__(self, response: dict[str, Any] | None = None, error: Exception | None = None, reachable: bool = True):
         self.posts: list[PostedJson] = []
         self.probes: list[Probe] = []
+        self.gets: list[Probe] = []
+        self.responses_by_url: dict[str, HttpResponse] = {}
         self._response = response if response is not None else {}
         self._error = error
         self._reachable = reachable
@@ -214,6 +216,12 @@ class FakeHttpClient(HttpClient):
         if self._error:
             raise self._error
         return self._response
+
+    def get(self, url: str, headers: dict[str, str], timeout: float, service: str) -> HttpResponse:
+        self.gets.append(Probe(url, headers, timeout))
+        if self._error:
+            raise self._error
+        return self.responses_by_url[url]
 
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         self.probes.append(Probe(url, headers, timeout))

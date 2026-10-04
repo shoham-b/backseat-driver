@@ -98,7 +98,20 @@ uv run backseat-driver ui output/blip.json output/llava.json --port 8081
 just ui                      # all JSON files in output/
 ```
 
+### Reports from the API (`--job`)
 
+Both `report` and `ui` can also read finished jobs from the API instead of (or as well as) result files. Pass the id of a completed job with `--job`; each job is one model's run, so give several ids to compare models. `ui` also takes `--all-jobs`, which shows every completed job on the API (the newest per model) and re-reads them on each page load, so no ids are needed and a job that finishes appears on the next refresh. The descriptions come from `GET /jobs/{id}/descriptions` and every image from `GET /images/{key}`, so the report needs the API and nothing else: no dataset on disk, no database, no bucket.
+
+```bash
+just dev                                                  # the API, as a monolith
+curl -X POST localhost:8080/jobs                          # -> job_id; wait until it is completed
+uv run backseat-driver ui --job <job-id> [--job <other-job-id>] [--api-url http://localhost:8080]
+uv run backseat-driver ui --all-jobs                      # every completed job, refreshed on each load
+```
+
+The UI serves the images itself, forwarding each one to the API, so the browser only talks to the UI. `--api-url` is the API the UI process reads from; `--public-api-url` is where your browser reaches the API for the live-inference card, if that differs (the usual case in a cluster).
+
+A job that is still running is an error rather than a partial report. When debugging as a monolith the jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`), so ids and results survive a restart of the API.
 
 ## `dataset upload`
 
