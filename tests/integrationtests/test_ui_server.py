@@ -8,10 +8,10 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from backseat_driver.captioning.http_client import HttpResponse
 from backseat_driver.errors import HttpStatusError
-from backseat_driver.reporting.api_source import ApiReportSource
-from backseat_driver.reporting.ui_server import create_ui_app, get_source
+from backseat_driver.process.http_client import HttpResponse
+from backseat_driver.show.api_source import ApiReportSource
+from backseat_driver.show.ui_server import create_ui_app, get_source
 from tests.fakes import FakeHttpClient, make_settings
 
 API = "http://api"

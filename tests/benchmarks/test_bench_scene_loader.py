@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from pytest_codspeed import BenchmarkFixture
 
-from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
+from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader
 
 SAMPLES_PER_SCENE = 40
 

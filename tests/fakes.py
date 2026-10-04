@@ -8,16 +8,16 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID
 
-from backseat_driver.captioning.captioner import Captioner
-from backseat_driver.captioning.http_client import HttpClient, HttpResponse
 from backseat_driver.config import Settings
-from backseat_driver.datasets.dataset_store import DatasetStore
-from backseat_driver.datasets.image_store import ImageStore
 from backseat_driver.errors import NotFoundError
-from backseat_driver.jobs.job_queue import JobQueue
-from backseat_driver.jobs.job_store import JobStore, derive_state
 from backseat_driver.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
-from backseat_driver.scenes.scene_loader import SceneLoader
+from backseat_driver.process.captioner import Captioner
+from backseat_driver.process.http_client import HttpClient, HttpResponse
+from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.s3.dataset_store import DatasetStore
+from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.transport.job_queue import JobQueue
+from backseat_driver.write.job_store.job_store import JobStore, derive_state
 
 
 class FakeJobQueue(JobQueue):

@@ -4,9 +4,9 @@ from pathlib import Path
 from uuid import uuid4
 
 from backseat_driver.config import RunMode
-from backseat_driver.jobs.factory import build_job_backend
-from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import JobState, SceneDescription
+from backseat_driver.stacks import build_job_backend
+from backseat_driver.write.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeCaptioner, FakeImageStore, make_keyframe, make_settings
 
 

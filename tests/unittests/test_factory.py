@@ -1,11 +1,11 @@
 import pytest
 from pydantic import SecretStr
 
-from backseat_driver.captioning.anthropic_backend import AnthropicBackend
-from backseat_driver.captioning.factory import build_backend, build_captioner
-from backseat_driver.captioning.huggingface_backend import HuggingFaceBackend
-from backseat_driver.captioning.ollama_backend import OllamaBackend
 from backseat_driver.config import Settings, VlmBackend
+from backseat_driver.process.anthropic_backend import AnthropicBackend
+from backseat_driver.process.factory import build_backend, build_captioner
+from backseat_driver.process.huggingface_backend import HuggingFaceBackend
+from backseat_driver.process.ollama_backend import OllamaBackend
 
 
 def test_settings_backend_is_used_when_none_is_given() -> None:

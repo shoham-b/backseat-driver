@@ -55,8 +55,8 @@ from pathlib import Path
 from uuid import UUID
 
 from backseat_driver.config import Settings
-from backseat_driver.datasets.factory import build_dataset_store
-from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
+from backseat_driver.read.s3.factory import build_dataset_store
+from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.models import CaptionTask, SceneKeyframe
 
 settings = Settings()

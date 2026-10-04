@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.scenes.nuscenes_dataset import ensure_nuscenes_dataset
+from backseat_driver.read.nuscenes_dataset import ensure_nuscenes_dataset
 
 
 def _archive(tmp_path: Path, *members: str) -> Path:

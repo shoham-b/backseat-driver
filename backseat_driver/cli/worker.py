@@ -27,9 +27,9 @@ def ingest(
     ] = False,
 ) -> None:
     """Consume ingest tasks: load the dataset metadata and fan out one caption task per scene."""
-    from backseat_driver.jobs.celery_job_queue import INGEST_QUEUE
-    from backseat_driver.jobs.consume_one import consume_one
     from backseat_driver.tasks import celery_app
+    from backseat_driver.transport.celery_job_queue import INGEST_QUEUE
+    from backseat_driver.transport.consume_one import consume_one
 
     setup_logging(LogFormat(get_settings().log_format), service="ingest-worker")
     if once:
@@ -41,8 +41,8 @@ def ingest(
 @worker_app.command()
 def caption() -> None:
     """Consume caption tasks: run each scene's keyframe through the VLM and record the result."""
-    from backseat_driver.jobs.celery_job_queue import CAPTION_QUEUE
     from backseat_driver.tasks import celery_app, workers
+    from backseat_driver.transport.celery_job_queue import CAPTION_QUEUE
 
     setup_logging(LogFormat(get_settings().log_format), service="caption-worker")
     # Load the model before consuming, not on the first message: a model that can't load should

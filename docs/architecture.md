@@ -5,8 +5,8 @@
 | Concern | Tech | Why |
 |---|---|---|
 | Language & packaging | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv`'s dependency-groups (`core`/`vlm`/`nuscenes`/`cli`/`api`/`dev`/`docs`) let the CLI and API images install only what they each need |
-| Task runner | [Justfile](../Justfile) | `just run`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
-| CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`backseat-driver run`) |
+| Task runner | [Justfile](../Justfile) | `just describe`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
+| CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`backseat-driver describe`) |
 | HTTP API | [FastAPI](https://fastapi.tiangolo.com/) (`fastapi dev` / `fastapi run`) | Optional on-demand deployment shape; served by the FastAPI CLI (uvicorn) |
 | Domain models & config | [Pydantic](https://docs.pydantic.dev/) / [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) | `SceneKeyframe`/`SceneDescription` schemas; env-var-backed `Settings` |
 | Logging | [Loguru](https://github.com/Delgan/loguru) | Structured logs, colored locally / JSON in production |
@@ -18,109 +18,72 @@
 | Containers | Docker (multi-stage `docker/Dockerfile`, one target per service: `cli`, `api`, `ingest-worker`, `caption-worker`), Docker Compose | See "Deployment" below |
 | CI/CD | GitHub Actions — `ci.yml` (lint/typecheck/test), `docker.yml` (build+push images), `codeql.yml`, `release-please.yml`/`release.yml`, `semantic-pr.yml`, `dependabot-auto-merge.yml` | |
 
-## Components
+## The shape
+
+The program is three stages, one package each. `pipeline.py` runs them in a row and `backseat-driver describe` is that, in one process:
+
+```
+   read/                       process/                     write/
+┌──────────────┐          ┌────────────────┐          ┌────────────────┐
+│ SceneLoader  │ ───────▶ │   Captioner    │ ───────▶ │  write_json    │
+│ ImageStore   │ keyframes│ BackendCaptioner│ descriptions│ output/*.json │
+└──────────────┘          └────────────────┘          └────────────────┘
+```
+
+Scaling it out adds one thing, a queue between read and process, and what the queue forces once it crosses machines. [From pipeline to cluster](ladder.md) walks through the three rungs with diagrams. In short:
+
+```
+read/ ──▶ IngestWorker ═ transport/ queue ═▶ CaptionWorker ──▶ write/
+  │                                                │
+  └ read/s3/   images in a bucket                  └ write/job_store/   results in a database
+```
+
+Showing the results (`show/`) is a separate role that reads what was written.
 
 ### Entry points
 
-The pipeline logic in `scenes/` is shared by two independent entry points:
-
 | Component | Entry point | Description |
 |---|---|---|
-| **CLI** (primary) | `uv run backseat-driver run` | Batch job: reads a whole nuScenes dataset, describes every scene, writes one JSON file. This is what the assignment asks for. |
-| **API** (optional) | `just dev` (dev) / `just serve` (production), `:8080`; `/ready` needs infrastructure only in distributed mode (`just dev-distributed`) | FastAPI service: `/describe` captions a single uploaded image on demand, and `/jobs` runs a whole dataset asynchronously (in-process in the monolith, on queue workers when distributed). Included to demonstrate a second deployment shape for the same captioning logic (see "Deployment" below). |
+| **`describe`** (primary) | `uv run backseat-driver describe` | Reads a nuScenes dataset, describes every scene, writes one JSON file. With `--mode distributed` it submits the same job to the API and its workers. |
+| **API** | `just dev` (monolith) / `just serve`, `:8080` | `POST /jobs` runs the pipeline as tasks (in-process, or on workers when `BACKSEAT_DRIVER_MODE=distributed`); `/describe` captions one uploaded image; `/images/{key}` serves keyframes. |
+| **Workers** | `backseat-driver worker ingest\|caption` | The two ends of the queue, as separate services. |
+| **Show** | `backseat-driver report`, `just ui` | The model-comparison page over JSON files or the API's jobs. The UI is a small FastAPI app (`fastapi run`), not a CLI command. |
 
 ### Object model
 
-Three roles, deliberately not four — `SceneLoader` and `Captioner` are abstract classes because they each have a real reason to vary (dataset backend; VLM backend) and a real reason to be faked in tests (filesystem/dataset I/O; slow model inference). `write_json` stays a plain function — the thing worth typing on the output side is the `SceneDescription` schema itself, not the act of writing it.
+Each stage has one port, because each has a real reason to vary and a real reason to be faked in tests: `SceneLoader` (dataset backend), `Captioner` (VLM backend) and, on the write side, a JSON writer or a `JobStore`. Each added layer is likewise one port with a local and a remote adapter.
 
-```
-                              ┌───────────────┐
-                              │   Settings     │  config.py — env-var-backed
-                              └───────┬───────┘
-                                      │ configures
-              ┌───────────────────────┼───────────────────────┐
-              ▼                       ▼                       ▼
-    ┌───────────────────┐   ┌───────────────────┐   ┌──────────────────────┐
-    │   SceneLoader      │   │    Captioner       │   │     write_json        │
-    │   (abstract)         │   │    (abstract)       │   │   (plain function)    │
-    │                     │   │                     │   │                       │
-    │ NuScenesSceneLoader │   │ BackendCaptioner     │   │ list[SceneDescription]│
-    │ — Adapter over       │   │  — Strategy: the     │   │   → JSON file          │
-    │ nuscenes-devkit,     │   │  swappable VLM       │   │                       │
-    │ returns SceneKeyframe│   │  backend             │   │                       │
-    └──────────┬──────────┘   └──────────┬──────────┘   └───────────▲───────────┘
-               │ list[SceneKeyframe]      │ str                      │
-               └─────────────┬────────────┘                          │
-                             ▼                                       │
-                    ┌────────────────────┐                           │
-                    │    ScenePipeline    │  scenes/pipeline.py           │
-                    │  Facade/orchestrator│  — constructor-injected   │
-                    │  loader → captioner │     with both ports,  │
-                    │  per scene           │     never imports         │
-                    └──────────┬──────────┘     nuscenes/transformers │
-                               │ list[SceneDescription]                │
-                               └───────────────────────────────────────┘
-```
-
-| Object | Kind | Pattern role |
+| Object | Kind | Role |
 |---|---|---|
-| `SceneKeyframe`, `SceneDescription` | Pydantic model | Value object — pure data, no behavior |
-| `SceneLoader` / `NuScenesSceneLoader` | Abstract class / implementation | Adapter — isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
-| `Captioner` / `BackendCaptioner` (`CaptionBackend` + `CaptionModel`) | Abstract class / composition | Strategy — the runtime (HuggingFace/Ollama/Anthropic) and the model are swapped independently (unit tests inject a fake) |
-| `ScenePipeline` | Class | Facade — one `run()` entry point over loader→captioner, no I/O or model logic of its own |
-| `write_json` | Function | — deliberately *not* promoted to a class; nothing varies here yet |
+| `SceneKeyframe`, `SceneDescription` | Pydantic model | Value object: what goes in and what comes out, at every rung |
+| `SceneLoader` / `NuScenesSceneLoader` | Port / adapter | Isolates the rest of the app from `nuscenes-devkit`'s dict-shaped API |
+| `ImageStore` / `LocalImageStore`, `S3DatasetStore` | Port / adapters | Where an image's bytes come from: the local disk, or a bucket |
+| `Captioner` / `BackendCaptioner` (`CaptionBackend` + `CaptionModel`) | Port / composition | Strategy: the runtime (HuggingFace/Ollama/Anthropic) and the model are swapped independently |
+| `ScenePipeline`, `describe_keyframe` | Class, function | Rung 1: loader to captioner. `describe_keyframe` is the unit the caption worker also calls |
+| `write_json` | Function | The monolith's write: the list, once, at the end |
+| `JobQueue` / `InProcessJobQueue`, `CeleryJobQueue` | Port / adapters | The seam between read and process |
+| `JobStore` / `InMemoryJobStore`, `SqlJobStore` | Port / adapters | The distributed write: one row per description |
+| `IngestWorker`, `CaptionWorker` | Classes | The read step as a producer, and process + write per task |
 | `Settings` | pydantic-settings class | Single typed source of config, read once per process |
-
-## Data flow
-
-```
-CLI path (batch):
-
-┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
-│  NuScenesSceneLoader  │──▶│     ScenePipeline     │──▶│      write_json      │
-│  reads dataset JSON,  │   │  loader → captioner   │   │  list[SceneDescription]│
-│  picks one keyframe   │   │  per scene            │   │  → output/*.json      │
-│  image per scene      │   │                        │   │                      │
-└──────────────────────┘   └───────────┬────────────┘   └──────────────────────┘
-                                        │
-                                        ▼
-                              ┌──────────────────────┐
-                              │ BackendCaptioner     │
-                              │ image-to-text        │
-                              │ pipeline (lazy)      │
-                              └──────────────────────┘
-
-API path (on-demand, optional):
-
-┌────────────┐   HTTP POST    ┌───────────────────────┐   Python call   ┌──────────────────────┐
-│   Client    │───/describe──▶│  api/routers/describe  │────────────────▶│ BackendCaptioner     │
-└────────────┘   (image)      └───────────────────────┘                 └──────────────────────┘
-```
 
 ## Layer design
 
 ```
-models/            captioning/ scenes/ jobs/       cli/ | api/
-──────────         ─────────────────────────       ─────────────
-Domain models  →   Capability packages        →    Entry points
-Pure Pydantic      Port (ABC) + its platform       cli/run.py drives the batch
-No dependencies    implementations + logic         pipeline; api/routers/describe.py
-                   side by side; SDKs only         drives the on-demand endpoint.
-                   imported lazily in methods
+models/   ──▶   read/  process/  write/  pipeline.py   ──▶   transport/ · read/s3/ · write/job_store/   ──▶   cli/ | api/ | show/
+pure            the core: complete on its own                  the added layers: only needed when             entry points
+Pydantic        (rung 1)                                       the process step runs elsewhere
 ```
 
 Each layer only imports from layers to its left:
 
-- **`models/`** — pure Pydantic models (`SceneKeyframe`, `SceneDescription`, `Job`). No imports from any other package.
-- **`errors.py`** — the `BackseatDriverError` hierarchy, shared by every capability and mapped to HTTP codes by `api/`.
-- **Capability packages** — each one holds an abstract port *and* its concrete implementations, so everything about one concern lives in one place:
-  - **`captioning/`** — `Captioner` port; `CaptionBackend` (`HuggingFaceBackend`, `OllamaBackend`, `AnthropicBackend`) + `CaptionModel`, combined by `BackendCaptioner`; `build_captioner` picks them from config.
-  - **`scenes/`** — `SceneLoader` port; `NuScenesSceneLoader`; `ScenePipeline` (loader → captioner) and `write_json`.
-  - **`jobs/`** — `JobQueue` and `JobStore` ports; `CeleryJobQueue`, `SqlJobStore` (with its SQLAlchemy `orm.py`/`storage.py`); `IngestWorker`/`CaptionWorker`.
-
-  Orchestration code (`ScenePipeline`, the workers) depends only on the ports via constructor injection and never imports nuscenes-devkit, transformers, torch, celery, or psycopg. Those stay inside the concrete implementation modules, behind lazy imports where heavy, which keeps the orchestration fast and testable with fakes. A concrete module is the only kind of file allowed to import a platform SDK.
-- **`api/`** — HTTP layer. Imports the ports and `models`. Owns request validation, response serialization, and error mapping.
-- **`cli/`** — Typer commands. Wires concrete implementations together and drives the pipeline or a test suite.
+- **`models/`**: pure Pydantic models (`SceneKeyframe`, `SceneDescription`, `Job`, the queue messages). No imports from any other package.
+- **`errors.py`**: the `BackseatDriverError` hierarchy, shared by every package and mapped to HTTP codes by `api/`.
+- **The core** (`read/`, `process/`, `write/`, `pipeline.py`): each package holds a port and its adapters. `pipeline.py` and the other orchestration code depend only on the ports through constructor injection and never import nuscenes-devkit, transformers, torch, Celery or SQLAlchemy. Those stay inside the adapter modules, behind lazy imports where heavy.
+- **The added layers** (`transport/`, `read/s3/`, `write/job_store/`): everything that exists only because the process step can run on another machine. The core never imports them, and `tests/unittests/test_layering.py` enforces it.
+- **`api/`**: the HTTP layer. Imports the ports and `models`. Owns request validation, response serialization and error mapping.
+- **`stacks.py`**: the wiring: which adapter each rung plugs into each port, in one file. The CLI, the API and the workers call it instead of choosing adapters themselves.
+- **`cli/`**: Typer commands, thin entry points that build the real collaborators (through `stacks.py`) and call the classes above.
+- **`show/`**: the report and UI. Reads descriptions, never writes them.
 
 ## API contracts
 
@@ -139,11 +102,14 @@ Successes return the documented model directly. Errors use `{"error": {"code": <
 | Package | Responsibility |
 |---|---|
 | [`backseat_driver.models`](../backseat_driver/models/__init__.py) | Shared domain models (Pydantic), one module per subject: `scene.py` (`SceneKeyframe`, `SceneDescription`), `job.py` (`Job`, `JobState`, `JobReference`), `tasks.py` (`IngestTask`, `CaptionTask`) |
-| [`backseat_driver.captioning`](../backseat_driver/captioning/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
-| [`backseat_driver.scenes`](../backseat_driver/scenes/) | `SceneLoader` port, `NuScenesSceneLoader`, `ScenePipeline`, `write_json` |
-| [`backseat_driver.jobs`](../backseat_driver/jobs/) | `JobQueue`/`JobStore` ports, Celery and Postgres implementations, `IngestWorker`/`CaptionWorker` |
+| [`backseat_driver.process`](../backseat_driver/process/) | `Captioner` port plus `CaptionBackend`s: `HuggingFaceBackend` (BLIP, terse), `OllamaBackend` and `AnthropicBackend` (verbose, prompt-driven), each running a `CaptionModel`, chosen via `build_captioner` |
+| [`backseat_driver.read`](../backseat_driver/read/) | `SceneLoader`, `ImageStore`, the nuScenes loader and local store; `read/s3/` is the bucket-backed variant (distributed) |
+| [`backseat_driver.write`](../backseat_driver/write/) | `write_json`; `write/job_store/` holds the `JobStore` port and its SQLite/Postgres adapters (distributed) |
+| [`backseat_driver.pipeline`](../backseat_driver/pipeline.py) | `ScenePipeline` and `describe_keyframe`: read then process |
+| [`backseat_driver.transport`](../backseat_driver/transport/) | `JobQueue` port, in-process and Celery queues, `IngestWorker`/`CaptionWorker`, `ApiJobClient` |
+| [`backseat_driver.show`](../backseat_driver/show/) | Model-comparison report and UI over JSON files or the API |
 | [`backseat_driver.errors`](../backseat_driver/errors.py) | `BackseatDriverError` hierarchy |
-| [`backseat_driver.cli`](../backseat_driver/cli/) | Typer CLI: `run` (the pipeline) and `test smoke` |
+| [`backseat_driver.cli`](../backseat_driver/cli/) | Typer CLI: `describe` (read, process, write), `report`/`ui` (show), `worker`/`db`/`dataset` (scale out) and `test smoke` |
 | [`backseat_driver.api`](../backseat_driver/api/) | FastAPI app, routes, lifespan, exception handlers |
 | [`backseat_driver.config`](../backseat_driver/config.py) | `Settings` (pydantic-settings, env-var backed) |
 | [`backseat_driver.logger`](../backseat_driver/logger.py) | Loguru setup; `LogFormat` enum; `setup_logging()` |
@@ -159,17 +125,17 @@ All entry points use [loguru](https://github.com/Delgan/loguru). `setup_logging(
 
 Set the format via `BACKSEAT_DRIVER_LOG_FORMAT=colored|json` or in `.env`.
 
-`setup_logging()` is called once per process entry-point (API lifespan, CLI `run` command). All other modules just `from loguru import logger`.
+`setup_logging()` is called once per process entry-point (API lifespan, CLI `describe` command). All other modules just `from loguru import logger`.
 
-## Microservices, debugged as a monolith
+## One pipeline, three ways to run it
 
-Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and an in-memory job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API and the dataset in `data/`. See [Distributed mode](distributed.md) for the microservices and [Running it](running.md) for how to start either.
+Backseat Driver is one idea: **read** the scenes, **process** each image with a vision-language model, **write** the descriptions. `describe` runs it in one process, and that is the whole program. The same three steps can also run as tasks over a queue: in one process for local development (`just dev`, no broker, bucket or database), or as separate services where RabbitMQ sits between read and process, the dataset lives in S3 and the results in Postgres. Showing the results (`report`, `ui`) is a separate role that only reads what was written. See [From pipeline to cluster](ladder.md) for the three rungs and where each piece enters the code, and [Running it](running.md) for how to start each.
 
 ## Deployment
 
 The assignment's "how would you deploy this" question has two honest answers depending on how the result is consumed:
 
-1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver run` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` (example `Job`: `deploy/k8s/examples/run-job.yaml`) / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
+1. **Scheduled batch job (the primary use case here).** The `cli` Docker image (`docker/Dockerfile`, target `cli`) runs `backseat-driver describe` as its entrypoint. In production this is a cron job / scheduled Kubernetes `CronJob` (example `Job`: `deploy/k8s/examples/run-job.yaml`) / Airflow task that mounts the dataset (or pulls it from object storage first), runs the pipeline, and writes the resulting JSON to a bucket or a database table. There's no need for a long-running process — this is exactly a "run to completion" container.
 2. **On-demand inference service.** If descriptions need to be generated synchronously (e.g. as new images arrive from a real pipeline), the same `Captioner` is exposed over HTTP via the `api` image and target — a standard horizontally-scaled stateless service behind a load balancer, with `/health`/`/ready` wired to k8s liveness/readiness probes.
 
-Both images share `captioning/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.
+Both images share `process/`, so there is one place that owns "how we caption an image," and two thin, independently deployable wrappers around it.

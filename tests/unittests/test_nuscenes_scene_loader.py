@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader
+from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader
 
 
 class _FakeNuScenes:

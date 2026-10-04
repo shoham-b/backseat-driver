@@ -4,14 +4,14 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from backseat_driver import tasks
-from backseat_driver.captioning.captioner import Captioner
 from backseat_driver.config import Settings
-from backseat_driver.datasets.dataset_store import DatasetStore
-from backseat_driver.jobs.celery_job_queue import MAX_RETRIES, make_celery_app
-from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import CaptionTask, IngestTask
-from backseat_driver.scenes.scene_loader import SceneLoader
+from backseat_driver.process.captioner import Captioner
+from backseat_driver.read.s3.dataset_store import DatasetStore
+from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.transport.celery_job_queue import MAX_RETRIES, make_celery_app
+from backseat_driver.transport.workers import CaptionWorker, IngestWorker
 from tests.fakes import (
     FakeCaptioner,
     FakeDatasetStore,

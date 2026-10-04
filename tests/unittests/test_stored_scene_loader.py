@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from backseat_driver.models import SceneKeyframe
-from backseat_driver.scenes.scene_loader import SceneLoader
-from backseat_driver.scenes.stored_scene_loader import StoredSceneLoader
+from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
+from backseat_driver.read.scene_loader import SceneLoader
 from tests.fakes import FakeDatasetStore
 
 

@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.captioning.http_client import UrllibHttpClient
+from backseat_driver.process.http_client import UrllibHttpClient
 
 
 class _Server:

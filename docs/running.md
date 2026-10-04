@@ -1,23 +1,31 @@
 # Running it
 
-There are several ways to run the project. The repository is a monorepo of microservices that can also be debugged as a monolith; debugging as a monolith drops S3 and RabbitMQ (and Postgres). They all run the same code and read the same `BACKSEAT_DRIVER_*` settings; they differ in *where* the pieces run.
+The program is read → process → write, and there are three ways to run it: each rung adds one thing to the one before. [From pipeline to cluster](ladder.md) has the diagrams; this page is the commands. They all run the same code and read the same `BACKSEAT_DRIVER_*` settings.
 
-## The three modes
+| Rung | Command | What runs | Adds | Needs |
+|---|---|---|---|---|
+| **1. Pipeline** | `just describe` | read, process and write in one function call | nothing | dataset in `data/` |
+| **2. Seam** | `just dev` | the same steps as tasks on a thread inside the API, `POST /jobs` | an in-process queue and a SQLite job store | dataset in `data/` |
+| **3. Machines** | `just up`, `just k8s-apply` | ingest and caption workers as separate services | RabbitMQ, an S3 bucket (images) and Postgres (results) | Docker or a cluster |
+
+`describe --mode distributed` is the bridge: it submits the pipeline as a job to a rung 2 or rung 3 API and writes the same JSON file as rung 1. Showing the results (`just report`, `just ui`) is separate from all three and only reads what was written.
+
+## Where each rung runs
 
 | Mode | What runs where | Commands |
 |---|---|---|
-| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store and the dataset read from `data/`, so the broker (RabbitMQ), the object store (S3), the database and the separate workers are all dropped. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just run` |
+| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store and the dataset read from `data/`, so the broker (RabbitMQ), the object store (S3), the database and the separate workers are all dropped. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just describe` |
 | **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
 | **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just k8s-up` for a local kind cluster with autoscaling; `just serve` is the API's command outside a container |
 
-The batch pipeline (`backseat-driver run`) works in all three: on the host (`just run`), in a container (`just docker-run`), or as a Kubernetes Job.
+The batch pipeline (`backseat-driver describe`) works in all three: on the host (`just describe`), in a container (`just docker-run`), or as a Kubernetes Job.
 
 ## Every way to run it
 
 | I want to… | Command | Runs on | Needs |
 |---|---|---|---|
-| Describe the dataset once | `just run` (= `uv run backseat-driver run`) | host | dataset in `data/` |
-| …in a container instead | `just docker-run` (= `just compose --profile cli run --rm cli run`) | Docker | dataset in `data/` |
+| Describe the dataset once | `just describe` (= `uv run backseat-driver describe`) | host | dataset in `data/` |
+| …in a container instead | `just docker-run` (= `just compose --profile cli run --rm cli describe`) | Docker | dataset in `data/` |
 | Debug the API locally | `just dev` (`fastapi dev`, monolith: `/describe`, `/ready` and `/jobs` all work in-process, no Docker) | host | dataset in `data/` for `/jobs` |
 | …against real RabbitMQ + Postgres | `just dev-distributed`, plus `just worker-ingest` / `just worker-caption` | API and workers on host, RabbitMQ + Postgres in Docker | Docker, dataset |
 | Run the API in production mode | `just serve` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) | host | nothing, or RabbitMQ + Postgres in distributed mode |
@@ -32,8 +40,8 @@ The batch pipeline (`backseat-driver run`) works in all three: on the host (`jus
 ## How the pieces relate
 
 ```
-just run ─────────────┐
-just docker-run ──────┼─▶ backseat-driver run          (batch: loader → captioner → output/*.json)
+just describe ─────────────┐
+just docker-run ──────┼─▶ backseat-driver describe          (batch: loader → captioner → output/*.json)
 k8s CronJob `pipeline`┘
 
 just dev / just serve ─┐

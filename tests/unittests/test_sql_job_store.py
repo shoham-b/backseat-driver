@@ -7,9 +7,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.jobs.sql_job_store import SqlJobStore
-from backseat_driver.jobs.storage import JobStorage
 from backseat_driver.models import JobState, SceneDescription
+from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.write.job_store.storage import JobStorage
 
 
 @pytest.fixture

@@ -5,8 +5,8 @@ from typing import Any
 import pytest
 from PIL import Image
 
-from backseat_driver.captioning.huggingface_backend import HuggingFaceBackend
-from backseat_driver.captioning.model import CaptionModel
+from backseat_driver.process.huggingface_backend import HuggingFaceBackend
+from backseat_driver.process.model import CaptionModel
 
 
 class _FakePipelineFactory:

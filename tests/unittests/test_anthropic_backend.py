@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.captioning.anthropic_backend import AnthropicBackend
-from backseat_driver.captioning.model import CaptionModel
+from backseat_driver.process.anthropic_backend import AnthropicBackend
+from backseat_driver.process.model import CaptionModel
 from tests.fakes import FakeHttpClient
 
 _MODEL = CaptionModel("claude-test")

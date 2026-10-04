@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
-from backseat_driver.datasets.uploader import DatasetUploader
+from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
+from backseat_driver.read.s3.uploader import DatasetUploader
 from tests.fakes import DiskS3Client, FakeDatasetStore
 
 

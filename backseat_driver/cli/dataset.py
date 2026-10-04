@@ -33,9 +33,9 @@ def upload(
     settings = get_settings()
     setup_logging(LogFormat(settings.log_format), service="cli")
 
-    from backseat_driver.datasets.factory import build_dataset_store
-    from backseat_driver.datasets.uploader import DatasetUploader
-    from backseat_driver.scenes.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
+    from backseat_driver.read.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
+    from backseat_driver.read.s3.factory import build_dataset_store
+    from backseat_driver.read.s3.uploader import DatasetUploader
 
     if all_cameras and camera:
         raise typer.BadParameter("pass --camera or --all-cameras, not both")

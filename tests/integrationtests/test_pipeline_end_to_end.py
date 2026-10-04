@@ -19,14 +19,13 @@ from typer.testing import CliRunner
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
 from backseat_driver.config import get_settings
-from backseat_driver.datasets.factory import build_image_store
-from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
-from backseat_driver.datasets.uploader import DatasetUploader
-from backseat_driver.jobs.factory import build_job_backend
-from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.models import IngestTask, JobState
-from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
-from backseat_driver.scenes.stored_scene_loader import StoredSceneLoader
+from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
+from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
+from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
+from backseat_driver.read.s3.uploader import DatasetUploader
+from backseat_driver.stacks import build_image_store, build_job_backend
+from backseat_driver.transport.workers import CaptionWorker, IngestWorker
 from tests.fakes import DiskS3Client, FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, make_settings
 from tests.nuscenes_dataset import (
     SCENE_LABELS,
@@ -74,7 +73,7 @@ def ollama_url() -> Iterator[str]:
 
 @pytest.fixture
 def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
-    """Points every external dependency of `run` at something local, so no run can reach the network or a real cache."""
+    """Points every external dependency of `describe` at something local: no network, no real cache."""
     return {
         "BACKSEAT_DRIVER_NUSCENES_URL": build_nuscenes_archive(tmp_path).as_uri(),
         "BACKSEAT_DRIVER_NUSCENES_DATAROOT": str(tmp_path / "cache"),
@@ -91,12 +90,12 @@ def _plain(output: str) -> str:
     return re.sub(r"[[0-9;]*m", "", output)
 
 
-def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
+def test_describe_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
     cli_env: dict[str, str], tmp_path: Path
 ) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--camera", "front", "--output", str(output)], env=cli_env)
+    result = runner.invoke(app, ["describe", "--camera", "front", "--output", str(output)], env=cli_env)
     written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
@@ -108,18 +107,22 @@ def test_run_fetches_the_dataset_and_describes_every_scene_with_its_reference_la
     assert all(Path(d["image_path"]).is_file() for d in written)
 
 
-def test_run_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) -> None:
+def test_describe_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) -> None:
     output = tmp_path / "result.json"
 
-    result = runner.invoke(app, ["run", "--camera", "front", "--max-scenes", "1", "--output", str(output)], env=cli_env)
+    result = runner.invoke(
+        app, ["describe", "--camera", "front", "--max-scenes", "1", "--output", str(output)], env=cli_env
+    )
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(output.read_text())) == 1
 
 
-def test_run_then_report_scores_the_descriptions_against_the_labels(cli_env: dict[str, str], tmp_path: Path) -> None:
+def test_describe_then_report_scores_the_descriptions_against_the_labels(
+    cli_env: dict[str, str], tmp_path: Path
+) -> None:
     runner.invoke(
-        app, ["run", "--camera", "front"], env=cli_env
+        app, ["describe", "--camera", "front"], env=cli_env
     )  # default output: <output dir>/<backend>__<model>.json
 
     result = runner.invoke(app, ["report"], env=cli_env)
@@ -131,35 +134,39 @@ def test_run_then_report_scores_the_descriptions_against_the_labels(cli_env: dic
     assert "data:image/jpeg;base64," in html  # images are inlined, so the page works without the dataset
 
 
-def test_run_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str, str], tmp_path: Path) -> None:
+def test_describe_fails_clearly_when_the_dataset_cannot_be_fetched(cli_env: dict[str, str], tmp_path: Path) -> None:
     unreachable = {**cli_env, "BACKSEAT_DRIVER_NUSCENES_URL": (tmp_path / "gone.tgz").as_uri()}
 
-    result = runner.invoke(app, ["run", "--camera", "front", "--output", str(tmp_path / "x.json")], env=unreachable)
+    result = runner.invoke(
+        app, ["describe", "--camera", "front", "--output", str(tmp_path / "x.json")], env=unreachable
+    )
 
     assert result.exit_code != 0
     assert not (tmp_path / "x.json").exists()
 
 
-def test_run_requires_a_model(cli_env: dict[str, str], tmp_path: Path) -> None:
+def test_describe_requires_a_model(cli_env: dict[str, str], tmp_path: Path) -> None:
     without_model = {**cli_env, "BACKSEAT_DRIVER_OLLAMA_MODEL_NAME": ""}
 
-    result = runner.invoke(app, ["run", "--camera", "front", "--output", str(tmp_path / "x.json")], env=without_model)
+    result = runner.invoke(
+        app, ["describe", "--camera", "front", "--output", str(tmp_path / "x.json")], env=without_model
+    )
 
     assert result.exit_code != 0
     assert "No model chosen for the ollama backend" in str(result.exception)
     assert not (tmp_path / "x.json").exists()
 
 
-def test_run_requires_a_camera_choice(cli_env: dict[str, str], tmp_path: Path) -> None:
-    result = runner.invoke(app, ["run", "--output", str(tmp_path / "x.json")], env=cli_env)
+def test_describe_requires_a_camera_choice(cli_env: dict[str, str], tmp_path: Path) -> None:
+    result = runner.invoke(app, ["describe", "--output", str(tmp_path / "x.json")], env=cli_env)
 
     assert result.exit_code == 2
     assert "--all-cameras" in _plain(result.output)
 
 
-def test_run_rejects_all_cameras_together_with_camera(cli_env: dict[str, str], tmp_path: Path) -> None:
+def test_describe_rejects_all_cameras_together_with_camera(cli_env: dict[str, str], tmp_path: Path) -> None:
     result = runner.invoke(
-        app, ["run", "--all-cameras", "--camera", "back", "--output", str(tmp_path / "x.json")], env=cli_env
+        app, ["describe", "--all-cameras", "--camera", "back", "--output", str(tmp_path / "x.json")], env=cli_env
     )
 
     assert result.exit_code == 2
@@ -233,3 +240,23 @@ def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: 
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
     with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
         assert path.read_bytes()
+
+
+def test_describe_distributed_rejects_options_that_only_apply_to_the_monolith(
+    cli_env: dict[str, str], tmp_path: Path
+) -> None:
+    result = runner.invoke(
+        app,
+        ["describe", "--mode", "distributed", "--camera", "front", "--output", str(tmp_path / "x.json")],
+        env=cli_env,
+    )
+
+    assert result.exit_code == 2
+    assert "--camera" in _plain(result.output)
+
+
+def test_describe_distributed_requires_an_output_path(cli_env: dict[str, str]) -> None:
+    result = runner.invoke(app, ["describe", "--mode", "distributed"], env=cli_env)
+
+    assert result.exit_code == 2
+    assert "--output" in _plain(result.output)

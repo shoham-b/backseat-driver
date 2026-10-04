@@ -1,7 +1,7 @@
 import pytest
 
 from backseat_driver.models import SceneKeyframe
-from backseat_driver.scenes.relative_scene_loader import RelativeSceneLoader
+from backseat_driver.read.relative_scene_loader import RelativeSceneLoader
 from tests.fakes import FakeSceneLoader
 
 

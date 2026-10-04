@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
+from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 
 
 class _FakeS3Client:

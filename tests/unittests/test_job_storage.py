@@ -7,8 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine
 
-from backseat_driver.jobs.orm import SceneDescriptionRow
-from backseat_driver.jobs.storage import JobStorage, description_insert
+from backseat_driver.write.job_store.orm import SceneDescriptionRow
+from backseat_driver.write.job_store.storage import JobStorage, description_insert
 
 
 def _values(n: int = 1) -> dict:

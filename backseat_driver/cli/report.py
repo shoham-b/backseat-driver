@@ -2,8 +2,8 @@
 
 Usage::
 
-    backseat_driver run --backend huggingface
-    backseat_driver run --backend anthropic --model claude-haiku-4-5-20251001
+    backseat_driver describe --backend huggingface
+    backseat_driver describe --backend anthropic --model claude-haiku-4-5-20251001
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
@@ -19,11 +19,11 @@ from backseat_driver.config import get_settings
 from backseat_driver.models import SceneDescription
 
 
-@app.command()
+@app.command(rich_help_panel="Show")
 def report(
     results: Annotated[
         list[Path] | None,
-        typer.Argument(help="JSON files written by `run`; default: every *.json in the output directory"),
+        typer.Argument(help="JSON files written by `describe`; default: every *.json in the output directory"),
     ] = None,
     output: Annotated[
         Path | None, typer.Option(help="Where to write the HTML report (default: <output dir>/report.html)")
@@ -45,7 +45,7 @@ def report(
 def _default_results() -> list[Path]:
     found = sorted(Path(get_settings().output_dir).glob("*.json"))
     if not found:
-        raise typer.BadParameter("no result files found; pass some or run `backseat-driver run` first")
+        raise typer.BadParameter("no result files found; pass some or run `backseat-driver describe` first")
     return found
 
 
@@ -56,9 +56,9 @@ def _write_report(
     jobs: list[str] | None = None,
     jobs_api_url: str | None = None,
 ) -> int:
-    from backseat_driver.reporting.api_source import ApiReportSource
-    from backseat_driver.reporting.html_report_writer import file_data_uri, write_html
-    from backseat_driver.reporting.report import build_report
+    from backseat_driver.show.api_source import ApiReportSource
+    from backseat_driver.show.html_report_writer import file_data_uri, write_html
+    from backseat_driver.show.report import build_report
 
     descriptions = [
         SceneDescription.model_validate(item)

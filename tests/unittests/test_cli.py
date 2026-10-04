@@ -25,7 +25,7 @@ def test_help_lists_every_command_group() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    for command in ("run", "test", "worker", "db"):
+    for command in ("describe", "test", "worker", "db"):
         assert command in result.output
 
 

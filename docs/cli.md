@@ -17,17 +17,23 @@ uv run backseat-driver --version
 
 ---
 
-## `run`
+## `describe`
 
-Describe every scene in a nuScenes dataset and write the results to JSON. This is the pipeline the
-assignment asks for.
+Describe every scene in a nuScenes dataset and write the results to JSON: read the scenes, process each
+image with the model, write the descriptions. This is the pipeline the assignment asks for.
+
+It runs in one of two modes (`--mode`, default `BACKSEAT_DRIVER_MODE`). `monolith` runs all three steps in this
+process over a local dataset. `distributed` submits the same job to a running API, waits for its ingest and caption
+workers, and writes what comes back (see [From pipeline to cluster](ladder.md)). The monolith-only options below are
+rejected in distributed mode, because there the model, camera and dataset are the workers' own settings.
 
 ```bash
-uv run backseat-driver run [OPTIONS]
+uv run backseat-driver describe [OPTIONS]
 ```
 
 | Option | Env var | Default | Description |
 |---|---|---|---|
+| `--mode` | `BACKSEAT_DRIVER_MODE` | `monolith` | `monolith`: run in this process. `distributed`: submit a job to the API and wait |
 | `--dataroot` | `BACKSEAT_DRIVER_NUSCENES_DATAROOT` | `data/sets/nuscenes` | Path to the local dataset |
 | `--version` | `BACKSEAT_DRIVER_NUSCENES_VERSION` | `v1.0-mini` | nuScenes dataset version |
 | `--camera` | — | one of `--camera`/`--all-cameras` is required | Camera used as the representative frame: `front`, `front_right`, `back_right`, `back`, `back_left` or `front_left` (nuScenes' `CAM_FRONT` etc.). Repeat it (`--camera front --camera back`) to describe several cameras |
@@ -36,25 +42,32 @@ uv run backseat-driver run [OPTIONS]
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` / `..._ANTHROPIC_MODEL_NAME` | **required** (no default) | Model for the chosen backend, e.g. `Salesforce/blip-image-captioning-base`, `llava`, `claude-haiku-4-5-20251001`. Fails fast if neither the flag nor the variable is set |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
 | `--max-scenes` | — | (all scenes) | Only process the first N scenes (all of a scene's cameras count as one) |
+| `--api-url` | `BACKSEAT_DRIVER_API_HOST` / `..._API_PORT` | `http://127.0.0.1:8080` | Distributed only: the API to submit the job to |
+| `--timeout` | — | `3600` | Distributed only: seconds to wait for the job before failing |
+
+`--output` is required with `--mode distributed`, since the client cannot know which model the workers use.
 
 **Examples:**
 
 ```bash
 # Full v1.0-mini run on the front camera
-uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --camera front --model Salesforce/blip-image-captioning-base
 
 # Pick the backend and model; the output file is inferred
-uv run backseat-driver run --camera front --backend ollama --model llava:13b
+uv run backseat-driver describe --camera front --backend ollama --model llava:13b
 # -> output/ollama__llava-13b.json
 
 # Quick check against the first 2 scenes only
-uv run backseat-driver run --camera front --model Salesforce/blip-image-captioning-base --max-scenes 2
+uv run backseat-driver describe --camera front --model Salesforce/blip-image-captioning-base --max-scenes 2
 
 # Different dataset location and camera
-uv run backseat-driver run --dataroot /mnt/nuscenes --camera back --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --dataroot /mnt/nuscenes --camera back --model Salesforce/blip-image-captioning-base
 
 # Every camera of every scene, in one result file
-uv run backseat-driver run --all-cameras --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --all-cameras --model Salesforce/blip-image-captioning-base
+
+# The same job on the workers behind a running API (just dev / just up), written to the same JSON format
+uv run backseat-driver describe --mode distributed --output output/cluster.json
 ```
 
 Each scene's output line during the run looks like:
@@ -67,12 +80,12 @@ Each scene's output line during the run looks like:
 
 ## `report` and `ui`
 
-Compare how several models described the same scenes. Takes the JSON files written by `run` (one per
+Compare how several models described the same scenes. Takes the JSON files written by `describe` (one per
 model; default: every `*.json` in the output directory) and writes a single self-contained HTML page (images embedded, no server needed).
 
 ```bash
-uv run backseat-driver run --camera front --backend huggingface --model Salesforce/blip-image-captioning-base
-uv run backseat-driver run --camera front --backend ollama --model llava
+uv run backseat-driver describe --camera front --backend huggingface --model Salesforce/blip-image-captioning-base
+uv run backseat-driver describe --camera front --backend ollama --model llava
 uv run backseat-driver report        # every output/*.json -> output/report.html
 ```
 
@@ -86,11 +99,11 @@ removed, plurals folded, words found in the label highlighted. Precision is the 
 words found in the label, recall the share of the label's words the model mentioned. Synonyms don't
 match and verbose models score low on precision, so read the numbers as a relative signal between
 models rather than absolute accuracy. Results produced before this feature carry no label and are
-shown unscored; re-run `run` to get scores.
+shown unscored; re-run `describe` to get scores.
 
 ### The UI (`just ui`)
 
-Same page, served locally instead of written to a file. It is not a CLI command but a small FastAPI app, run like the API: `just ui` is `fastapi run backseat_driver/reporting/ui_server.py` on `BACKSEAT_DRIVER_UI_HOST`/`_UI_PORT`. It shows every `*.json` in the output directory (`BACKSEAT_DRIVER_OUTPUT_DIR`), re-read on every page load, and refuses to start if there are none and `BACKSEAT_DRIVER_UI_ALL_JOBS` is off.
+Same page, served locally instead of written to a file. It is not a CLI command but a small FastAPI app, run like the API: `just ui` is `fastapi run backseat_driver/show/ui_server.py` on `BACKSEAT_DRIVER_UI_HOST`/`_UI_PORT`. It shows every `*.json` in the output directory (`BACKSEAT_DRIVER_OUTPUT_DIR`), re-read on every page load, and refuses to start if there are none and `BACKSEAT_DRIVER_UI_ALL_JOBS` is off.
 
 ```bash
 just ui                                       # all JSON files in output/
@@ -126,7 +139,7 @@ A job that is still running is an error rather than a partial report. When debug
 | `--port` | `8081` | Port to serve on |
 | `--open/--no-open` | `--open` | Open the page in a browser |
 
-The page is rebuilt from the files on each start; restart after a new `run`.
+The page is rebuilt from the files on each start; restart after a new `describe`.
 
 ---
 

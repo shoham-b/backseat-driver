@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
-from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.process.captioner import Captioner
 from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore
 from tests.integrationtests.conftest import ClientFactory
 

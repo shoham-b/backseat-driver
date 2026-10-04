@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_image_store
-from backseat_driver.datasets.local_image_store import LocalImageStore
+from backseat_driver.read.local_image_store import LocalImageStore
 from tests.fakes import make_settings
 
 KEY = "samples/CAM_FRONT/a.jpg"

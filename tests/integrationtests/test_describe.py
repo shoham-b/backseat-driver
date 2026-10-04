@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
-from backseat_driver.captioning.captioner import Captioner
+from backseat_driver.process.captioner import Captioner
 from tests.fakes import FakeCaptioner
 from tests.integrationtests.conftest import ClientFactory
 

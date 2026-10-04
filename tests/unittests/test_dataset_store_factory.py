@@ -1,7 +1,7 @@
 import pytest
 
-from backseat_driver.datasets.factory import build_dataset_store
-from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
+from backseat_driver.read.s3.factory import build_dataset_store
+from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from tests.fakes import make_settings
 
 

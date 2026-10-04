@@ -1,7 +1,7 @@
 import pytest
 
-from backseat_driver.datasets.image_service import ImageService
 from backseat_driver.errors import NotFoundError, UnprocessableError
+from backseat_driver.read.image_service import ImageService
 from tests.fakes import FakeImageStore
 
 

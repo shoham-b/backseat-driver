@@ -75,7 +75,7 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
 
 def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
-    command = [sys.executable, "-m", "fastapi", "run", "backseat_driver/reporting/ui_server.py", "--port", str(port)]
+    command = [sys.executable, "-m", "fastapi", "run", "backseat_driver/show/ui_server.py", "--port", str(port)]
     env = {**os.environ, "BACKSEAT_DRIVER_OUTPUT_DIR": str(result_files[0].parent)}
     server = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:

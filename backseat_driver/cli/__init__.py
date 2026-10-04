@@ -5,17 +5,18 @@ from backseat_driver.logger import LogFormat, setup_logging
 
 app = typer.Typer(
     name="backseat-driver",
-    help="Generates short natural-language scene descriptions for nuScenes scenes using a VLM",
+    help="Generates short natural-language scene descriptions for nuScenes scenes using a VLM. "
+    "`describe` runs read -> process -> write; `report` shows the results (`just ui` serves them).",
     no_args_is_help=True,
 )
 test_app = typer.Typer(help="Run test suites", no_args_is_help=True)
-app.add_typer(test_app, name="test")
+app.add_typer(test_app, name="test", rich_help_panel="Development")
 worker_app = typer.Typer(help="Run a queue worker (distributed mode)", no_args_is_help=True)
-app.add_typer(worker_app, name="worker")
+app.add_typer(worker_app, name="worker", rich_help_panel="Scale out (distributed mode)")
 db_app = typer.Typer(help="Database setup (distributed mode)", no_args_is_help=True)
-app.add_typer(db_app, name="db")
+app.add_typer(db_app, name="db", rich_help_panel="Scale out (distributed mode)")
 dataset_app = typer.Typer(help="Dataset provisioning (distributed mode)", no_args_is_help=True)
-app.add_typer(dataset_app, name="dataset")
+app.add_typer(dataset_app, name="dataset", rich_help_panel="Scale out (distributed mode)")
 
 
 def _print_version(value: bool) -> None:

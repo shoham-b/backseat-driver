@@ -5,7 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.scenes.nuscenes_scene_loader import ALL_CAMERA_CHANNELS, NuScenesSceneLoader
+from backseat_driver.read.nuscenes_scene_loader import ALL_CAMERA_CHANNELS, NuScenesSceneLoader
 
 
 def _chain(scene: str, length: int, channels: tuple[str, ...]) -> dict[str, dict[str, Any]]:

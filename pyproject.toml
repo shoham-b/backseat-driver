@@ -20,7 +20,7 @@ where = ["."]
 include = ["backseat_driver*"]
 
 [tool.setuptools.package-data]
-"backseat_driver.reporting" = ["report_template.html"]
+"backseat_driver.show" = ["report_template.html"]
 
 [dependency-groups]
 core = [
@@ -72,7 +72,7 @@ caption-worker = [
 
 # Everything the batch CLI pipeline needs at runtime.
 cli = [
-    # The report UI is a FastAPI app run with `fastapi run` (see reporting/ui_server.py).
+    # The report UI is a FastAPI app run with `fastapi run` (see show/ui_server.py).
     "fastapi[standard]>=0.115",
     { include-group = "core" },
     { include-group = "vlm" },

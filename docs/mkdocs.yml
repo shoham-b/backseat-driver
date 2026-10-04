@@ -25,6 +25,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Running It: running.md
+  - From Pipeline to Cluster: ladder.md
   - Architecture: architecture.md
   - Distributed Mode: distributed.md
   - Deployment: deployment.md

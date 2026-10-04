@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from backseat_driver.captioning.model import CaptionModel
-from backseat_driver.captioning.ollama_backend import OllamaBackend
+from backseat_driver.process.model import CaptionModel
+from backseat_driver.process.ollama_backend import OllamaBackend
 from tests.fakes import FakeHttpClient
 
 

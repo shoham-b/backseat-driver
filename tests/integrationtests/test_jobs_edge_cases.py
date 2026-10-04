@@ -7,14 +7,14 @@ from fastapi.testclient import TestClient
 from backseat_driver.api.app import create_app
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
-from backseat_driver.captioning.backend_captioner import BackendCaptioner
 from backseat_driver.config import RunMode, VlmBackend
-from backseat_driver.datasets.s3_dataset_store import S3DatasetStore
-from backseat_driver.jobs.celery_job_queue import CeleryJobQueue
-from backseat_driver.jobs.in_memory_job_store import InMemoryJobStore
-from backseat_driver.jobs.in_process_job_queue import InProcessJobQueue
-from backseat_driver.jobs.sql_job_store import SqlJobStore
 from backseat_driver.models import JobState
+from backseat_driver.process.backend_captioner import BackendCaptioner
+from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
+from backseat_driver.transport.celery_job_queue import CeleryJobQueue
+from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
+from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.write.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeJobQueue, FakeJobStore, make_settings
 from tests.integrationtests.conftest import ClientFactory
 

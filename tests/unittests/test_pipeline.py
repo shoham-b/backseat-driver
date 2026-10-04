@@ -1,5 +1,5 @@
 from backseat_driver.models import SceneKeyframe
-from backseat_driver.scenes.pipeline import ScenePipeline
+from backseat_driver.pipeline import ScenePipeline
 from tests.fakes import FakeCaptioner, FakeSceneLoader
 
 

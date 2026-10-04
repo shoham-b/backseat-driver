@@ -5,9 +5,9 @@ from uuid import uuid4
 
 import pytest
 
-from backseat_driver.captioning.http_client import HttpResponse
 from backseat_driver.models import JobState
-from backseat_driver.reporting.api_source import ApiReportSource
+from backseat_driver.process.http_client import HttpResponse
+from backseat_driver.show.api_source import ApiReportSource
 from tests.fakes import FakeHttpClient, make_keyframe
 
 API = "http://api:8080"

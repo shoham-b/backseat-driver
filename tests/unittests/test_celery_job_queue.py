@@ -4,7 +4,8 @@ from uuid import uuid4
 import pytest
 from kombu.exceptions import OperationalError as KombuOperationalError
 
-from backseat_driver.jobs.celery_job_queue import (
+from backseat_driver.models import CaptionTask, IngestTask
+from backseat_driver.transport.celery_job_queue import (
     CAPTION_QUEUE,
     CAPTION_TASK,
     INGEST_QUEUE,
@@ -13,7 +14,6 @@ from backseat_driver.jobs.celery_job_queue import (
     CeleryJobQueue,
     make_celery_app,
 )
-from backseat_driver.models import CaptionTask, IngestTask
 from tests.fakes import FakeCeleryApp, FakeCeleryConnection, make_image_uri, make_keyframe
 
 BROKER = "amqp://guest:guest@broker:5672/"

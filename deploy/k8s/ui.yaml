@@ -1,4 +1,4 @@
-# Model-comparison report (`fastapi run backseat_driver/reporting/ui_server.py`), built on every page load from the completed jobs on the API; images are
+# Model-comparison report (`fastapi run backseat_driver/show/ui_server.py`), built on every page load from the completed jobs on the API; images are
 # proxied from it too. It mounts nothing: it needs the API's address only, so it runs on any node and a job that finishes
 # shows up on the next refresh. The live-inference card is called by the browser, so BACKSEAT_DRIVER_UI_PUBLIC_API_URL is the address
 # the browser reaches the API at (here the usual `kubectl port-forward svc/api 8080:80`); set it for an ingress.
@@ -19,7 +19,7 @@ spec:
         - name: ui
           image: ghcr.io/shoham-b/backseat-driver-cli
           imagePullPolicy: IfNotPresent
-          command: [fastapi, run, backseat_driver/reporting/ui_server.py, --host, 0.0.0.0, --port, "8081"]
+          command: [fastapi, run, backseat_driver/show/ui_server.py, --host, 0.0.0.0, --port, "8081"]
           ports: [{containerPort: 8081, name: http}]
           envFrom:
             - configMapRef: {name: backseat-driver-config}

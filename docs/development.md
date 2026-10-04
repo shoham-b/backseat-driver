@@ -25,7 +25,7 @@ Run `just --list` at any time to see all targets. The full table:
 
 | Command | Description |
 |---|---|
-| `just run [ARGS]` | Run the scene-description pipeline (`backseat-driver run`) |
+| `just describe [ARGS]` | Run the scene-description pipeline (`backseat-driver describe`) |
 | `just dev` | API dev server with hot reload (`fastapi dev`) in monolith mode: `/jobs` runs in-process, no infra needed |
 | `just dev-distributed` | Same, but distributed mode against RabbitMQ + Postgres in Docker (starts them); pair with `just worker-*` |
 | `just serve` | API production-mode server on the host, binds `0.0.0.0` (monolith unless `BACKSEAT_DRIVER_MODE=distributed`) |
@@ -80,7 +80,7 @@ There are five test layers, from fastest to slowest:
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `scenes/nuscenes_scene_loader.py` and `captioning/huggingface_backend.py` import nuscenes-devkit and
+No I/O, no network, no GPU. `read/nuscenes_scene_loader.py` and `process/huggingface_backend.py` import nuscenes-devkit and
 transformers lazily inside their default factories, which the loader and backend take as constructor arguments so these tests can pass a fake — see
 `tests/unittests/test_nuscenes_scene_loader.py` and `test_huggingface_backend.py`.
 
@@ -152,11 +152,16 @@ and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --cods
 backseat_driver/
 ├── api/            # Optional FastAPI service (/describe, /health, /ready)
 │   └── routers/
-├── captioning/     # Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel, build_captioner
-├── scenes/         # SceneLoader port + nuScenes loader, ScenePipeline, JSON writer
-├── jobs/           # JobQueue/JobStore ports + Celery/Postgres implementations, ORM, workers
+├── pipeline.py     # ScenePipeline + describe_keyframe: read -> process, the spine (`describe` adds write)
+├── read/           # 1. read: SceneLoader + nuScenes loader, ImageStore + local store
+│   └── s3/         #    (added) the dataset in a bucket: needed once workers run on other machines
+├── process/        # 2. process: Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel
+├── write/          # 3. write: JSON writer
+│   └── job_store/  #    (added) JobStore port, SQLite/Postgres stores: results from many workers
+├── transport/      # (added) the seam between read and process: JobQueue, in-process + Celery queues, ingest/caption workers
+├── show/           # separate role: report and UI over what was written
 ├── errors.py       # BackseatDriverError hierarchy
-├── cli/            # Typer CLI — `run` (the pipeline) and `test smoke`
+├── cli/            # Typer CLI — `describe` (the pipeline) and `test smoke`
 ├── models/         # Shared domain models (pure Pydantic)
 ├── config.py       # Settings (pydantic-settings, env-var backed)
 └── logger.py       # Loguru setup; LogFormat enum
@@ -172,14 +177,14 @@ tests/
 
 ### Swapping the VLM
 
-`captioning/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
-Subclass it in `backseat_driver/captioning/`, next to the existing backends (e.g. a different HF model, or a call to an external VLM API) and pass it
+`process/captioner.py` defines a `Captioner` abstract class (`caption(image_path) -> str`, `healthcheck() -> bool`).
+Subclass it in `backseat_driver/process/`, next to the existing backends (e.g. a different HF model, or a call to an external VLM API) and pass it
 into `ScenePipeline` — nothing else needs to change.
 
 ### Adding an API endpoint
 
 1. Add request/response models to `backseat_driver/models/` or directly in the router module.
-2. Add domain logic to the matching capability package (`captioning/`, `scenes/`, `jobs/`).
+2. Add domain logic to the matching capability package (`read/`, `process/`, `write/`, `transport/`).
 3. Create or extend a router in `backseat_driver/api/routers/`.
 4. Register the router in `backseat_driver/api/app.py`.
 5. Add integration tests in `tests/integrationtests/`.

@@ -1,4 +1,4 @@
-from backseat_driver.reporting.html_report_writer import load_template
+from backseat_driver.show.html_report_writer import load_template
 
 
 def test_page_grid_cannot_be_widened_by_the_no_wrap_metrics_table() -> None:

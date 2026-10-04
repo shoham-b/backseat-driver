@@ -1,4 +1,4 @@
-"""Celery tasks — the worker entry points, thin wrappers over `backseat_driver.jobs.workers`.
+"""Celery tasks — the worker entry points, thin wrappers over `backseat_driver.transport.workers`.
 
 Start a worker with `backseat-driver worker ingest|caption`, or directly:
 
@@ -17,49 +17,19 @@ from celery import Celery, Task
 from celery.signals import setup_logging as celery_setup_logging
 from pydantic import ValidationError
 
-from backseat_driver.captioning.captioner import Captioner
-from backseat_driver.captioning.factory import build_captioner
 from backseat_driver.config import Settings, get_settings
-from backseat_driver.datasets.dataset_store import DatasetStore
-from backseat_driver.datasets.factory import build_dataset_store
-from backseat_driver.jobs.celery_job_queue import (
-    CAPTION_TASK,
-    INGEST_TASK,
-    MAX_RETRIES,
-    CeleryJobQueue,
-    make_celery_app,
-)
-from backseat_driver.jobs.job_queue import JobQueue
-from backseat_driver.jobs.job_store import JobStore
-from backseat_driver.jobs.sql_job_store import SqlJobStore
-from backseat_driver.jobs.storage import JobStorage
-from backseat_driver.jobs.workers import CaptionWorker, IngestWorker
 from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import CaptionTask, IngestTask
-from backseat_driver.scenes.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
-from backseat_driver.scenes.scene_loader import SceneLoader
-from backseat_driver.scenes.stored_scene_loader import StoredSceneLoader
-
-
-def _stored_loader(settings: Settings, dataset: DatasetStore) -> SceneLoader:
-    return StoredSceneLoader(
-        dataset,
-        settings.nuscenes_version,
-        lambda dataroot: NuScenesSceneLoader(
-            dataroot=dataroot,
-            version=settings.nuscenes_version,
-            camera_channels=[settings.camera_channel],
-            open_dataset=open_nuscenes_tables,
-        ),
-    )
-
-
-def _postgres_store(settings: Settings) -> JobStore:
-    return SqlJobStore(JobStorage(settings.database_url))
-
-
-def _celery_queue(settings: Settings) -> JobQueue:
-    return CeleryJobQueue(settings.rabbitmq_url)
+from backseat_driver.process.captioner import Captioner
+from backseat_driver.process.factory import build_captioner
+from backseat_driver.read.s3.dataset_store import DatasetStore
+from backseat_driver.read.s3.factory import build_dataset_store
+from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.stacks import celery_queue, postgres_store, stored_loader
+from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, make_celery_app
+from backseat_driver.transport.job_queue import JobQueue
+from backseat_driver.transport.workers import CaptionWorker, IngestWorker
+from backseat_driver.write.job_store.job_store import JobStore
 
 
 class Workers:
@@ -68,9 +38,9 @@ class Workers:
     def __init__(
         self,
         settings: Settings,
-        build_loader: Callable[[Settings, DatasetStore], SceneLoader] = _stored_loader,
-        build_queue: Callable[[Settings], JobQueue] = _celery_queue,
-        build_store: Callable[[Settings], JobStore] = _postgres_store,
+        build_loader: Callable[[Settings, DatasetStore], SceneLoader] = stored_loader,
+        build_queue: Callable[[Settings], JobQueue] = celery_queue,
+        build_store: Callable[[Settings], JobStore] = postgres_store,
         build_captioner: Callable[[Settings], Captioner] = build_captioner,
         build_dataset: Callable[[Settings], DatasetStore] = build_dataset_store,
     ) -> None:
