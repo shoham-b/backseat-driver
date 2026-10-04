@@ -9,14 +9,3 @@ spec:
   resources:
     requests:
       storage: 20Gi
----
-# Result JSON files written by `backseat-driver describe`; the ui Deployment serves its report.
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: results
-spec:
-  accessModes: [ReadWriteOnce]
-  resources:
-    requests:
-      storage: 1Gi

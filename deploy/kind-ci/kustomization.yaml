@@ -2,7 +2,7 @@
 # server instead of downloading weights, small resource requests so many replicas fit on a runner, and fast
 # autoscaling so the scale-up/scale-down check finishes in minutes. It also leaves out the `cli` image (the largest
 # cost of the job after the build cache): db-init runs on the API image, which has the same CLI, and the `ui`
-# Deployment is dropped, since it only runs once a batch run has written results. The `dataset-upload` Job is dropped
+# Deployment is dropped, since it only shows anything once a job has completed. The `dataset-upload` Job is dropped
 # too: the CI cluster has no nuScenes dataset to upload (check-scaling.sh puts the one object it needs in the bucket).
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

@@ -1,6 +1,6 @@
 # One-shot: copies the nuScenes dataset from the nuscenes-data volume into the dataset bucket (images already there are
-# skipped, so re-applying is cheap). It is the only workload that reads the dataset volume apart from the report UI and
-# the example run job; the workers read the dataset from the bucket. Retries until the object store and the volume are up.
+# skipped, so re-applying is cheap). It is the only workload that reads the dataset volume; the workers read the dataset
+# from the bucket. Retries until the object store and the volume are up.
 apiVersion: batch/v1
 kind: Job
 metadata:
