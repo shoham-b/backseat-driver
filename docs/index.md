@@ -1,8 +1,8 @@
 # Backseat Driver
 
-Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model.
+A production-shaped service for vision-language model (VLM) inference: it describes images in natural language, with the model and runtime (HuggingFace, Ollama, Claude) swappable behind one interface. The nuScenes driving dataset is the demo input that shows the pipeline running end to end; nothing in the design is specific to it.
 
-Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and an in-memory job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API and the dataset in `data/`. See [Distributed mode](distributed.md) for the microservices and [Running it](running.md) for how to start either.
+Backseat Driver is a **monorepo of microservices**: the API, the ingest and caption workers, the report UI and the batch CLI live in one Python package and are built into one image per service. The same code can also be **debugged as a monolith**: one process runs the API and both workers together, with an in-process queue and a SQLite (or in-memory) job store. Debugging as a monolith drops RabbitMQ, S3 and Postgres, so `just dev` needs nothing but the API. See [Distributed mode](distributed.md) for the microservices and [Running it](running.md) for how to start either.
 
 ## Quick start
 
@@ -10,9 +10,8 @@ Backseat Driver is a **monorepo of microservices**: the API, the ingest and capt
 uv sync --group dev
 uv run pre-commit install
 
-# Download the nuScenes v1.0-mini dataset into data/sets/nuscenes (see Getting Started),
-# then run the pipeline:
-just run --camera CAM_FRONT
+# Run the pipeline; the nuScenes v1.0-mini demo dataset and the model are downloaded on first use:
+just run --camera CAM_FRONT --model Salesforce/blip-image-captioning-base
 ```
 
 Results are written to `output/<backend>__<model>.json` by default, so runs of different models sit side by side and never overwrite each other.
