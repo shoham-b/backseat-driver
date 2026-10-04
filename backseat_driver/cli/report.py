@@ -7,13 +7,14 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
-import http.server
 import json
 import webbrowser
 from pathlib import Path
+from socket import socket
 from typing import Annotated
 
 import typer
+import uvicorn
 from loguru import logger
 
 from backseat_driver.cli import app
@@ -78,7 +79,7 @@ def ui(
 ) -> None:
     """Serve the model-comparison UI: from result files, and/or from the API's jobs (rebuilt on every page load)."""
     from backseat_driver.reporting.api_source import ApiReportSource
-    from backseat_driver.reporting.ui_server import ReportPage, make_handler
+    from backseat_driver.reporting.ui_server import ReportPage, create_ui_app
 
     settings = get_settings()
     host = host or settings.ui_host
@@ -91,13 +92,23 @@ def ui(
     _, count = page.render()  # fail now, not on the first request, if a source is unreadable
     url = f"http://{host}:{port}/"
     logger.info("serving {} description(s) at {} (Ctrl+C to stop)", count, url)
-    with http.server.ThreadingHTTPServer((host, port), make_handler(page, source)) as server:
-        if open_browser:
-            webbrowser.open(url)
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            logger.info("stopped")
+    # log_config=None leaves uvicorn's loggers to the stdlib-to-loguru bridge; the access log would only be noise.
+    config = uvicorn.Config(create_ui_app(page, source), host=host, port=port, log_config=None, access_log=False)
+    _BrowserOpeningServer(config, url if open_browser else None).run()
+    logger.info("stopped")
+
+
+class _BrowserOpeningServer(uvicorn.Server):
+    """Opens the page once the port is bound, so the browser never races the server."""
+
+    def __init__(self, config: uvicorn.Config, open_url: str | None) -> None:
+        super().__init__(config)
+        self._open_url = open_url
+
+    async def startup(self, sockets: list[socket] | None = None) -> None:
+        await super().startup(sockets)
+        if self._open_url and self.started:
+            webbrowser.open(self._open_url)
 
 
 def _default_results() -> list[Path]:

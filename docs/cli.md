@@ -109,7 +109,7 @@ uv run backseat-driver ui --job <job-id> [--job <other-job-id>] [--api-url http:
 uv run backseat-driver ui --all-jobs                      # every completed job, refreshed on each load
 ```
 
-The UI serves the images itself, forwarding each one to the API, so the browser only talks to the UI. `--api-url` is the API the UI process reads from; `--public-api-url` is where your browser reaches the API for the live-inference card, if that differs (the usual case in a cluster).
+The UI serves the images itself, forwarding each one to the API, so the browser only talks to the UI. It is a small FastAPI app served with uvicorn (the same stack as the API, so the `cli` image carries both), exposing `/`, `/images/<key>` and `/healthz`. `--api-url` is the API the UI process reads from; `--public-api-url` is where your browser reaches the API for the live-inference card, if that differs (the usual case in a cluster).
 
 A job that is still running is an error rather than a partial report. When debugging as a monolith the jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`, default `output/jobs.db`), so ids and results survive a restart of the API.
 

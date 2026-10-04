@@ -1,19 +1,21 @@
-"""The report UI as a small HTTP server that builds its page on every load.
+"""The report UI as a small FastAPI app that builds its page on every load.
 
 Descriptions come from result files (images inlined from the local paths in them) and/or from the API (completed
-jobs; their images are fetched through this server's `/images/` route, which proxies the API, so the browser only ever
+jobs; their images are fetched through this app's `/images/` route, which proxies the API, so the browser only ever
 talks to the UI). Nothing is mounted: a deployed UI needs the API's address and nothing else, and a new job shows up
 on the next page load.
 """
 
 import json
-from collections.abc import Callable
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import quote, unquote, urlsplit
+from typing import Annotated
+from urllib.parse import quote
 
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, Response
 from loguru import logger
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from backseat_driver.datasets.image_keys import validate_image_key
 from backseat_driver.error_format import error_body
@@ -67,57 +69,67 @@ class ReportPage:
         return render_html(build_report(descriptions), self._live_api_url, read_image), len(descriptions)
 
 
-def make_handler(page: ReportPage, source: ApiReportSource | None) -> type[BaseHTTPRequestHandler]:
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self) -> None:
-            path = urlsplit(self.path).path
-            if path == "/healthz":  # liveness without touching the API, which a probe must not depend on
-                self._send(HTTPStatus.OK, b"ok", "text/plain")
-            elif path in ("/", "/index.html"):
-                self._guarded(self._page)
-            elif path.startswith(_IMAGES) and source is not None:
-                self._guarded(lambda: self._image(source, unquote(path.removeprefix(_IMAGES))))
-            else:
-                self._error(HTTPStatus.NOT_FOUND, "not found")
+def get_page(request: Request) -> ReportPage:
+    return request.app.state.page  # type: ignore[no-any-return]
 
-        def _page(self) -> None:
-            html, _ = page.render()
-            self._send(HTTPStatus.OK, html.encode(), "text/html; charset=utf-8")
 
-        def _image(self, api: ApiReportSource, key: str) -> None:
+def get_source(request: Request) -> ApiReportSource:
+    return request.app.state.source  # type: ignore[no-any-return]
+
+
+def _json_error(status: HTTPStatus, message: str) -> JSONResponse:
+    # The same JSON envelope the API answers errors in.
+    return JSONResponse(status_code=status, content=error_body(status, message))
+
+
+async def _unprocessable(request: Request, exc: UnprocessableError) -> JSONResponse:
+    return _json_error(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
+
+
+async def _upstream_status(request: Request, exc: HttpStatusError) -> JSONResponse:
+    # The API's own answer (a missing image stays a 404); anything else upstream is a bad gateway.
+    status = HTTPStatus.NOT_FOUND if exc.status == HTTPStatus.NOT_FOUND else HTTPStatus.BAD_GATEWAY
+    return _json_error(status, str(exc))
+
+
+async def _upstream_failure(request: Request, exc: RuntimeError | OSError) -> JSONResponse:
+    logger.warning("report page failed: {}", exc)
+    return _json_error(HTTPStatus.BAD_GATEWAY, str(exc))
+
+
+async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    return _json_error(HTTPStatus(exc.status_code), str(exc.detail))
+
+
+def create_ui_app(page: ReportPage, source: ApiReportSource | None) -> FastAPI:
+    """The UI for `page`; `source` is the API the images come from (none: there is no `/images/` route)."""
+    app = FastAPI(title="Backseat Driver report UI", docs_url=None, redoc_url=None, openapi_url=None)
+    app.state.page = page
+    app.state.source = source
+    app.add_exception_handler(UnprocessableError, _unprocessable)  # type: ignore
+    app.add_exception_handler(HttpStatusError, _upstream_status)  # type: ignore
+    app.add_exception_handler(RuntimeError, _upstream_failure)  # type: ignore
+    app.add_exception_handler(OSError, _upstream_failure)  # type: ignore
+    app.add_exception_handler(StarletteHTTPException, _http_error)  # type: ignore
+
+    @app.get("/healthz")
+    def healthz() -> PlainTextResponse:
+        # Liveness without touching the API, which a probe must not depend on.
+        return PlainTextResponse("ok")
+
+    # Plain `def` routes: rendering and proxying do blocking HTTP and file reads, which FastAPI runs in a thread.
+    @app.get("/", response_class=HTMLResponse)
+    @app.get("/index.html", response_class=HTMLResponse)
+    def index(report_page: Annotated[ReportPage, Depends(get_page)]) -> HTMLResponse:
+        html, _ = report_page.render()
+        return HTMLResponse(html)
+
+    if source is not None:
+
+        @app.get("/images/{key:path}")
+        def image(key: str, api: Annotated[ApiReportSource, Depends(get_source)]) -> Response:
             validate_image_key(key)
             response = api.image_response(key)
-            self._send(HTTPStatus.OK, response.body, response.content_type, {"Cache-Control": _IMMUTABLE})
+            return Response(response.body, media_type=response.content_type, headers={"Cache-Control": _IMMUTABLE})
 
-        def _guarded(self, action: Callable[[], None]) -> None:
-            try:
-                action()
-            except UnprocessableError as exc:
-                self._error(HTTPStatus.UNPROCESSABLE_ENTITY, str(exc))
-            except HttpStatusError as exc:
-                # The API's own answer (a missing image stays a 404); anything else upstream is a bad gateway.
-                status = HTTPStatus.NOT_FOUND if exc.status == HTTPStatus.NOT_FOUND else HTTPStatus.BAD_GATEWAY
-                self._error(status, str(exc))
-            except (RuntimeError, OSError) as exc:
-                logger.warning("report page failed: {}", exc)
-                self._error(HTTPStatus.BAD_GATEWAY, str(exc))
-
-        def _error(self, status: HTTPStatus, message: str) -> None:
-            # The same JSON envelope the API answers errors in.
-            self._send(status, json.dumps(error_body(status, message)).encode(), "application/json")
-
-        def _send(
-            self, status: HTTPStatus, body: bytes, content_type: str, headers: dict[str, str] | None = None
-        ) -> None:
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
-            for name, value in (headers or {}).items():
-                self.send_header(name, value)
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, format: str, *args: object) -> None:
-            pass
-
-    return Handler
+    return app
