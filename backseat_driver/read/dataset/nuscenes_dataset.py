@@ -8,13 +8,14 @@ directory and moved into place only once complete, so an interrupted download ne
 be reached is an error, not a reason to trust the cache.
 """
 
+import io
 import json
 import shutil
 import tarfile
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
-from typing import IO
+from typing import IO, Any
 
 from loguru import logger
 
@@ -25,23 +26,23 @@ _MARKER = ".nuscenes-cache.json"
 DownloadProgress = Callable[[int, int | None], None]
 
 
-def log_every_ten_percent() -> DownloadProgress:
-    next_report = 10
+class LogEveryTenPercent:
+    """The default `DownloadProgress`: one log line each time the download passes another 10%."""
 
-    def report(downloaded: int, total: int | None) -> None:
-        nonlocal next_report
+    def __init__(self) -> None:
+        self._next_report = 10
+
+    def __call__(self, downloaded: int, total: int | None) -> None:
         if not total:
             return
         percent = downloaded * 100 // total
-        while percent >= next_report:
-            logger.info("nuScenes download {}%", next_report)
-            next_report += 10
-
-    return report
+        while percent >= self._next_report:
+            logger.info("nuScenes download {}%", self._next_report)
+            self._next_report += 10
 
 
-class _ProgressReader:
-    """File-like wrapper that reports download progress."""
+class _ProgressReader(io.RawIOBase):
+    """Reports download progress on every read of `raw`; buffered, it is the real file object `tarfile` expects."""
 
     def __init__(self, raw: IO[bytes], total: int | None, on_progress: DownloadProgress) -> None:
         self._raw = raw
@@ -49,11 +50,15 @@ class _ProgressReader:
         self._on_progress = on_progress
         self._read = 0
 
-    def read(self, size: int = -1) -> bytes:
-        data = self._raw.read(size)
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, buffer: Any) -> int:
+        data = self._raw.read(len(buffer))
+        buffer[: len(data)] = data
         self._read += len(data)
         self._on_progress(self._read, self._total)
-        return data
+        return len(data)
 
 
 def _remote_identity(url: str) -> dict[str, str]:
@@ -82,9 +87,8 @@ def ensure_nuscenes_dataset(dataroot: str, version: str, url: str, on_progress: 
     scratch.mkdir(parents=True)
     with urllib.request.urlopen(url) as response:
         length = response.headers.get("Content-Length")
-        reader = _ProgressReader(response, int(length) if length else None, on_progress or log_every_ten_percent())
-        # Stream mode only ever calls read(); the stubs demand a seekable, writable file object regardless.
-        with tarfile.open(fileobj=reader, mode="r|gz") as archive:  # type: ignore
+        reader = _ProgressReader(response, int(length) if length else None, on_progress or LogEveryTenPercent())
+        with tarfile.open(fileobj=io.BufferedReader(reader), mode="r|gz") as archive:
             archive.extractall(scratch, filter="data")
 
     if not (scratch / version).is_dir():

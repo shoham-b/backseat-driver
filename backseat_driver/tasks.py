@@ -23,9 +23,9 @@ from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import CaptionTask, IngestTask, JobReference
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
+from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
-from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.stacks import celery_queue, postgres_store, stored_loader
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, make_celery_app

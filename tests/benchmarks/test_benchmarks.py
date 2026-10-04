@@ -14,7 +14,7 @@ import pytest
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.pipeline import ScenePipeline, describe_keyframe
 from backseat_driver.write.json_writer import write_json
-from tests.fakes import FakeCaptioner, FakeSceneLoader, make_keyframe
+from tests.fakes import FakeCaptioner, FakeSceneLoader, PassthroughImageStore, make_keyframe
 
 pytest.importorskip("pytest_codspeed")
 
@@ -28,7 +28,7 @@ def keyframes() -> list[SceneKeyframe]:
 
 @pytest.fixture
 def pipeline(keyframes: list[SceneKeyframe]) -> ScenePipeline:
-    return ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner())
+    return ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner(), images=PassthroughImageStore())
 
 
 @pytest.fixture

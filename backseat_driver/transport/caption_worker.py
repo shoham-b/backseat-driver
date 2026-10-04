@@ -11,7 +11,7 @@ from loguru import logger
 from backseat_driver.models import CaptionTask
 from backseat_driver.pipeline import describe_keyframe
 from backseat_driver.process.captioner import Captioner
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.write.job_store.job_store import JobStore
 
 

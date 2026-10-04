@@ -9,8 +9,8 @@ delivery), and every step is safe to run twice.
 from loguru import logger
 
 from backseat_driver.models import CaptionTask, IngestTask
-from backseat_driver.read.image_store import ImageStore
-from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.read.dataset.scene_loader import SceneLoader
+from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
 

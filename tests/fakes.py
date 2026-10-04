@@ -1,7 +1,7 @@
 """In-memory test doubles — no broker, no database, no model."""
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -13,9 +13,9 @@ from backseat_driver.errors import NotFoundError
 from backseat_driver.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.http_client import HttpClient, HttpResponse
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.dataset.scene_loader import SceneLoader
+from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.read.s3.dataset_store import DatasetStore
-from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.show.description_source import DescriptionSource
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore, derive_state
@@ -119,6 +119,20 @@ class FakeImageStore(ImageStore):
             yield Path("/fetched") / PurePosixPath(uri).name
         finally:
             self.released.append(uri)
+
+
+class PassthroughImageStore(ImageStore):
+    """Hands every key back as its own path with no bookkeeping, so a benchmark times the code under test and not
+    the fake."""
+
+    def uri_for(self, key: str) -> str:
+        return key
+
+    def local_copy(self, uri: str) -> AbstractContextManager[Path]:
+        return nullcontext(_PASSTHROUGH_PATH)
+
+
+_PASSTHROUGH_PATH = Path("/fetched")
 
 
 class FakeDatasetStore(FakeImageStore, DatasetStore):

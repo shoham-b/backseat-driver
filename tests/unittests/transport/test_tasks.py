@@ -8,8 +8,8 @@ from backseat_driver.config import Settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import CaptionTask, IngestTask, JobState
 from backseat_driver.process.captioner import Captioner
+from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.s3.dataset_store import DatasetStore
-from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import MAX_RETRIES, make_celery_app
 from backseat_driver.transport.ingest_worker import IngestWorker

@@ -128,8 +128,8 @@ def _describe_here(
     max_scenes: int | None,
 ) -> list[SceneDescription]:
     """Rung 1 (see `stacks.pipeline`): the loader (read) and captioner (process) run in this process."""
-    from backseat_driver.read.nuscenes_dataset import ensure_nuscenes_dataset
-    from backseat_driver.read.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
+    from backseat_driver.read.dataset.nuscenes_dataset import ensure_nuscenes_dataset
+    from backseat_driver.read.dataset.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
     from backseat_driver.stacks import pipeline as build_pipeline
 
     cameras = list(ALL_CAMERA_CHANNELS) if all_cameras else [c.channel for c in camera]

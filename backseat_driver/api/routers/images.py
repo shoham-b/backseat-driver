@@ -15,7 +15,7 @@ from fastapi.responses import Response
 
 from backseat_driver.api.dependencies import get_image_service
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
-from backseat_driver.read.image_service import ImageService
+from backseat_driver.read.images.image_service import ImageService
 
 router = APIRouter(tags=["images"])
 

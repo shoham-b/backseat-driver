@@ -1,6 +1,6 @@
 """The report UI as a small FastAPI app that builds its page on every load.
 
-Descriptions come from the result files in the output directory (images inlined from the local paths in them) and/or,
+Descriptions come from the result files in the output directory (images inlined from the local dataroot) and/or,
 with `BACKSEAT_DRIVER_UI_ALL_JOBS`, from the API's completed jobs; their images are fetched through this app's
 `/images/` route, which proxies the API, so the browser only ever talks to the UI. Nothing is mounted: a deployed UI
 needs the API's address and nothing else, and a new job or result file shows up on the next page load.
@@ -22,7 +22,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.error_format import error_body
 from backseat_driver.errors import HttpStatusError, UnprocessableError
-from backseat_driver.read.image_keys import validate_image_key
+from backseat_driver.read.images.image_keys import validate_image_key
+from backseat_driver.read.images.local_image_store import LocalImageStore
 from backseat_driver.show.api_source import IMAGES_PATH, ApiReportSource
 from backseat_driver.show.description_source import DescriptionSource
 from backseat_driver.show.report_service import ReportService
@@ -43,7 +44,8 @@ def get_report_service(
     settings: Annotated[Settings, Depends(get_settings_dependency)],
     source: Annotated[ApiReportSource | None, Depends(get_source)],
 ) -> ReportService:
-    sources: list[DescriptionSource] = [ResultFileSource.in_directory(Path(settings.output_dir))]
+    images = LocalImageStore(settings.nuscenes_dataroot)
+    sources: list[DescriptionSource] = [ResultFileSource.in_directory(Path(settings.output_dir), images)]
     if source is not None:
         sources.append(source)
     return ReportService(sources, settings.ui_public_api_url or settings.api_url)

@@ -7,7 +7,7 @@ small metadata tables ingest downloads to find the keyframes.
 from abc import abstractmethod
 from pathlib import Path
 
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.images.image_store import ImageStore
 
 
 class DatasetStore(ImageStore):

@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import Camera, SceneKeyframe
-from backseat_driver.read.scene_loader import SceneLoader
+from backseat_driver.read.dataset.scene_loader import SceneLoader
 
 if TYPE_CHECKING:
     from nuscenes.nuscenes import NuScenes
@@ -89,8 +89,7 @@ class NuScenesSceneLoader(SceneLoader):
             scene_token=scene["token"],
             scene_name=scene["name"],
             camera_channel=channel,
-            # The devkit joins with os.sep but its table paths use "/"; normalise so the JSON is portable across OSes.
-            image_path=nusc.get_sample_data_path(sample_data_token).replace("\\", "/"),
+            image_path=nusc.get("sample_data", sample_data_token)["filename"],
             reference_description=scene.get("description") or None,
         )
 

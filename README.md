@@ -41,7 +41,7 @@ take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf
 └─────────────┘          └──────────────┘          └──────────────┘
 ```
 
-1. **Read.** [`NuScenesSceneLoader`](backseat_driver/read/nuscenes_scene_loader.py) picks one representative
+1. **Read.** [`NuScenesSceneLoader`](backseat_driver/read/dataset/nuscenes_scene_loader.py) picks one representative
    keyframe per scene and camera (the midpoint of the scene, not the static first frame). The dataset is
    downloaded into `data/sets/nuscenes` on first use.
 2. **Process.** A [`Captioner`](backseat_driver/process/captioner.py) pairs a runtime with a model:
@@ -59,7 +59,7 @@ take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf
      "scene_token": "cc8c0bf57f984915a77078b10eb33198",
      "scene_name": "scene-0061",
      "camera_channel": "CAM_FRONT",
-     "image_path": "data/sets/nuscenes/samples/CAM_FRONT/...jpg",
+     "image_path": "samples/CAM_FRONT/...jpg",
      "reference_description": "Parked truck, construction, intersection, turn left, following a van",
      "description": "a city street with cars and pedestrians",
      "model_name": "Salesforce/blip-image-captioning-base",
@@ -67,11 +67,11 @@ take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf
    }
    ```
 
-   `reference_description` is nuScenes' own label, which `report` and `ui` use to score each model.
+   `image_path` is the image's key below the dataset root. `reference_description` is nuScenes' own label, which `report` and `ui` use to score each model.
 
 The loader and the captioner are abstract ports composed in [`pipeline.py`](backseat_driver/pipeline.py),
 which never imports nuscenes-devkit, transformers or torch, so it is unit-tested with fakes. To use a
-different dataset, write another [`SceneLoader`](backseat_driver/read/scene_loader.py); the model side does
+different dataset, write another [`SceneLoader`](backseat_driver/read/dataset/scene_loader.py); the model side does
 not change.
 
 ## Quickstart

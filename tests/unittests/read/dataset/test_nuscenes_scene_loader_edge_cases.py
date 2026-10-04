@@ -5,7 +5,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.read.nuscenes_scene_loader import ALL_CAMERA_CHANNELS, NuScenesSceneLoader
+from backseat_driver.read.dataset.nuscenes_scene_loader import ALL_CAMERA_CHANNELS, NuScenesSceneLoader
 
 
 def _chain(scene: str, length: int, channels: tuple[str, ...]) -> dict[str, dict[str, Any]]:
@@ -29,11 +29,10 @@ class _FakeNuScenes:
             self._samples |= _chain(name, length, channels)
 
     def get(self, table: str, token: str) -> dict[str, Any]:
+        if table == "sample_data":
+            return {"filename": f"samples/{token}.jpg"}
         assert table == "sample"
         return self._samples[token]
-
-    def get_sample_data_path(self, sample_data_token: str) -> str:
-        return f"/samples/{sample_data_token}.jpg"
 
 
 class _FakeDevkit:
@@ -59,7 +58,7 @@ def test_middle_sample_of_a_chain(length: int, middle: int) -> None:
 
     [keyframe] = loader.load_keyframes()
 
-    assert keyframe.image_path == f"/samples/scene-0001-CAM_FRONT-sd{middle}.jpg"
+    assert keyframe.image_path == f"samples/scene-0001-CAM_FRONT-sd{middle}.jpg"
 
 
 @given(length=st.integers(min_value=1, max_value=200))
@@ -68,7 +67,7 @@ def test_property_the_picked_sample_is_always_index_len_div_2(length: int) -> No
 
     [keyframe] = loader.load_keyframes()
 
-    assert keyframe.image_path == f"/samples/s-CAM_FRONT-sd{length // 2}.jpg"
+    assert keyframe.image_path == f"samples/s-CAM_FRONT-sd{length // 2}.jpg"
 
 
 def test_keyframes_keep_dataset_order_across_scenes() -> None:
@@ -126,7 +125,7 @@ def test_every_requested_camera_yields_a_keyframe_per_scene_grouped_by_scene() -
         ("scene-b", "CAM_BACK"),
         ("scene-b", "CAM_FRONT"),
     ]
-    assert keyframes[0].image_path == "/samples/scene-a-CAM_BACK-sd1.jpg"
+    assert keyframes[0].image_path == "samples/scene-a-CAM_BACK-sd1.jpg"
 
 
 def test_all_camera_channels_are_the_six_nuscenes_cameras() -> None:

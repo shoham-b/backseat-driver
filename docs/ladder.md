@@ -24,7 +24,7 @@ just describe --camera front        # = uv run backseat-driver describe ...
 
 | Step | Port | Adapter | Wired in |
 |---|---|---|---|
-| read | [`SceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/scene_loader.py) | [`NuScenesSceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/nuscenes_scene_loader.py) | [`stacks.pipeline`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
+| read | [`SceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/dataset/scene_loader.py) | [`NuScenesSceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/dataset/nuscenes_scene_loader.py) | [`stacks.pipeline`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
 | process | [`Captioner`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/captioner.py) | [`BackendCaptioner`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backend_captioner.py) over a [HuggingFace](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/huggingface.py), [Ollama](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/ollama.py) or [Anthropic](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/backends/anthropic.py) backend | [`process.factory`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/process/factory.py) |
 | write | | [`write_json`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/json_writer.py) | [`cli/describe.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/cli/describe.py) |
 
@@ -50,21 +50,12 @@ The API turns the run into tasks. **Ingest** is the read step turned into a prod
 
 | What | Where |
 |---|---|
-<<<<<<< HEAD
 | The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
 | The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
 | Read as a producer; process and write per task | [`IngestWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py) |
 | The job store the workers write to | [`JobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/in_memory_job_store.py) |
 | The front door | [`POST /jobs`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/api/routers/jobs.py) |
 | Wired in | [`stacks.seam`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
-=======
-| The seam, in one docstring | [`transport/__init__.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/__init__.py) |
-| The queue port and its in-process adapter | [`JobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/job_queue.py), [`InProcessJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/in_process_job_queue.py) |
-| Read as a producer; process and write per task | [`IngestWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/caption_worker.py), both reusing [`describe_keyframe`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/pipeline.py) |
-| The job store the workers write to | [`JobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/job_store.py), [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over SQLite, [`InMemoryJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/in_memory_job_store.py) |
-| The front door | [`POST /jobs`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/api/routers/jobs.py) |
-| Wired in | [`stacks.seam`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py) |
->>>>>>> 23ffc87 (docs: fix links, diagrams and stale claims; split architecture into APIs and Technology)
 
 Tests: [`tests/unittests/transport/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/transport), [`write/job_store/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/unittests/write/job_store), and the API end to end in [`tests/integrationtests/api/`](https://github.com/shoham-b/backseat-driver/tree/main/tests/integrationtests/api).
 

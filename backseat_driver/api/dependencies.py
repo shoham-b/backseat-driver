@@ -8,8 +8,8 @@ from fastapi import Depends, Request
 from backseat_driver.api.state import AppState
 from backseat_driver.config import Settings
 from backseat_driver.process.captioner import Captioner
-from backseat_driver.read.image_service import ImageService
-from backseat_driver.read.image_store import ImageStore
+from backseat_driver.read.images.image_service import ImageService
+from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.write.job_store.job_store import JobStore
 

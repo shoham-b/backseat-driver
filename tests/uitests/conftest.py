@@ -60,7 +60,7 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
                 scene_token=f"token-{i}",
                 scene_name=name,
                 camera_channel="CAM_FRONT",
-                image_path=str(images[i]),
+                image_path=images[i].name,
                 description=description,
                 model_name=model,
                 reference_description=reference,
@@ -76,7 +76,9 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
 def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
     command = [sys.executable, "-m", "fastapi", "run", "backseat_driver/show/ui_server.py", "--port", str(port)]
-    env = {**os.environ, "BACKSEAT_DRIVER_OUTPUT_DIR": str(result_files[0].parent)}
+    # The images sit beside the result files, so that directory is also the dataroot their keys resolve in.
+    directory = str(result_files[0].parent)
+    env = {**os.environ, "BACKSEAT_DRIVER_OUTPUT_DIR": directory, "BACKSEAT_DRIVER_NUSCENES_DATAROOT": directory}
     server = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         deadline = time.monotonic() + 30
@@ -149,7 +151,7 @@ def multi_camera_result_files(tmp_path_factory: pytest.TempPathFactory) -> list[
                 scene_token="token-0",
                 scene_name=name,
                 camera_channel=channel,
-                image_path=str(image),
+                image_path=image.name,
                 description=f"a view from {channel}",
                 model_name="blip-base",
                 reference_description=reference,

@@ -5,7 +5,7 @@ else, and none connects to anything until it is used.
 
     port                rung 1: pipeline        rung 2: seam               rung 3: machines
     ------------------  ----------------------  -------------------------  ---------------------------
-    read   SceneLoader  NuScenesSceneLoader     RelativeSceneLoader        StoredSceneLoader (bucket)
+    read   SceneLoader  NuScenesSceneLoader     NuScenesSceneLoader        StoredSceneLoader (bucket)
     read   ImageStore   LocalImageStore         LocalImageStore            S3DatasetStore
     hand-off JobQueue   (a function call)       InProcessJobQueue          CeleryJobQueue (RabbitMQ)
     process Captioner   BackendCaptioner        BackendCaptioner           BackendCaptioner
@@ -22,14 +22,13 @@ from backseat_driver.models import IngestTask
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
-from backseat_driver.read.image_store import ImageStore
-from backseat_driver.read.local_image_store import LocalImageStore
-from backseat_driver.read.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
-from backseat_driver.read.relative_scene_loader import RelativeSceneLoader
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
+from backseat_driver.read.dataset.scene_loader import SceneLoader
+from backseat_driver.read.images.image_store import ImageStore
+from backseat_driver.read.images.local_image_store import LocalImageStore
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
 from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
-from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
@@ -54,7 +53,7 @@ def pipeline(
 ) -> ScenePipeline:
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channels=cameras)
     captioner = build_captioner(settings, backend=backend, model_name=model)
-    return ScenePipeline(loader=loader, captioner=captioner)
+    return ScenePipeline(loader=loader, captioner=captioner, images=LocalImageStore(dataroot))
 
 
 # Rung 2: the seam. The same steps as tasks, both ends of the queue in the API process on one thread.
@@ -78,13 +77,10 @@ def seam(
 
 
 def nuscenes_loader(settings: Settings) -> SceneLoader:
-    return RelativeSceneLoader(
-        NuScenesSceneLoader(
-            dataroot=settings.nuscenes_dataroot,
-            version=settings.nuscenes_version,
-            camera_channels=[settings.camera_channel],
-        ),
-        settings.nuscenes_dataroot,
+    return NuScenesSceneLoader(
+        dataroot=settings.nuscenes_dataroot,
+        version=settings.nuscenes_version,
+        camera_channels=[settings.camera_channel],
     )
 
 

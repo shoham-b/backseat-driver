@@ -4,7 +4,7 @@ import pytest
 
 from backseat_driver.config import RunMode
 from backseat_driver.pipeline import ScenePipeline
-from backseat_driver.read.local_image_store import LocalImageStore
+from backseat_driver.read.images.local_image_store import LocalImageStore
 from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.stacks import build_image_store, build_job_backend, machines, pipeline
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
