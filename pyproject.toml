@@ -32,9 +32,9 @@ core = [
 
 vlm = [
     "torch>=2.4",
-    # Pinned below 5.0: the "image-to-text" unconditional-captioning pipeline task
-    # was folded into the chat-style "image-text-to-text" task in transformers 5,
-    # which requires a text prompt and no longer fits plain scene captioning.
+    # The HuggingFace backend uses the unconditional "image-to-text" pipeline task. An earlier note said
+    # transformers 5 folded it into the prompt-requiring "image-text-to-text" task; the range now allows 5.x
+    # (dependabot raised it) and uv.lock resolves 4.x, so check the task still exists before locking a 5.x.
     "transformers>=4.44,<6",
     "pillow>=10.4",
 ]
