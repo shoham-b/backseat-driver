@@ -63,7 +63,7 @@ Each stage has one port, because each has a real reason to vary and a real reaso
 | [`write_json`](../backseat_driver/write/json_writer.py) | Function | The monolith's write: the list, once, at the end |
 | [`JobQueue`](../backseat_driver/transport/job_queue.py) / [`InProcessJobQueue`](../backseat_driver/transport/in_process_job_queue.py), [`CeleryJobQueue`](../backseat_driver/transport/celery_job_queue.py) | Port / adapters | The seam between read and process |
 | [`JobStore`](../backseat_driver/write/job_store/job_store.py) / [`InMemoryJobStore`](../backseat_driver/write/job_store/in_memory_job_store.py), [`SqlJobStore`](../backseat_driver/write/job_store/sql_job_store.py) | Port / adapters | The distributed write: one row per description |
-| [`IngestWorker`, `CaptionWorker`](../backseat_driver/transport/workers.py) | Classes | The read step as a producer, and process + write per task |
+| [`IngestWorker`](../backseat_driver/transport/ingest_worker.py), [`CaptionWorker`](../backseat_driver/transport/caption_worker.py) | Classes | The read step as a producer, and process + write per task |
 | [`Settings`](../backseat_driver/config.py) | pydantic-settings class | Single typed source of config, read once per process |
 
 ## Layer design

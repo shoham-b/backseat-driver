@@ -1,4 +1,4 @@
-"""Celery tasks — the worker entry points, thin wrappers over `backseat_driver.transport.workers`.
+"""Celery tasks — the worker entry points, thin wrappers over the handlers in `backseat_driver.transport`.
 
 Start a worker with `backseat-driver worker ingest|caption`, or directly:
 
@@ -26,9 +26,10 @@ from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
 from backseat_driver.read.scene_loader import SceneLoader
 from backseat_driver.stacks import celery_queue, postgres_store, stored_loader
+from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK, MAX_RETRIES, make_celery_app
+from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.transport.workers import CaptionWorker, IngestWorker
 from backseat_driver.write.job_store.job_store import JobStore
 
 
