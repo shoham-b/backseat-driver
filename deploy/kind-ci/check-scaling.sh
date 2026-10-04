@@ -36,6 +36,9 @@ all_captioned() {
   ((done_scenes == SCENES))
 }
 
+# The API answers /ready before the tables exist, and db-init may need a few retries while Postgres starts, so
+# creating a job before it has completed fails with a 500 (relation "jobs" does not exist).
+wait_for "db-init created the tables" 180 kubectl wait job/db-init --for=condition=complete --timeout=5s
 wait_for "KEDA reports the caption-worker ScaledObject ready" 120 \
   kubectl wait scaledobject/caption-worker --for=condition=Ready --timeout=5s
 wait_for "caption-worker idle at its minimum of 1 replica" 120 scaled_down
