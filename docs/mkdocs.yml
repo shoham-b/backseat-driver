@@ -11,6 +11,16 @@ theme:
     - content.code.copy
     - toc.follow
 
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - toc:
+      permalink: true
+
 plugins:
   - search
   - mkdocstrings:
@@ -26,10 +36,11 @@ nav:
   - Getting Started: getting-started.md
   - Running It: running.md
   - From Pipeline to Cluster: ladder.md
-  - Architecture: architecture.md
+  - APIs: apis.md
   - Distributed Mode: distributed.md
   - Deployment: deployment.md
   - Design Decisions: design-decisions.md
+  - Technology: technology.md
   - Development: development.md
   - CLI Reference: cli.md
   - API Reference: api.md

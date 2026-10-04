@@ -78,7 +78,7 @@ Stated explicitly, per the assignment's request:
   v1.0-mini into `data/sets/nuscenes` (gitignored) on first use and re-downloads when the archive changes.
 - **Batch job is the primary shape.** The assignment describes a pipeline over a *set* of scenes, so the CLI
   (`backseat-driver describe`) producing one JSON file is the main deliverable. The HTTP API is the optional deployment
-  of the same pipeline, answering "how would you deploy this" — see [docs/architecture.md#deployment](docs/architecture.md#deployment).
+  of the same pipeline, answering "how would you deploy this" — see [docs/technology.md#deployment-shapes](docs/technology.md#deployment-shapes).
 - **No GPU, no batching.** Scenes are captioned one at a time, and the HuggingFace example runs on CPU, matching "no need for
   large models or GPU inference." For v1.0-mini's 10 scenes this is seconds-to-low-minutes after the model
   is cached. Scale comes from the distributed workers (more caption workers), not from batched inference, which
@@ -134,7 +134,7 @@ just test-system   # full system test via Docker Compose
 
 ## Deployment
 
-See **[docs/architecture.md#deployment](docs/architecture.md#deployment)** for the full discussion. Short
+See **[docs/technology.md#deployment-shapes](docs/technology.md#deployment-shapes)** for the full discussion. Short
 version: `docker/Dockerfile` has one target per service: `cli` (the pipeline, meant to run as a scheduled batch
 job / CronJob), `api`, `ingest-worker` and `caption-worker`. They are built and pushed to `ghcr.io` in
 [`.github/workflows/docker.yml`](.github/workflows/docker.yml). `just up` runs the stack in Docker Compose, and
@@ -162,7 +162,7 @@ codebase conventions.
 
 The project was scaffolded from [python-project-template](https://github.com/shoham-b/python-project-template)
 (`models/` → the read, process and write packages → `cli/`+`api/`, containerized, CI, typed, tested at four levels)
-and then adapted to this domain; [docs/development.md](docs/development.md) lists what was stripped from the generic scaffold.
+and then adapted to this domain.
 
 ## Docker
 

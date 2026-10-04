@@ -20,7 +20,7 @@ See [Getting Started](getting-started.md) for dataset setup, Docker usage, and t
 
 See [Running it](running.md) for how the CLI, `just`, Docker, Compose, Kubernetes and the API dev/production servers fit together.
 
-See [From pipeline to cluster](ladder.md) for how the one pipeline grows into a cluster, [Architecture](architecture.md) for the tech stack and object model, and [Design Decisions](design-decisions.md) for the alternatives considered and why each was (or wasn't) chosen.
+See [From pipeline to cluster](ladder.md) for how the one pipeline grows into a cluster, [Technology](technology.md) for the tech stack, and [Design Decisions](design-decisions.md) for the alternatives considered and why each was (or wasn't) chosen.
 
 See [Distributed mode](distributed.md) for the optional API + queue + worker deployment built around the same pipeline.
 
