@@ -149,7 +149,7 @@ def test_lifespan_wires_the_real_adapters_without_connecting() -> None:
     service = create_app(settings)
 
     with TestClient(service) as client:
-        state = client.app.state
+        state = client.app.state.services
         health = client.get("/health")
 
     assert isinstance(state.captioner, BackendCaptioner)
@@ -168,7 +168,7 @@ def test_lifespan_defaults_to_the_monolith_with_no_infrastructure() -> None:
     service = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE))
 
     with TestClient(service) as client:
-        state = client.app.state
+        state = client.app.state.services
         job_id = client.post("/jobs").json()["job_id"]
         job = client.get(f"/jobs/{job_id}")
 
