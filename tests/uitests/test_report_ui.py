@@ -170,9 +170,9 @@ def test_picking_a_camera_tab_switches_the_image_of_that_scene(multi_camera_page
     before = page.find_element(By.CSS_SELECTOR, "#scenes .scene img").get_attribute("alt")
 
     tab = page.find_element(By.XPATH, "//div[@id='scenes']//button[normalize-space()='Front']")
-    page.execute_script("arguments[0].scrollIntoView({block: 'center'})", tab)
+    page.execute_script("arguments[0].scrollIntoView({block: 'center', behavior: 'instant'})", tab)
     tab.click()
 
     after = page.find_element(By.CSS_SELECTOR, "#scenes .scene img").get_attribute("alt")
-    assert before.startswith("Back left")
-    assert after.startswith("Front")
+    assert (before or "").startswith("Back left")
+    assert (after or "").startswith("Front")
