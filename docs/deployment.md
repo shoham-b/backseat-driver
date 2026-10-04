@@ -65,7 +65,8 @@ cluster either use a `ReadWriteMany` storage class or pin the pods that share a 
 `deploy/components/keda-autoscaling` is an optional kustomize component that scales the workers on RabbitMQ queue depth
 with [KEDA](https://keda.sh). Queue length measures pending work directly, whereas a solo-pool worker's CPU says little
 about how far behind it is. It needs KEDA in the cluster and a `rabbitmq-management` Secret (key `host`: the management API
-URL with credentials) from the overlay that uses it.
+URL with credentials) from the overlay that uses it. KEDA resolves that host from its own namespace, so it must
+include the namespace, e.g. `http://guest:guest@rabbitmq.backseat-driver:15672/`: a bare `rabbitmq` does not resolve.
 
 | Deployment | Queue | Scale | Replicas |
 |---|---|---|---|

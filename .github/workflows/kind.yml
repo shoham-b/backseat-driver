@@ -108,7 +108,6 @@ jobs:
           cluster_name: ${{ env.CLUSTER }}
           config: deploy/kind/cluster.yaml
 
-      # One call, so the layers the api, caption-worker and cli images share (torch) are exported and imported once.
       - name: Load images into the cluster
         run: |
           kind load docker-image --name "$CLUSTER" \
