@@ -100,6 +100,6 @@ class UrllibHttpClient(HttpClient):
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout) as response:
-                return response.status == 200
+                return response.status == HTTPStatus.OK
         except OSError:
             return False

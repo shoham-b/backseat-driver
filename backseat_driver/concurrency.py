@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Iterable
+from contextlib import nullcontext
 
 
 async def gather_all[T](awaitables: Iterable[Awaitable[T]], limit: int | None = None) -> list[T]:
@@ -14,11 +15,9 @@ async def gather_all[T](awaitables: Iterable[Awaitable[T]], limit: int | None = 
     """
     if limit is not None and limit < 1:
         raise ValueError(f"limit must be at least 1, got {limit}")
-    slots = None if limit is None else asyncio.Semaphore(limit)
+    slots = nullcontext() if limit is None else asyncio.Semaphore(limit)
 
     async def run(awaitable: Awaitable[T]) -> T:
-        if slots is None:
-            return await awaitable
         async with slots:
             return await awaitable
 
