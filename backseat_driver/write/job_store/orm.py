@@ -1,6 +1,6 @@
 """SQLAlchemy ORM tables for the persistence layer. Query logic lives in `storage.py`."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Uuid, func
@@ -20,11 +20,9 @@ class JobRow(Base):
     max_scenes: Mapped[int | None] = mapped_column(Integer)
     expected_scenes: Mapped[int | None] = mapped_column(Integer)
     error: Mapped[str | None] = mapped_column(String)
-    # The client-side default has microsecond resolution (CURRENT_TIMESTAMP has seconds on SQLite), so jobs created in
-    # the same second still sort in creation order.
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), default=lambda: datetime.now(UTC)
-    )
+    # Always set by `JobStorage.insert_job` from its `CreationClock`: CURRENT_TIMESTAMP is whole seconds on SQLite,
+    # which cannot order jobs created in a row.
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class DeadLetterRow(Base):

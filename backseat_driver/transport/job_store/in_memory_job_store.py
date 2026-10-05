@@ -4,29 +4,34 @@ State lives in the process and is lost on restart; `SqlJobStore` over SQLite is 
 so its jobs outlive a restart. This one backs tests and `BACKSEAT_DRIVER_JOBS_DB_PATH=` (empty).
 """
 
-from datetime import UTC, datetime
+from collections.abc import Callable
+from datetime import datetime
 from threading import Lock
 from uuid import UUID
 
 from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
+from backseat_driver.write.job_store.creation_clock import CreationClock
 
 
 class _Record:
-    def __init__(self, max_scenes: int | None, transaction_id: str, idempotency_key: str | None) -> None:
+    def __init__(
+        self, max_scenes: int | None, transaction_id: str, idempotency_key: str | None, created_at: datetime
+    ) -> None:
         self.max_scenes = max_scenes
         self.transaction_id = transaction_id
         self.idempotency_key = idempotency_key
         self.expected_scenes: int | None = None
         self.error: str | None = None
-        self.created_at = datetime.now(UTC)
+        self.created_at = created_at
         self.descriptions: dict[tuple[str, str], SceneDescription] = {}
         self.dead_letters: list[DeadLetter] = []
 
 
 class InMemoryJobStore(JobStore):
-    def __init__(self) -> None:
+    def __init__(self, clock: Callable[[], datetime] | None = None) -> None:
+        self._clock = clock or CreationClock()
         # The API's request threads and the in-process worker thread share this store.
         self._lock = Lock()
         self._jobs: dict[UUID, _Record] = {}
@@ -38,7 +43,7 @@ class InMemoryJobStore(JobStore):
         with self._lock:
             if idempotency_key is not None and self._job_id_for(idempotency_key) is not None:
                 raise IdempotencyKeyInUseError(idempotency_key)
-            self._jobs[job_id] = _Record(max_scenes, transaction_id, idempotency_key)
+            self._jobs[job_id] = _Record(max_scenes, transaction_id, idempotency_key, self._clock())
 
     def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
         with self._lock:
@@ -82,8 +87,7 @@ class InMemoryJobStore(JobStore):
 
     def list_jobs(self) -> list[Job]:
         with self._lock:
-            jobs = [self._to_job(job_id, record) for job_id, record in reversed(self._jobs.items())]
-        # Stable, so jobs the clock cannot tell apart keep newest-first from the reversed insertion order.
+            jobs = [self._to_job(job_id, record) for job_id, record in self._jobs.items()]
         return sorted(jobs, key=lambda job: job.created_at, reverse=True)
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
