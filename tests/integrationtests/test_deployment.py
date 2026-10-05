@@ -301,7 +301,7 @@ def test_container_env_names_are_real_settings() -> None:
 
 
 def test_report_ui_probe_hits_a_real_route() -> None:
-    routes = {route.path for route in create_ui_app(make_settings()).routes}
+    routes = set(create_ui_app(make_settings()).openapi()["paths"])
     (ui,) = [c for name, c in _our_containers() if name == "ui"]
 
     probed = {ui[probe]["httpGet"]["path"] for probe in ("livenessProbe", "readinessProbe") if probe in ui}
