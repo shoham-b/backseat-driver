@@ -16,6 +16,7 @@ import asyncio
 from collections.abc import Callable, Sequence
 from contextlib import AsyncExitStack
 
+from backseat_driver.concurrency import gather_all
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.read.dataset.scene_loader import SceneLoader
@@ -98,9 +99,17 @@ class ScenePipeline:
             if on_progress:
                 on_progress(start + 1, len(keyframes), batch[0])
             async with AsyncExitStack() as copies:
+                # Fetched together: against a bucket each is a download, and one after another they would queue up
+                # in front of a batch that the captioner then runs at once.
                 local_paths = [
-                    str(await copies.enter_async_context(self._images.local_copy(self._images.uri_for(k.image_path))))
-                    for k in batch
+                    str(path)
+                    for path in await gather_all(
+                        (
+                            copies.enter_async_context(self._images.local_copy(self._images.uri_for(k.image_path)))
+                            for k in batch
+                        ),
+                        limit=len(batch),
+                    )
                 ]
                 descriptions.extend(await describe_keyframes(batch, self._captioner, local_paths))
         return descriptions

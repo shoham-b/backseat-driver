@@ -1,3 +1,6 @@
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pytest
@@ -197,3 +200,57 @@ async def test_a_batch_size_below_one_is_rejected(batch_size: int) -> None:
 async def test_describe_keyframes_rejects_a_path_count_that_differs_from_the_keyframe_count() -> None:
     with pytest.raises(ValueError, match="1 local paths for 2 keyframes"):
         await describe_keyframes([_keyframe(1), _keyframe(2)], FakeCaptioner(), ["a.jpg"])
+
+
+class _RendezvousImageStore(FakeImageStore):
+    """No copy is handed out until `parties` were asked for: fetched one at a time, the first would wait forever."""
+
+    def __init__(self, parties: int, failing: str | None = None) -> None:
+        super().__init__()
+        self._parties = parties
+        self._failing = failing
+        self._asked = 0
+        self._all_asked = asyncio.Event()
+
+    @asynccontextmanager
+    async def local_copy(self, uri: str) -> AsyncIterator[Path]:
+        self._asked += 1
+        if self._asked == self._parties:
+            self._all_asked.set()
+        await asyncio.wait_for(self._all_asked.wait(), timeout=5)
+        if self._failing is not None and uri.endswith(self._failing):
+            raise FileNotFoundError(uri)
+        async with super().local_copy(uri) as path:
+            yield path
+
+
+async def test_run_fetches_the_local_copies_of_a_batch_together() -> None:
+    images = _RendezvousImageStore(parties=3)
+    pipeline = ScenePipeline(
+        loader=FakeSceneLoader([_keyframe(n) for n in range(1, 4)]),
+        captioner=FakeCaptioner(),
+        images=images,
+        batch_size=3,
+    )
+
+    descriptions = await pipeline.run()
+
+    assert [d.scene_name for d in descriptions] == ["scene-1", "scene-2", "scene-3"]
+    assert sorted(images.released) == sorted(images.opened)
+
+
+async def test_run_raises_a_failed_fetch_as_itself_and_releases_the_copies_already_made() -> None:
+    images = _RendezvousImageStore(parties=3, failing="scene-2.jpg")
+    captioner = FakeCaptioner()
+    pipeline = ScenePipeline(
+        loader=FakeSceneLoader([_keyframe(n) for n in range(1, 4)]),
+        captioner=captioner,
+        images=images,
+        batch_size=3,
+    )
+
+    with pytest.raises(FileNotFoundError, match=r"scene-2\.jpg"):
+        await pipeline.run()
+
+    assert captioner.seen_paths == []
+    assert sorted(images.released) == sorted(images.opened)
