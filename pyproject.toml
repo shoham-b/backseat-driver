@@ -1,6 +1,6 @@
 [project]
 name = "backseat-driver"
-version = "0.2.1"
+version = "0.2.2"
 description = "Generates short natural-language scene descriptions for nuScenes driving scenes using a vision-language model"
 readme = "README.md"
 license = { text = "MIT" }
