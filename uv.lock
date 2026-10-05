@@ -222,6 +222,7 @@ report = [
 ]
 systemtest = [
     { name = "httpx" },
+    { name = "hypothesis" },
     { name = "loguru" },
     { name = "pydantic-settings" },
     { name = "pytest" },
@@ -349,6 +350,7 @@ object-storage = [{ name = "boto3", specifier = ">=1.35" }]
 report = [{ name = "snowballstemmer", specifier = ">=2.2" }]
 systemtest = [
     { name = "httpx", specifier = ">=0.28" },
+    { name = "hypothesis", specifier = ">=6" },
     { name = "loguru", specifier = ">=0.7" },
     { name = "pydantic-settings", specifier = ">=2.9" },
     { name = "pytest", specifier = ">=8" },
