@@ -10,7 +10,15 @@ from uuid import UUID
 
 from backseat_driver.config import Settings
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import CaptionTask, IngestTask, Job, SceneDescription, SceneKeyframe
+from backseat_driver.models import (
+    CaptionTask,
+    DeadLetter,
+    IngestTask,
+    Job,
+    JobDeadLetter,
+    SceneDescription,
+    SceneKeyframe,
+)
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.http_client import HttpClient, HttpResponse
 from backseat_driver.read.dataset.scene_loader import SceneLoader
@@ -44,6 +52,21 @@ class FakeJobStore(JobStore):
         self._descriptions: dict[UUID, dict[tuple[str, str], SceneDescription]] = {}
         self._errors: dict[UUID, str] = {}
         self._keys: dict[str, UUID] = {}
+        self._dead_letters: dict[UUID, list[DeadLetter]] = {}
+        self._recent: list[JobDeadLetter] = []
+
+    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
+        if job_id is not None:
+            self._get(job_id)
+            self._dead_letters.setdefault(job_id, []).append(dead_letter)
+        self._recent.append(JobDeadLetter(job_id=job_id, **dead_letter.model_dump()))
+
+    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+        return self._recent[::-1][:limit]
+
+    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+        self._get(job_id)
+        return list(self._dead_letters.get(job_id, []))
 
     def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None

@@ -76,7 +76,7 @@ The questions from here on came up while making the job processing work as separ
 
 Small details: `created_at` has a client-side microsecond default, because `CURRENT_TIMESTAMP` has one-second resolution on SQLite and several jobs created within a second must still list newest first; the engine sets a lock timeout and `check_same_thread=False`, because the API threads and the in-process worker thread share the connection pool.
 
-What is **not** persisted is the in-process queue. A job that was running when the process stopped keeps its recorded progress, but its remaining scenes are never captioned and it stays `running`. That is the same gap as the missing `failed` state.
+What is **not** persisted is the in-process queue. A job that was running when the process stopped keeps its recorded progress, but its remaining scenes are never captioned and it stays `running`. A task that fails is recorded (see [Dead letters](#dead-letters)), but a process that simply stopped runs no handler, so nothing records it.
 
 **Revisit if:** a monolith job must resume after a restart; the queue would then need to be persisted too.
 
@@ -195,7 +195,16 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 **Consequence:** result files written by `describe` hold keys, not absolute paths, so they are portable but need the dataroot (or an API that has the dataset) to render a report. Files written by an earlier version hold absolute paths and have to be generated again.
 
+### Dead letters
+
+A task that runs out of retries marks its job `failed` (`Job.error`, first error kept, cut to 500 characters) and is also kept whole as a `dead_letters` row: the task (`ingest` or `caption`), its payload, the full error and the time. `GET /jobs/{id}/dead-letters` lists a job's, and `GET /dead-letters?limit=` the newest across all jobs (each naming its job), so a failed task can be inspected or re-enqueued by hand. The state still comes from `Job.error` alone; a dead letter adds detail and changes nothing. It is written at the same two places that call `fail_job`: the Celery `on_failure` hook (called only once retries are spent) and the in-process queue's failure callback. A malformed message is dead-lettered too. If its payload names no job it is an orphan: stored with a null `job_id`, so it shows up only in `GET /dead-letters`, and no job is marked failed.
+
+**Why in the job store and not a RabbitMQ dead-letter exchange.** The failure belongs on the job users poll, and the monolith has no broker. Celery's retries also republish a new message instead of redelivering, so a quorum queue's `x-delivery-limit` never counts them.
+
+**Revisit if:** the database being down matters. Then neither `fail_job` nor the dead letter can be written; that is logged and the job stays `running`. A broker dead-letter exchange as a second net would cover it. Existing databases need the new `dead_letters` table; `db init` creates it.
+
 ### What is still open
 
-- **No `failed` job state, and no recovery of interrupted jobs.** A task that exhausts its retries is dropped and its job stays `running`; so does a monolith job whose process stopped before its in-process queue drained.
+- **No recovery of interrupted jobs.** A monolith job whose process stopped before its in-process queue drained stays `running`, because the queue is not persisted.
+- **Dead letters are not replayed.** They keep the payload, so a task can be re-enqueued by hand, but nothing does it, and a `failed` job never returns to `running`.
 - **Nothing expires the uploaded dataset.** It is the source of truth, so it stays until deleted; give the bucket whatever lifecycle rule suits the dataset.

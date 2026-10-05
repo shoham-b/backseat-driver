@@ -25,7 +25,7 @@ def test_caption_posts_the_model_prompt_and_image_and_returns_the_stripped_respo
     (posted,) = http.posts
     assert posted.url == "http://ollama:11434/api/generate"
     assert posted.service == "Ollama"
-    assert posted.payload == {
+    assert {key: posted.payload[key] for key in ("model", "prompt", "images", "stream")} == {
         "model": "llava",
         "prompt": "list the road users",
         "images": [base64.b64encode(b"fake-image-bytes").decode()],
@@ -40,6 +40,24 @@ def test_caption_of_a_missing_file_fails_fast_without_calling_the_server(tmp_pat
         OllamaBackend(http).generate(str(tmp_path / "missing.png"), CaptionModel("llava"))
 
     assert http.posts == []
+
+
+def test_caption_limits_generated_tokens(image_path: str) -> None:
+    http = FakeHttpClient(response={"response": "wet road", "done_reason": "stop"})
+    backend = OllamaBackend(http, max_tokens=64)
+
+    backend.generate(image_path, CaptionModel("llava"))
+
+    (posted,) = http.posts
+    assert posted.payload["options"] == {"num_predict": 64}
+
+
+def test_caption_fails_when_generation_hits_the_token_limit(image_path: str) -> None:
+    http = FakeHttpClient(response={"response": "road, road, road, road", "done_reason": "length"})
+    backend = OllamaBackend(http, max_tokens=64)
+
+    with pytest.raises(RuntimeError, match=r"hit the 64-token limit on .*scene\.png"):
+        backend.generate(image_path, CaptionModel("llava"))
 
 
 def test_caption_propagates_http_failures(image_path: str) -> None:

@@ -93,6 +93,8 @@ def test_a_task_that_keeps_failing_is_retried_then_dropped_and_the_job_fails() -
         JobState.FAILED,
         "backseat_driver.ingest failed: ConnectionError: object store down",
     )
+    [letter] = store.list_dead_letters(job_id)
+    assert (letter.task, letter.payload["job_id"]) == ("ingest", str(job_id))
 
 
 def test_a_malformed_task_is_dropped_without_running_the_worker() -> None:

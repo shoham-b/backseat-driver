@@ -7,13 +7,14 @@ over the in-memory store, the SQL store and that fake keeps the fake honest.
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import JobState, SceneDescription
+from backseat_driver.models import DeadLetter, JobState, SceneDescription
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.job_store import JobStore
 from backseat_driver.write.job_store.sql_job_store import SqlJobStore
@@ -229,6 +230,60 @@ def test_a_store_without_jobs_lists_none(store: JobStore) -> None:
     assert store.list_jobs() == []
 
 
+def _dead_letter(task: Literal["ingest", "caption"] = "caption") -> DeadLetter:
+    return DeadLetter(
+        task=task,
+        payload={"job_id": "j", "n": 1},
+        error="ConnectionError: down",
+        failed_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+
+
+def test_dead_letters_come_back_oldest_first_and_only_for_their_job(store: JobStore) -> None:
+    job_id, other = _new_job(store), _new_job(store)
+
+    store.record_dead_letter(job_id, _dead_letter("ingest"))
+    store.record_dead_letter(job_id, _dead_letter("caption"))
+    store.record_dead_letter(other, _dead_letter("caption"))
+    letters = store.list_dead_letters(job_id)
+
+    assert [letter.task for letter in letters] == ["ingest", "caption"]
+    assert letters[0].model_dump(exclude={"failed_at"}) == _dead_letter("ingest").model_dump(exclude={"failed_at"})
+
+
+def test_recent_dead_letters_span_jobs_newest_first_up_to_the_limit(store: JobStore) -> None:
+    first, second = _new_job(store), _new_job(store)
+    store.record_dead_letter(first, _dead_letter("ingest"))
+    store.record_dead_letter(second, _dead_letter("caption"))
+    store.record_dead_letter(first, _dead_letter("caption"))
+
+    recent = store.list_recent_dead_letters(limit=2)
+
+    assert [(letter.job_id, letter.task) for letter in recent] == [(first, "caption"), (second, "caption")]
+
+
+def test_an_orphan_dead_letter_is_kept_without_a_job_and_listed_only_across_jobs(store: JobStore) -> None:
+    job_id = _new_job(store)
+
+    store.record_dead_letter(None, _dead_letter("ingest"))
+
+    [orphan] = store.list_recent_dead_letters(limit=10)
+    assert (orphan.job_id, orphan.task) == (None, "ingest")
+    assert store.list_dead_letters(job_id) == []
+
+
+def test_a_store_without_dead_letters_lists_none(store: JobStore) -> None:
+    assert store.list_recent_dead_letters(limit=10) == []
+
+
+def test_a_dead_letter_does_not_change_the_job_state_by_itself(store: JobStore) -> None:
+    job_id = _new_job(store)
+
+    store.record_dead_letter(job_id, _dead_letter())
+
+    assert store.get_job(job_id).state is JobState.PENDING
+
+
 @pytest.mark.parametrize(
     "operation",
     [
@@ -237,8 +292,18 @@ def test_a_store_without_jobs_lists_none(store: JobStore) -> None:
         lambda store, job_id: store.fail_job(job_id, "boom"),
         lambda store, job_id: store.list_descriptions(job_id),
         lambda store, job_id: store.record_description(job_id, _description(1)),
+        lambda store, job_id: store.record_dead_letter(job_id, _dead_letter()),
+        lambda store, job_id: store.list_dead_letters(job_id),
     ],
-    ids=["get_job", "set_expected_scenes", "fail_job", "list_descriptions", "record_description"],
+    ids=[
+        "get_job",
+        "set_expected_scenes",
+        "fail_job",
+        "list_descriptions",
+        "record_description",
+        "record_dead_letter",
+        "list_dead_letters",
+    ],
 )
 def test_an_unknown_job_is_not_found(
     store: JobStore, store_kind: str, request: pytest.FixtureRequest, operation: Callable[[JobStore, UUID], object]

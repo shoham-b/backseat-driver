@@ -46,6 +46,18 @@ class _FailingCaptionWorker(CaptionWorker):
         raise ConnectionError("database down")
 
 
+class _FlakyCaptionWorker(CaptionWorker):
+    def __init__(self, failures: int) -> None:
+        super().__init__(FakeCaptioner(), FakeJobStore(), FakeImageStore())
+        self.calls = 0
+        self._failures = failures
+
+    def handle(self, task: CaptionTask) -> None:
+        self.calls += 1
+        if self.calls <= self._failures:
+            raise ConnectionError("blip")
+
+
 class _WorkerProvider[W]:
     """Hands out `worker` and counts how often a task asked for it."""
 
@@ -172,11 +184,52 @@ def test_caption_task_that_gives_up_marks_its_job_failed() -> None:
     assert store.get_job(job_id).state is JobState.FAILED
 
 
-def test_a_failed_task_whose_payload_names_no_job_leaves_the_store_alone() -> None:
+def test_a_task_that_gives_up_is_kept_whole_as_a_dead_letter() -> None:
+    job_id, store = uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    payload = CaptionTask(
+        job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+    ).model_dump(mode="json")
+
+    _register(store=store).caption.apply(args=[payload])
+
+    [letter] = store.list_dead_letters(job_id)
+    assert (letter.task, letter.payload, letter.error) == ("caption", payload, "ConnectionError: database down")
+
+
+def test_an_ingest_task_that_gives_up_is_a_dead_letter_of_kind_ingest() -> None:
+    job_id, store = uuid4(), FakeJobStore()
+    store.create_job(job_id, None, "tx")
+    payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
+
+    _register(store=store).ingest.apply(args=[payload])
+
+    assert [letter.task for letter in store.list_dead_letters(job_id)] == ["ingest"]
+
+
+def test_a_failure_that_a_retry_fixes_leaves_no_dead_letter() -> None:
+    job_id, store, worker = uuid4(), FakeJobStore(), _FlakyCaptionWorker(failures=1)
+    store.create_job(job_id, None, "tx")
+    payload = CaptionTask(
+        job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
+    ).model_dump(mode="json")
+
+    _register(caption_worker=_WorkerProvider(worker), store=store).caption.apply(args=[payload])
+
+    assert worker.calls == 2
+    assert store.list_dead_letters(job_id) == []
+    assert store.get_job(job_id).state is not JobState.FAILED
+
+
+def test_a_failed_task_whose_payload_names_no_job_is_kept_as_an_orphan_dead_letter() -> None:
     store = FakeJobStore()
+    payload = {"not": "a caption task"}
 
-    _register(store=store).caption.apply(args=[{"not": "a caption task"}])
+    _register(store=store).caption.apply(args=[payload])
 
+    [letter] = store.list_recent_dead_letters(limit=10)
+    assert (letter.job_id, letter.task, letter.payload) == (None, "caption", payload)
+    assert letter.error.startswith("ValidationError")
     assert store.list_jobs() == []
 
 
