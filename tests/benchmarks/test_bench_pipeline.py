@@ -72,15 +72,15 @@ def test_ingest_worker_fan_out(benchmark: BenchmarkFixture, scenes: int) -> None
     queue = FakeJobQueue()
     store = FakeJobStore()
     job_id = uuid4()
-    asyncio.run(store.create_job(job_id, max_scenes=None, transaction_id="bench"))
+    run(store.create_job(job_id, max_scenes=None, transaction_id="bench"))
     worker = IngestWorker(loader, queue, store, PassthroughImageStore())
     task = IngestTask(job_id=job_id, transaction_id="bench")
 
-    async def run() -> None:
+    async def fan_out() -> None:
         queue.caption_tasks.clear()
         await worker.handle(task)
 
-    benchmark(lambda: asyncio.run(run()))
+    benchmark(lambda: run(fan_out()))
 
     assert len(queue.caption_tasks) == scenes
 
@@ -91,7 +91,7 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
     keyframes = [make_keyframe(n) for n in range(scenes)]
     captioner = FakeCaptioner("a city street with cars and pedestrians")
 
-    async def run() -> list[SceneDescription]:
+    async def job() -> list[SceneDescription]:
         store = FakeJobStore()
         job_id = uuid4()
         await store.create_job(job_id, max_scenes=None, transaction_id="bench")
@@ -104,7 +104,7 @@ def test_caption_worker_job_end_to_end(benchmark: BenchmarkFixture, scenes: int)
         await store.get_job(job_id)
         return await store.list_descriptions(job_id)
 
-    descriptions = benchmark(lambda: asyncio.run(run()))
+    descriptions = benchmark(lambda: run(job()))
 
     assert len(descriptions) == scenes
 

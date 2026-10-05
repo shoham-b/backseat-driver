@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -97,7 +97,9 @@ async def test_ping_propagates_unexpected_errors() -> None:
         def connect(self) -> Any:
             raise RuntimeError("not a database error")
 
-    storage = JobStorage("postgresql+psycopg://host/db", engine_factory=lambda *_, **__: BrokenEngine())
+    storage = JobStorage(
+        "postgresql+psycopg://host/db", engine_factory=lambda *_, **__: cast(AsyncEngine, BrokenEngine())
+    )
 
     with pytest.raises(RuntimeError, match="not a database error"):
         await storage.ping()
