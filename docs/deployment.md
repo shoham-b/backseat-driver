@@ -1,6 +1,6 @@
 # Deployment
 
-Everything below was exercised by hand before release (see [Release checklist](#release-checklist)); the parts that
+CI exercises everything below except the production overlay (see [What CI checks](#what-ci-checks)); the parts that
 can be checked without a cluster or a daemon are also pinned by `tests/integrationtests/test_deployment.py`.
 
 ## Images
@@ -95,8 +95,8 @@ Not covered, by choice:
   cold start and depends on the hub. Baking the weights into the worker image is the fix and needs an image change.
 - **Egress** is unrestricted; the destinations differ per cluster.
 - **Caption workers have no liveness probe.** The solo pool cannot answer while it captions, so a probe would kill busy workers.
-- **`readOnlyRootFilesystem`** is not set. The API image is known to start with `--read-only --tmpfs /tmp` (release
-  checklist); the workers and UI have not been tried that way.
+- **`readOnlyRootFilesystem`** is set on the API only (with `/tmp` and the model cache as writable volumes); the
+  workers and UI have not been tried that way.
 
 ## Autoscaling and the local kind cluster
 
@@ -149,19 +149,11 @@ The manifests, probes and ScaledObjects under test are otherwise the real ones. 
 The autoscaling component also switches RabbitMQ to the `rabbitmq:4-management` image and exposes port 15672, because
 KEDA reads queue depth from the management API.
 
-## Release checklist
+## What CI checks
 
-Run through this before tagging a release; each step lists what "good" looks like.
-
-1. `just lint typecheck test` — all green, coverage ≥ 90 %.
-2. `just test-system` — system + smoke tests pass against the containerised stack.
-3. **Batch + UI**: `just test-ui` (Selenium), then `just describe --camera front --max-scenes 2` and `just ui` — the page lists every scene with each model's description,
-   scores, working filters, no browser-console errors and no horizontal scrolling at phone width.
-4. **Distributed stack**: `just compose up --build`, then `curl localhost:8080/ready` → 200;
-   `POST /jobs` → 202; `GET /jobs/{id}` reaches `completed`; `GET /jobs/{id}/descriptions` has one entry per scene.
-   `just compose logs ingest-worker` shows the task being received (worker failures must be visible there).
-5. **Containers**: `docker run --rm <image> id` reports uid 10001; the API also starts with `--read-only --tmpfs /tmp
-   --cap-drop ALL`.
-6. **Kubernetes**: `kubectl kustomize deploy/k8s | kubectl apply --dry-run=server -f -` accepts every object (CI also
-   validates the rendered YAML against the Kubernetes schemas); on a real cluster, `kubectl rollout status` succeeds for
-   `api`, both workers and `ui`. The release PR has bumped the image tags in `deploy/production/kustomization.yaml` to the new version.
+Every step a release used to be checked by hand for runs in CI: lint, types and the unit and integration tests (on Linux
+and Windows), the report UI in headless Chrome, the built wheel installed into an empty environment, the Compose stack
+end to end (`just test-system`), the Kubernetes base on a kind cluster with autoscaling, the schemas of every manifest, a strict build of these docs,
+and that the pods start as non-root with every capability dropped (the API with a read-only root filesystem). What CI cannot do (the real dataset, the quality of
+the captions, how the report looks, a production cluster, real-data performance) is in the repository's
+`manual-testing/` folder, which is not part of these docs.

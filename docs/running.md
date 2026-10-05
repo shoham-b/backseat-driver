@@ -66,7 +66,7 @@ just test-system                # builds, starts the stack, runs system + smoke 
 
 ## Kubernetes
 
-`deploy/k8s` is a kustomize base with the same topology as compose, plus the report UI. [Deployment](deployment.md) lists the objects, the dataset and credentials you must supply, and the release checklist.
+`deploy/k8s` is a kustomize base with the same topology as compose, plus the report UI. [Deployment](deployment.md) lists the objects, the dataset and credentials you must supply, and what CI checks.
 
 ```bash
 just k8s-render     # inspect

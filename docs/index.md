@@ -24,4 +24,4 @@ See [From pipeline to cluster](ladder.md) for how the one pipeline grows into a 
 
 See [Distributed mode](distributed.md) for the optional API + queue + worker deployment built around the same pipeline.
 
-See [Deployment](deployment.md) for the Docker images, Compose profiles, Kubernetes manifests and the release checklist.
+See [Deployment](deployment.md) for the Docker images, Compose profiles, Kubernetes manifests and what CI checks.

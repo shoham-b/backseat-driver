@@ -34,12 +34,18 @@ spec:
             failureThreshold: 40
           volumeMounts:
             - {name: hf-cache, mountPath: /home/app/.cache/huggingface}
-          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+            # Uploads to /describe larger than the multipart memory limit spool to a temporary file.
+            - {name: tmp, mountPath: /tmp}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
           resources:
             requests: {cpu: 250m, memory: 1Gi}
             limits: {memory: 3Gi}
       volumes:
         - {name: hf-cache, emptyDir: {}}
+        - {name: tmp, emptyDir: {}}
 ---
 apiVersion: v1
 kind: Service
