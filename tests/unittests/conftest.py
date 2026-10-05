@@ -23,4 +23,4 @@ def sqlite_storage() -> Iterator[JobStorage]:
 
 @pytest.fixture(autouse=True)
 def _hermetic_settings(no_ambient_settings: None) -> None:
-    """Every test in this layer runs without the developer's `BACKSEAT_DRIVER_*` variables."""
+    """Every test in this layer runs without the developer's settings."""
