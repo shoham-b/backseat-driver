@@ -18,8 +18,14 @@ from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
+from sqlalchemy.sql.selectable import ScalarSelect
 
 from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
+
+
+def _completed_scenes() -> ScalarSelect[int]:
+    """Per job row, how many descriptions have been recorded."""
+    return select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
 
 
 def description_insert(job_id: UUID, values: dict) -> Insert:
@@ -122,14 +128,14 @@ class JobStorage:
 
     def fetch_job(self, job_id: UUID) -> tuple[JobRow, int] | None:
         """The job row and its completed-scene count, or None when no such job exists."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        completed = _completed_scenes()
         with self._session() as session:
             row = session.execute(select(JobRow, completed).where(JobRow.job_id == job_id)).one_or_none()
         return None if row is None else (row[0], row[1])
 
     def fetch_job_by_key(self, idempotency_key: str) -> tuple[JobRow, int] | None:
         """Like `fetch_job`, for the job created under `idempotency_key`."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        completed = _completed_scenes()
         statement = select(JobRow, completed).where(JobRow.idempotency_key == idempotency_key)
         with self._session() as session:
             row = session.execute(statement).one_or_none()
@@ -137,7 +143,7 @@ class JobStorage:
 
     def fetch_jobs(self) -> list[tuple[JobRow, int]]:
         """Every job row with its completed-scene count, newest first."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        completed = _completed_scenes()
         with self._session() as session:
             rows = session.execute(select(JobRow, completed).order_by(JobRow.created_at.desc())).all()
         return [(row[0], row[1]) for row in rows]
