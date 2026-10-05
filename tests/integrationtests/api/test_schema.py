@@ -4,11 +4,15 @@ and validates that every response matches the declared schema."""
 import schemathesis
 
 from backseat_driver.api.app import create_app
-from backseat_driver.api.dependencies import get_captioner
-from tests.fakes import FakeCaptioner, make_settings
+from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_job_store
+from tests.fakes import FakeCaptioner, FakeJobQueue, FakeJobStore, make_settings
 
 app = create_app(make_settings())
 app.dependency_overrides[get_captioner] = lambda: FakeCaptioner("a fake scene description")
+# Fuzzed POST /jobs must not start real work: the monolith would run an ingest thread over whatever dataset is on disk.
+_job_queue, _job_store = FakeJobQueue(), FakeJobStore()
+app.dependency_overrides[get_job_queue] = lambda: _job_queue
+app.dependency_overrides[get_job_store] = lambda: _job_store
 # /metrics is added by prometheus_fastapi_instrumentator and returns text/plain,
 # which is outside the OpenAPI spec — exclude it from schema conformance checks.
 schema = schemathesis.openapi.from_asgi("/openapi.json", app).exclude(path_regex=r"^/metrics")
