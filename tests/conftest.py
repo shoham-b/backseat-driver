@@ -1,5 +1,6 @@
 import os
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
@@ -22,12 +23,16 @@ def api_url(request: pytest.FixtureRequest) -> str:
 
 
 @pytest.fixture
-def no_ambient_settings() -> Iterator[None]:
-    """Hides the `BACKSEAT_DRIVER_*` variables, so `Settings` sees only what a test hands it.
+def no_ambient_settings(tmp_path_factory: pytest.TempPathFactory) -> Iterator[None]:
+    """Hides every source of `Settings` a developer has, so a test sees only what it hands in.
 
-    `just` exports `.env` into every recipe's environment, and a variable beats a default, so a developer's backend
-    or model choice would otherwise change what the tests assert.
+    That is the `BACKSEAT_DRIVER_*` variables (`just` exports `.env` into every recipe's environment, and a variable
+    beats a default) and the `.env` file itself, which the CLI reads from the working directory: the test runs from an
+    empty one instead.
     """
     hidden = {name: os.environ.pop(name) for name in list(os.environ) if name.startswith("BACKSEAT_DRIVER_")}
+    previous_directory = Path.cwd()
+    os.chdir(tmp_path_factory.mktemp("cwd"))
     yield
+    os.chdir(previous_directory)
     os.environ.update(hidden)
