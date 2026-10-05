@@ -7,6 +7,7 @@ Never connects until first used.
 
 import threading
 from collections.abc import Callable
+from datetime import datetime
 from uuid import UUID
 
 from loguru import logger
@@ -19,6 +20,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
 
+from backseat_driver.write.job_store.creation_clock import CreationClock
 from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
 
 
@@ -41,8 +43,14 @@ def _enforce_foreign_keys(dbapi_connection: DBAPIConnection, _record: Connection
 class JobStorage:
     """`database_url` names the psycopg 3 driver for Postgres (`postgresql+psycopg://...`) or a SQLite file (`sqlite:///path`)."""
 
-    def __init__(self, database_url: str, engine_factory: Callable[..., Engine] = create_engine) -> None:
+    def __init__(
+        self,
+        database_url: str,
+        engine_factory: Callable[..., Engine] = create_engine,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
         self._database_url = database_url
+        self._clock = clock or CreationClock()
         self._engine_factory = engine_factory
         self._engine: Engine | None = None
         self._sessions: sessionmaker[Session] | None = None
@@ -76,6 +84,7 @@ class JobStorage:
                     max_scenes=max_scenes,
                     transaction_id=transaction_id,
                     idempotency_key=idempotency_key,
+                    created_at=self._clock(),
                 )
             )
 
