@@ -12,7 +12,7 @@ from tests.integrationtests.conftest import ClientFactory
 
 
 class _UnhealthyCaptioner(FakeCaptioner):
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         return False
 
 
@@ -84,27 +84,29 @@ def test_readiness_unhealthy_queue_or_store(
 
 
 class _LoopProbingCaptioner(FakeCaptioner):
-    """Records whether its health check ran on the event loop's thread (where a running loop is visible)."""
+    """Records which event loop its health check ran on."""
 
     def __init__(self) -> None:
         super().__init__()
-        self.ran_on_the_event_loop: bool | None = None
+        self.loop_id: int | None = None
 
-    def healthcheck(self) -> bool:
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            self.ran_on_the_event_loop = False
-        else:
-            self.ran_on_the_event_loop = True
+    async def healthcheck(self) -> bool:
+        self.loop_id = id(asyncio.get_running_loop())
         return True
 
 
-def test_readiness_probes_the_captioner_off_the_event_loop(client_with: ClientFactory) -> None:
+def test_readiness_probes_the_captioner_off_the_servers_event_loop(client_with: ClientFactory) -> None:
     captioner = _LoopProbingCaptioner()
-    client = client_with({get_captioner: lambda: captioner})
+    server_loops: list[int] = []
+
+    async def store_on_the_servers_loop() -> FakeJobStore:
+        server_loops.append(id(asyncio.get_running_loop()))
+        return FakeJobStore()
+
+    client = client_with({get_captioner: lambda: captioner, get_job_store: store_on_the_servers_loop})
 
     response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.OK
-    assert captioner.ran_on_the_event_loop is False
+    assert captioner.loop_id is not None
+    assert captioner.loop_id != server_loops[0]

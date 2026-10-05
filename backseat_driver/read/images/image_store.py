@@ -6,7 +6,7 @@ local copy of the object behind it.
 """
 
 from abc import ABC, abstractmethod
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 
 
@@ -16,5 +16,5 @@ class ImageStore(ABC):
         """The URI a caption worker fetches the image at `key` by."""
 
     @abstractmethod
-    def local_copy(self, uri: str) -> AbstractContextManager[Path]:
-        """A local file holding the image at `uri`, valid inside the `with` block and cleaned up after it."""
+    def local_copy(self, uri: str) -> AbstractAsyncContextManager[Path]:
+        """A local file holding the image at `uri`, valid inside the `async with` block and cleaned up after it."""

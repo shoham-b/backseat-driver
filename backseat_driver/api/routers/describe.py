@@ -5,6 +5,7 @@ pipeline as a small inference service, instead of (or alongside) running the
 CLI as a scheduled batch job.
 """
 
+import asyncio
 import re
 from pathlib import Path, PurePosixPath
 from typing import Annotated
@@ -42,6 +43,6 @@ def describe(
     tmp_path.write_bytes(contents)
     # A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is the service's own
     # and stays a 500.
-    description = captioner.caption(str(tmp_path))
+    description = asyncio.run(captioner.caption(str(tmp_path)))
 
     return DescribeResponse(description=description, model_name=captioner.model_name)

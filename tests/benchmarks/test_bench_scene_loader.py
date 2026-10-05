@@ -5,6 +5,7 @@ mirrors the real nuScenes v1.0-mini shape (about 40 keyframes per scene) without
 dataset on disk.
 """
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -49,7 +50,7 @@ def test_load_keyframes(benchmark: BenchmarkFixture, scenes: int) -> None:
         dataroot="data/sets/nuscenes", version="v1.0-mini", open_dataset=lambda version, dataroot: dataset
     )
 
-    keyframes = benchmark(loader.load_keyframes)
+    keyframes = benchmark(lambda: asyncio.run(loader.load_keyframes()))
 
     assert len(keyframes) == scenes
     assert keyframes[0].image_path.endswith(f"sd-sample-0-{SAMPLES_PER_SCENE // 2}.jpg")

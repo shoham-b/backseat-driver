@@ -7,6 +7,7 @@ so the regular test run is unaffected. The model is faked: we measure our own ov
 is built in a fixture instead.
 """
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -33,25 +34,28 @@ def pipeline(keyframes: list[SceneKeyframe]) -> ScenePipeline:
 
 @pytest.fixture
 def descriptions(pipeline: ScenePipeline) -> list[SceneDescription]:
-    return pipeline.run()
+    return asyncio.run(pipeline.run())
 
 
 @pytest.mark.benchmark
 def test_pipeline_run(pipeline: ScenePipeline) -> None:
-    pipeline.run()
+    asyncio.run(pipeline.run())
 
 
 @pytest.mark.benchmark
 def test_pipeline_run_capped(pipeline: ScenePipeline) -> None:
-    pipeline.run(max_scenes=SCENE_COUNT // 10)
+    asyncio.run(pipeline.run(max_scenes=SCENE_COUNT // 10))
 
 
 @pytest.mark.benchmark
 def test_describe_keyframe(keyframes: list[SceneKeyframe]) -> None:
     captioner = FakeCaptioner()
 
-    for keyframe in keyframes:
-        describe_keyframe(keyframe, captioner, keyframe.image_path)
+    async def describe_all() -> None:
+        for keyframe in keyframes:
+            await describe_keyframe(keyframe, captioner, keyframe.image_path)
+
+    asyncio.run(describe_all())
 
 
 @pytest.mark.benchmark

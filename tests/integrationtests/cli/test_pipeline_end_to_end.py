@@ -3,6 +3,7 @@ the model is a stub Ollama server on localhost. Nothing is faked or patched, so 
 is routed to the right collaborators; the command functions themselves hold no logic.
 """
 
+import asyncio
 import json
 import shutil
 from collections.abc import Callable
@@ -186,8 +187,8 @@ def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_p
 class _ByteCountingCaptioner(FakeCaptioner):
     """Reads the image it is given, so it fails unless a real local file is there."""
 
-    def caption(self, image_path: str) -> str:
-        return f"{len(Path(image_path).read_bytes())} bytes"
+    async def caption(self, image_path: str) -> str:
+        return f"{len(await asyncio.to_thread(Path(image_path).read_bytes))} bytes"
 
 
 def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path: Path) -> None:
@@ -216,7 +217,7 @@ def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path:
     assert [d.reference_description for d in descriptions] == SCENE_LABELS
 
 
-def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: Path) -> None:
+async def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     settings = make_settings(nuscenes_dataroot=str(dataroot), nuscenes_version=VERSION)
     images = build_image_store(settings)
@@ -229,7 +230,7 @@ def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: 
     descriptions = store.list_descriptions(job_id)
 
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
-    with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
+    async with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
         assert path.read_bytes()
 
 

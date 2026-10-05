@@ -36,19 +36,19 @@ def image_path(tmp_path: Path) -> str:
     return str(path)
 
 
-def test_generate_returns_stripped_generated_text(image_path: str) -> None:
+async def test_generate_returns_stripped_generated_text(image_path: str) -> None:
     backend = HuggingFaceBackend(_FakePipelineFactory())
 
-    description = backend.generate(image_path, CaptionModel("fake/model"))
+    description = await backend.generate(image_path, CaptionModel("fake/model"))
 
     assert description == "a caption from fake/model"
 
 
-def test_generate_many_runs_all_images_in_one_batch(image_path: str) -> None:
+async def test_generate_many_runs_all_images_in_one_batch(image_path: str) -> None:
     factory = _FakePipelineFactory()
     backend = HuggingFaceBackend(factory)
 
-    descriptions = backend.generate_many([image_path, image_path, image_path], CaptionModel("fake/model"))
+    descriptions = await backend.generate_many([image_path, image_path, image_path], CaptionModel("fake/model"))
 
     assert descriptions == ["a caption from fake/model"] * 3
     [(images, batch_size)] = factory.calls
@@ -56,54 +56,54 @@ def test_generate_many_runs_all_images_in_one_batch(image_path: str) -> None:
     assert batch_size == 3
 
 
-def test_generate_many_of_nothing_loads_nothing() -> None:
+async def test_generate_many_of_nothing_loads_nothing() -> None:
     factory = _FakePipelineFactory()
     backend = HuggingFaceBackend(factory)
 
-    descriptions = backend.generate_many([], CaptionModel("fake/model"))
+    descriptions = await backend.generate_many([], CaptionModel("fake/model"))
 
     assert descriptions == []
     assert factory.models == []
 
 
-def test_generate_many_rejects_the_whole_batch_for_one_unreadable_image(image_path: str, tmp_path: Path) -> None:
+async def test_generate_many_rejects_the_whole_batch_for_one_unreadable_image(image_path: str, tmp_path: Path) -> None:
     not_an_image = tmp_path / "broken.png"
     not_an_image.write_bytes(b"not an image")
     factory = _FakePipelineFactory()
     backend = HuggingFaceBackend(factory)
 
     with pytest.raises(UnprocessableError, match="could not read image"):
-        backend.generate_many([image_path, str(not_an_image)], CaptionModel("fake/model"))
+        await backend.generate_many([image_path, str(not_an_image)], CaptionModel("fake/model"))
 
     assert factory.calls == []
 
 
-def test_generate_loads_pipeline_once_per_model(image_path: str) -> None:
+async def test_generate_loads_pipeline_once_per_model(image_path: str) -> None:
     factory = _FakePipelineFactory()
     backend = HuggingFaceBackend(factory)
     model = CaptionModel("fake/model")
 
-    backend.generate(image_path, model)
-    backend.generate(image_path, model)
+    await backend.generate(image_path, model)
+    await backend.generate(image_path, model)
 
     assert factory.models == ["fake/model"]
 
 
-def test_one_backend_serves_several_models(image_path: str) -> None:
+async def test_one_backend_serves_several_models(image_path: str) -> None:
     factory = _FakePipelineFactory()
     backend = HuggingFaceBackend(factory)
 
-    first = backend.generate(image_path, CaptionModel("model/a"))
-    second = backend.generate(image_path, CaptionModel("model/b"))
+    first = await backend.generate(image_path, CaptionModel("model/a"))
+    second = await backend.generate(image_path, CaptionModel("model/b"))
 
     assert (first, second) == ("a caption from model/a", "a caption from model/b")
     assert factory.models == ["model/a", "model/b"]
 
 
-def test_a_file_that_is_not_an_image_is_unprocessable(tmp_path: Path) -> None:
+async def test_a_file_that_is_not_an_image_is_unprocessable(tmp_path: Path) -> None:
     not_an_image = tmp_path / "scene.png"
     not_an_image.write_bytes(b"not an image")
     backend = HuggingFaceBackend(_FakePipelineFactory())
 
     with pytest.raises(UnprocessableError, match="could not read image"):
-        backend.generate(str(not_an_image), CaptionModel(name="m"))
+        await backend.generate(str(not_an_image), CaptionModel(name="m"))

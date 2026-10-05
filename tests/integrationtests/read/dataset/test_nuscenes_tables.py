@@ -40,12 +40,12 @@ def test_a_missing_table_file_fails_when_opening_or_reading(tmp_path: Path) -> N
         NuScenesTables(VERSION, str(tmp_path))
 
 
-def test_keyframes_are_found_without_the_maps_or_any_image(tmp_path: Path) -> None:
+async def test_keyframes_are_found_without_the_maps_or_any_image(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path)
     shutil.rmtree(dataroot / "maps")
     shutil.rmtree(dataroot / "samples")
     loader = NuScenesSceneLoader(dataroot=str(dataroot), version=VERSION, open_dataset=open_nuscenes)
 
-    keyframes = loader.load_keyframes()
+    keyframes = await loader.load_keyframes()
 
     assert [k.image_path for k in keyframes] == [middle_image(0), middle_image(1)]

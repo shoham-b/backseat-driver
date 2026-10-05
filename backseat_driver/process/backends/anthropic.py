@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Any
 
 from backseat_driver.errors import UnprocessableError
-from backseat_driver.process.async_http_client import AsyncHttpClient
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
 
 _API_VERSION = "2023-06-01"
+_HEALTHCHECK_TIMEOUT = 5.0
 # A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).
 _MEDIA_TYPES_BY_SUFFIX = {
     ".jpg": "image/jpeg",
@@ -39,7 +39,6 @@ class AnthropicBackend(CaptionBackend):
     def __init__(
         self,
         http: HttpClient,
-        async_http: AsyncHttpClient,
         api_key: str,
         base_url: str = "https://api.anthropic.com",
         max_tokens: int = 512,
@@ -48,40 +47,28 @@ class AnthropicBackend(CaptionBackend):
         if not api_key:
             raise ValueError("AnthropicBackend requires a non-empty api_key")
         self._http = http
-        self._async_http = async_http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._max_tokens = max_tokens
         self._timeout = timeout
 
-    def load(self, model: CaptionModel) -> None:
+    async def load(self, model: CaptionModel) -> None:
         # Hosted model: nothing to load locally.
         return
 
-    def generate(self, image_path: str, model: CaptionModel) -> str:
-        body = self._http.post_json(
-            self._messages_url, self._payload(image_path, model), self._headers(), self._timeout, "Anthropic"
-        )
-        return _caption_of(body)
+    async def generate(self, image_path: str, model: CaptionModel) -> str:
+        return _caption_of(await self._post(image_path, model))
 
-    def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
-        """One request per image, all in flight at once: the wait is on the API, not on this process.
-
-        Runs its own event loop, so it cannot be called from inside a running one.
-        """
-        if not image_paths:
-            return []
-        return asyncio.run(self._generate_all(image_paths, model))
-
-    async def _generate_all(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+    async def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        """One request per image, all in flight at once: the wait is on the API, not on this process."""
         bodies = await asyncio.gather(*(self._post(image_path, model) for image_path in image_paths))
         return [_caption_of(body) for body in bodies]
 
     async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
-        payload = self._payload(image_path, model)
+        payload = await asyncio.to_thread(self._payload, image_path, model)
         try:
             async with asyncio.timeout(self._timeout):
-                return await self._async_http.post_json(self._messages_url, payload, self._headers(), "Anthropic")
+                return await self._http.post_json_async(self._messages_url, payload, self._headers(), "Anthropic")
         except TimeoutError as exc:
             raise RuntimeError(f"Anthropic did not answer within {self._timeout:g} s") from exc
 
@@ -109,9 +96,13 @@ class AnthropicBackend(CaptionBackend):
             ],
         }
 
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         # Listing models is free and verifies both reachability and that the key is accepted.
-        return self._http.is_reachable(f"{self._base_url}/v1/models?limit=1", self._headers(), 5)
+        try:
+            async with asyncio.timeout(_HEALTHCHECK_TIMEOUT):
+                return await self._http.is_reachable_async(f"{self._base_url}/v1/models?limit=1", self._headers())
+        except TimeoutError:
+            return False
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": self._api_key, "anthropic-version": _API_VERSION}

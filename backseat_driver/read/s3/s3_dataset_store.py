@@ -4,8 +4,9 @@ Credentials come from boto3's standard chain (`AWS_ACCESS_KEY_ID` and friends), 
 imported lazily and the client is built on first use, so constructing the store never connects.
 """
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+import asyncio
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -56,14 +57,15 @@ class S3DatasetStore(DatasetStore):
         if not found:
             raise FileNotFoundError(f"No objects under s3://{self._bucket}/{prefix}: has the dataset been uploaded?")
 
-    @contextmanager
-    def local_copy(self, uri: str) -> Iterator[Path]:
+    @asynccontextmanager
+    async def local_copy(self, uri: str) -> AsyncIterator[Path]:
         bucket, key = self._parse(uri)
         # The object's own file name is kept: the Anthropic backend picks the media type from the suffix.
         with TemporaryDirectory(prefix="backseat-driver-") as directory:
             target = Path(directory) / PurePosixPath(key).name
             try:
-                self._get_client().download_file(bucket, key, str(target))
+                # boto3 blocks, so the download runs on a worker thread.
+                await asyncio.to_thread(self._get_client().download_file, bucket, key, str(target))
             except Exception as exc:
                 if getattr(exc, "response", {}).get("Error", {}).get("Code") in _MISSING:
                     raise FileNotFoundError(f"No object at {uri}") from exc

@@ -1,7 +1,7 @@
 """The whole program in one place: read the scenes, process each image, write the descriptions.
 
-    keyframes = loader.load_keyframes()                 # read    (backseat_driver.read)
-    descriptions = [describe_keyframe(...) for ...]     # process (backseat_driver.process)
+    keyframes = await loader.load_keyframes()           # read    (backseat_driver.read)
+    descriptions = [await describe_keyframe(...) ...]   # process (backseat_driver.process)
     write_json(descriptions, path)                      # write   (backseat_driver.write), done by the caller
 
 `ScenePipeline` runs the first two in one process; the `describe` command adds the third. The distributed layer
@@ -12,9 +12,9 @@ The loader and captioner are abstract ports, so the pipeline is unit-testable wi
 nuscenes-devkit, transformers, or torch directly.
 """
 
+import asyncio
 from collections.abc import Callable, Sequence
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
+from contextlib import AsyncExitStack
 
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.process.captioner import Captioner
@@ -25,22 +25,22 @@ from backseat_driver.read.images.image_store import ImageStore
 ProgressCallback = Callable[[int, int, SceneKeyframe], None]
 
 
-def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, local_path: str) -> SceneDescription:
+async def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, local_path: str) -> SceneDescription:
     """Caption the file at `local_path` as the keyframe's scene. Shared by the batch pipeline and the caption worker.
 
     The file to read is separate from `keyframe.image_path`, which is what the description records: the image is
     captioned from a local copy, but the result still names it by its dataset key.
     """
-    return _describe(keyframe, captioner.caption(local_path), captioner.model_name)
+    return _describe(keyframe, await captioner.caption(local_path), captioner.model_name)
 
 
-def describe_keyframes(
+async def describe_keyframes(
     keyframes: Sequence[SceneKeyframe], captioner: Captioner, local_paths: Sequence[str]
 ) -> list[SceneDescription]:
     """`describe_keyframe` for several keyframes at once, so the captioner can run them together."""
     if len(keyframes) != len(local_paths):
         raise ValueError(f"got {len(local_paths)} local paths for {len(keyframes)} keyframes")
-    captions = captioner.caption_many(local_paths)
+    captions = await captioner.caption_many(local_paths)
     return [
         _describe(keyframe, caption, captioner.model_name)
         for keyframe, caption in zip(keyframes, captions, strict=True)
@@ -82,25 +82,25 @@ class ScenePipeline:
         self._images = images
         self._batch_size = batch_size
 
-    def run(self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None) -> list[SceneDescription]:
+    async def run(
+        self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None
+    ) -> list[SceneDescription]:
         """Progress is reported once per batch, with the batch's first keyframe, before the batch is captioned."""
         if max_scenes is not None and max_scenes < 1:
             raise ValueError(f"max_scenes must be at least 1, got {max_scenes}")
         # Loading the model and reading the scenes both take seconds and need nothing from each other.
-        with ThreadPoolExecutor(max_workers=1) as pool:
-            loading = pool.submit(self._captioner.load)
-            keyframes = first_scenes(self._loader.load_keyframes(), max_scenes)
-            loading.result()
+        _, all_keyframes = await asyncio.gather(self._captioner.load(), self._loader.load_keyframes())
+        keyframes = first_scenes(all_keyframes, max_scenes)
 
         descriptions: list[SceneDescription] = []
         for start in range(0, len(keyframes), self._batch_size):
             batch = keyframes[start : start + self._batch_size]
             if on_progress:
                 on_progress(start + 1, len(keyframes), batch[0])
-            with ExitStack() as copies:
+            async with AsyncExitStack() as copies:
                 local_paths = [
-                    str(copies.enter_context(self._images.local_copy(self._images.uri_for(keyframe.image_path))))
-                    for keyframe in batch
+                    str(await copies.enter_async_context(self._images.local_copy(self._images.uri_for(k.image_path))))
+                    for k in batch
                 ]
-                descriptions.extend(describe_keyframes(batch, self._captioner, local_paths))
+                descriptions.extend(await describe_keyframes(batch, self._captioner, local_paths))
         return descriptions

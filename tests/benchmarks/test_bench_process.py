@@ -1,9 +1,11 @@
 """Benchmarks for what the backends do around the model: decoding images and building requests.
 
 The model itself is faked (a pipeline factory that returns canned text, an HTTP client that records posts), so these
-track the per-image work this repository owns, which batching multiplies.
+track the per-image work this repository owns, which batching multiplies. `generate_many` is async, so each call
+includes starting and closing an event loop.
 """
 
+import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -17,7 +19,7 @@ from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
 from backseat_driver.read.dataset.nuscenes_tables import NuScenesTables
-from tests.fakes import FakeAsyncHttpClient, FakeHttpClient
+from tests.fakes import FakeHttpClient
 
 BATCH_SIZES = [1, 8, 32]
 # nuScenes front-camera frames are 1600x900 JPEGs.
@@ -48,9 +50,9 @@ def _canned_pipeline(model_name: str) -> Callable[..., Any]:
 def test_huggingface_generate_many(benchmark: BenchmarkFixture, frames: list[str], batch_size: int) -> None:
     backend = HuggingFaceBackend(_canned_pipeline)
     model = CaptionModel("bench/model")
-    backend.load(model)
+    asyncio.run(backend.load(model))
 
-    descriptions = benchmark(backend.generate_many, frames[:batch_size], model)
+    descriptions = benchmark(lambda: asyncio.run(backend.generate_many(frames[:batch_size], model)))
 
     assert descriptions == ["a street"] * batch_size
 
@@ -58,10 +60,10 @@ def test_huggingface_generate_many(benchmark: BenchmarkFixture, frames: list[str
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_anthropic_generate_many(benchmark: BenchmarkFixture, frames: list[str], batch_size: int) -> None:
     http = FakeHttpClient(response={"content": [{"type": "text", "text": "a street"}]})
-    backend = AnthropicBackend(http, FakeAsyncHttpClient(http), api_key="bench")
+    backend = AnthropicBackend(http, api_key="bench")
     model = CaptionModel("claude-bench", prompt="describe")
 
-    descriptions = benchmark(backend.generate_many, frames[:batch_size], model)
+    descriptions = benchmark(lambda: asyncio.run(backend.generate_many(frames[:batch_size], model)))
 
     assert descriptions[0] == "a street"
 

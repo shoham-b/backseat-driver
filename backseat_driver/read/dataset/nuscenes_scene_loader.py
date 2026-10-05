@@ -14,6 +14,7 @@ Usage::
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -47,8 +48,14 @@ class NuScenesSceneLoader(SceneLoader):
         self._camera_channels = tuple(camera_channels)
         self._open_dataset = open_dataset
 
-    def load_keyframes(self) -> list[SceneKeyframe]:
-        """Return one SceneKeyframe per scene and camera, in dataset order (a scene's cameras stay together)."""
+    async def load_keyframes(self) -> list[SceneKeyframe]:
+        """Return one SceneKeyframe per scene and camera, in dataset order (a scene's cameras stay together).
+
+        Reading and walking the tables is blocking work, so it runs on a worker thread.
+        """
+        return await asyncio.to_thread(self._load_keyframes)
+
+    def _load_keyframes(self) -> list[SceneKeyframe]:
         nusc = self._open_dataset(self._version, self._dataroot)
         keyframes: list[SceneKeyframe] = []
         for scene in nusc.scene:
