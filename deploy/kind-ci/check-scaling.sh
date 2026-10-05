@@ -50,6 +50,7 @@ JOB_ID=$(curl -fsS -X POST "${API_URL}/jobs" -H 'content-type: application/json'
 echo "job ${JOB_ID}: queueing ${SCENES} captions"
 
 kubectl exec -i deploy/caption-worker -- env JOB_ID="$JOB_ID" SCENES="$SCENES" python - <<'PY'
+import asyncio
 import os
 from pathlib import Path
 from uuid import UUID
@@ -59,22 +60,30 @@ from backseat_driver.read.s3.factory import build_dataset_store
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.models import CaptionTask, SceneKeyframe
 
-settings = Settings()
-store = build_dataset_store(settings)
-key = "samples/CAM_FRONT/ci.jpg"
-store.upload(key, Path("/etc/hostname"))  # any readable file: the stub model never looks at the image
-queue = CeleryJobQueue(settings.rabbitmq_url)
-for i in range(int(os.environ["SCENES"])):
-    keyframe = SceneKeyframe(
-        scene_token=f"ci-{i}",
-        scene_name=f"ci-scene-{i}",
-        camera_channel="CAM_FRONT",
-        image_path=key,
-    )
-    task = CaptionTask(
-        job_id=UUID(os.environ["JOB_ID"]), transaction_id="ci-scaling", keyframe=keyframe, image_uri=store.uri_for(key)
-    )
-    queue.enqueue_caption(task)
+
+async def main() -> None:
+    settings = Settings()
+    store = build_dataset_store(settings)
+    key = "samples/CAM_FRONT/ci.jpg"
+    await store.upload(key, Path("/etc/hostname"))  # any readable file: the stub model never looks at the image
+    queue = CeleryJobQueue(settings.rabbitmq_url)
+    for i in range(int(os.environ["SCENES"])):
+        keyframe = SceneKeyframe(
+            scene_token=f"ci-{i}",
+            scene_name=f"ci-scene-{i}",
+            camera_channel="CAM_FRONT",
+            image_path=key,
+        )
+        task = CaptionTask(
+            job_id=UUID(os.environ["JOB_ID"]),
+            transaction_id="ci-scaling",
+            keyframe=keyframe,
+            image_uri=store.uri_for(key),
+        )
+        await queue.enqueue_caption(task)
+
+
+asyncio.run(main())
 PY
 
 wait_for "caption-worker scaled up to at least 3 replicas" 300 scaled_up
