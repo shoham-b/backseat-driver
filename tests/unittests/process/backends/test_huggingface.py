@@ -1,3 +1,6 @@
+import asyncio
+import threading
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -54,6 +57,47 @@ async def test_generate_many_runs_all_images_in_one_batch(image_path: str) -> No
     [(images, batch_size)] = factory.calls
     assert len(images) == 3
     assert batch_size == 3
+
+
+class _OverlapDetectingFactory(_FakePipelineFactory):
+    """Counts how many threads are inside the pipeline at once, and how many times the model was built."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._lock = threading.Lock()
+        self.inside = 0
+        self.peak = 0
+
+    def __call__(self, model_name: str) -> Callable[..., Any]:
+        time.sleep(0.02)  # a slow load, so a second thread arrives while the first is still building
+        run = super().__call__(model_name)
+
+        def guarded(images: Image.Image | list[Image.Image], batch_size: int | None = None) -> Any:
+            with self._lock:
+                self.inside += 1
+                self.peak = max(self.peak, self.inside)
+            time.sleep(0.02)
+            with self._lock:
+                self.inside -= 1
+            return run(images, batch_size)
+
+        return guarded
+
+
+async def test_concurrent_callers_take_turns_in_the_model_and_build_it_once(image_path: str) -> None:
+    factory = _OverlapDetectingFactory()
+    backend = HuggingFaceBackend(factory)
+    model = CaptionModel("fake/model")
+
+    await asyncio.gather(
+        backend.generate(image_path, model),
+        backend.generate(image_path, model),
+        backend.generate_many([image_path, image_path], model),
+        backend.generate(image_path, model),
+    )
+
+    assert factory.peak == 1
+    assert factory.models == ["fake/model"]
 
 
 async def test_generate_many_of_nothing_loads_nothing() -> None:
