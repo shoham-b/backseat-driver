@@ -82,8 +82,7 @@ def list_jobs(
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[Job]:
     """Jobs, newest first, optionally only those in one `state`."""
-    jobs = store.list_jobs()
-    return [job for job in jobs if state is None or job.state is state][:limit]
+    return store.list_jobs(state, limit)
 
 
 @router.get("/jobs/{job_id}", responses=NOT_FOUND_RESPONSE)
