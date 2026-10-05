@@ -6,11 +6,12 @@ from loguru import logger
 
 from backseat_driver.api.errors import APIError
 from backseat_driver.error_format import error_body
-from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
+from backseat_driver.errors import BackseatDriverError, IdempotencyKeyInUseError, NotFoundError, UnprocessableError
 
 # Maps each concrete BackseatDriverError subclass to its HTTP status code.
 # Add entries here as new errors are introduced in errors.py.
 _ERROR_STATUS: dict[type[BackseatDriverError], HTTPStatus] = {
+    IdempotencyKeyInUseError: HTTPStatus.CONFLICT,
     NotFoundError: HTTPStatus.NOT_FOUND,
     UnprocessableError: HTTPStatus.UNPROCESSABLE_ENTITY,
 }

@@ -36,7 +36,7 @@ Both read `data/sets/nuscenes`, describe every scene's front-camera keyframe, an
 | `--backend` | `huggingface` | `huggingface`, `ollama` or `anthropic` |
 | `--model` | **required** | Model for the backend, e.g. `Salesforce/blip-image-captioning-base` (HuggingFace), `llava` (Ollama) or `claude-haiku-4-5-20251001` (Claude); or set the matching `BACKSEAT_DRIVER_*_MODEL_NAME` |
 | `--output` | `output/<backend>__<model>.json` | Where to write the JSON results (inferred from the backend and model) |
-| `--max-scenes` | (all) | Only process the first N scenes — handy for a quick smoke run |
+| `--max-scenes` | (all) | Only process the first N scenes, at least 1 — handy for a quick smoke run |
 
 ## 3. (Optional) Run the HTTP API
 

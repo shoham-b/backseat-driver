@@ -4,7 +4,9 @@ Postgres when distributed; the monolith runs the same code over a SQLite file so
 
 from uuid import UUID
 
-from backseat_driver.errors import NotFoundError
+from sqlalchemy.exc import IntegrityError
+
+from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.orm import JobRow
@@ -21,7 +23,14 @@ class SqlJobStore(JobStore):
     def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
     ) -> None:
-        self._storage.insert_job(job_id, max_scenes, transaction_id, idempotency_key)
+        try:
+            self._storage.insert_job(job_id, max_scenes, transaction_id, idempotency_key)
+        except IntegrityError as exc:
+            # The unique constraint is what makes two concurrent requests with one key safe, but an IntegrityError
+            # says nothing about which constraint it was, so confirm the key is taken before blaming it.
+            if idempotency_key is not None and self._storage.fetch_job_by_key(idempotency_key) is not None:
+                raise IdempotencyKeyInUseError(idempotency_key) from exc
+            raise
 
     def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
         found = self._storage.fetch_job_by_key(idempotency_key)
@@ -65,7 +74,13 @@ class SqlJobStore(JobStore):
         ]
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        self._storage.insert_description(job_id, description.model_dump())
+        try:
+            self._storage.insert_description(job_id, description.model_dump())
+        except IntegrityError as exc:
+            # A redelivery is absorbed by ON CONFLICT DO NOTHING, so the foreign key is the likely culprit; confirm it.
+            if self._storage.fetch_job(job_id) is None:
+                raise NotFoundError(f"job {job_id} not found") from exc
+            raise
 
     def get_job(self, job_id: UUID) -> Job:
         found = self._storage.fetch_job(job_id)

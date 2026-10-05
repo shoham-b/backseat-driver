@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from threading import Lock
 from uuid import UUID
 
-from backseat_driver.errors import NotFoundError
+from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 
@@ -37,7 +37,7 @@ class InMemoryJobStore(JobStore):
     ) -> None:
         with self._lock:
             if idempotency_key is not None and self._job_id_for(idempotency_key) is not None:
-                raise ValueError(f"idempotency key {idempotency_key!r} is already used")
+                raise IdempotencyKeyInUseError(idempotency_key)
             self._jobs[job_id] = _Record(max_scenes, transaction_id, idempotency_key)
 
     def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
