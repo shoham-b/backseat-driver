@@ -286,7 +286,6 @@ name = "backseat-driver"
 version = "0.2.3"
 source = { editable = "." }
 dependencies = [
-    { name = "anyio" },
     { name = "httpx" },
     { name = "loguru" },
     { name = "pydantic-settings" },

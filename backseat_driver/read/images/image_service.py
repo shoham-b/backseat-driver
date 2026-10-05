@@ -5,8 +5,6 @@ read and turns a missing object into the domain's `NotFoundError`, so the store'
 S3 object) never reach the HTTP layer.
 """
 
-import anyio
-
 from backseat_driver.errors import NotFoundError
 from backseat_driver.read.images.image_keys import validate_image_key
 from backseat_driver.read.images.image_store import ImageStore
@@ -22,6 +20,6 @@ class ImageService:
         validate_image_key(key)
         try:
             async with self._store.local_copy(self._store.uri_for(key)) as path:
-                return await anyio.Path(path).read_bytes()
+                return path.read_bytes()  # one keyframe from a local copy: quicker than a thread
         except FileNotFoundError as exc:
             raise NotFoundError(f"image {key!r} not found") from exc

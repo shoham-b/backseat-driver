@@ -3,6 +3,10 @@
 Calls the hosted Messages API with the image and a prompt, so descriptions are far
 more detailed than BLIP's one-liners. Unlike the local backends this needs an API
 key and network access at runtime, and each caption is a billed request.
+
+The wait is an awaited HTTP request, so there is no thread, and a batch sends all its requests at once: the time is
+spent on the API, not here. The batch size therefore bounds how many requests are in flight. There is no retry, so a
+rate limit or a server error fails the batch.
 """
 
 import asyncio
@@ -65,7 +69,7 @@ class AnthropicBackend(CaptionBackend):
         return [_caption_of(body) for body in bodies]
 
     async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
-        payload = await asyncio.to_thread(self._payload, image_path, model)
+        payload = self._payload(image_path, model)  # reads and encodes one keyframe: quicker than a thread
         try:
             async with asyncio.timeout(self._timeout):
                 return await self._http.post_json_async(self._messages_url, payload, self._headers(), "Anthropic")
