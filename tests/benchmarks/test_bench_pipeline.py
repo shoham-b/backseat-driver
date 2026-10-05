@@ -4,7 +4,6 @@ Everything runs against in-memory fakes, so the numbers track the orchestration 
 model (de)serialization overhead around the VLM rather than the VLM itself.
 """
 
-import asyncio
 from pathlib import Path
 from uuid import uuid4
 
@@ -16,6 +15,7 @@ from backseat_driver.pipeline import ScenePipeline, describe_keyframes
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.write.json_writer import write_json
+from tests.benchmarks.loop import run
 from tests.fakes import (
     FakeCaptioner,
     FakeJobQueue,
@@ -35,7 +35,7 @@ def test_pipeline_run(benchmark: BenchmarkFixture, scenes: int) -> None:
         FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), FakeCaptioner(), PassthroughImageStore()
     )
 
-    descriptions = benchmark(lambda: asyncio.run(pipeline.run()))
+    descriptions = benchmark(lambda: run(pipeline.run()))
 
     assert len(descriptions) == scenes
 
@@ -50,19 +50,18 @@ def test_pipeline_run_by_batch_size(benchmark: BenchmarkFixture, batch_size: int
         batch_size=batch_size,
     )
 
-    descriptions = benchmark(lambda: asyncio.run(pipeline.run()))
+    descriptions = benchmark(lambda: run(pipeline.run()))
 
     assert len(descriptions) == 500
 
 
 @pytest.mark.parametrize("batch_size", [1, 8, 32])
 def test_describe_keyframes(benchmark: BenchmarkFixture, batch_size: int) -> None:
-    """Includes starting and closing an event loop, which `ScenePipeline.run` pays once per run."""
     keyframes = [make_keyframe(n) for n in range(batch_size)]
     paths = [keyframe.image_path for keyframe in keyframes]
     captioner = FakeCaptioner()
 
-    descriptions = benchmark(lambda: asyncio.run(describe_keyframes(keyframes, captioner, paths)))
+    descriptions = benchmark(lambda: run(describe_keyframes(keyframes, captioner, paths)))
 
     assert len(descriptions) == batch_size
 
@@ -116,7 +115,7 @@ def test_write_json(benchmark: BenchmarkFixture, tmp_path: Path, scenes: int) ->
     pipeline = ScenePipeline(
         FakeSceneLoader([make_keyframe(n) for n in range(scenes)]), captioner, PassthroughImageStore()
     )
-    descriptions = asyncio.run(pipeline.run())
+    descriptions = run(pipeline.run())
     output = tmp_path / "output" / "scene_descriptions.json"
 
     benchmark(write_json, descriptions, str(output))

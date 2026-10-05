@@ -1,11 +1,10 @@
 """Benchmarks for what the backends do around the model: decoding images and building requests.
 
 The model itself is faked (a pipeline factory that returns canned text, an HTTP client that records posts), so these
-track the per-image work this repository owns, which batching multiplies. `generate_many` is async, so each call
-includes starting and closing an event loop.
+track the per-image work this repository owns, which batching multiplies.
+The awaits run on one shared loop, as in a real run.
 """
 
-import asyncio
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -19,6 +18,7 @@ from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
 from backseat_driver.read.dataset.nuscenes_tables import NuScenesTables
+from tests.benchmarks.loop import run
 from tests.fakes import FakeHttpClient
 
 BATCH_SIZES = [1, 8, 32]
@@ -50,9 +50,9 @@ def _canned_pipeline(model_name: str) -> Callable[..., Any]:
 def test_huggingface_generate_many(benchmark: BenchmarkFixture, frames: list[str], batch_size: int) -> None:
     backend = HuggingFaceBackend(_canned_pipeline)
     model = CaptionModel("bench/model")
-    asyncio.run(backend.load(model))
+    run(backend.load(model))
 
-    descriptions = benchmark(lambda: asyncio.run(backend.generate_many(frames[:batch_size], model)))
+    descriptions = benchmark(lambda: run(backend.generate_many(frames[:batch_size], model)))
 
     assert descriptions == ["a street"] * batch_size
 
@@ -63,7 +63,7 @@ def test_anthropic_generate_many(benchmark: BenchmarkFixture, frames: list[str],
     backend = AnthropicBackend(http, api_key="bench")
     model = CaptionModel("claude-bench", prompt="describe")
 
-    descriptions = benchmark(lambda: asyncio.run(backend.generate_many(frames[:batch_size], model)))
+    descriptions = benchmark(lambda: run(backend.generate_many(frames[:batch_size], model)))
 
     assert descriptions[0] == "a street"
 

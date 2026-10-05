@@ -27,7 +27,7 @@ def test_a_job_runs_to_completion_without_a_broker() -> None:
 
 
 class _MissingDataset(FakeSceneLoader):
-    def load_keyframes(self) -> list[SceneKeyframe]:
+    async def load_keyframes(self) -> list[SceneKeyframe]:
         raise OSError("dataset missing")
 
 
