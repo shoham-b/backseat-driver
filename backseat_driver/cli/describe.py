@@ -14,6 +14,7 @@ Usage::
 
 import asyncio
 import sys
+from collections.abc import Awaitable
 from typing import Annotated
 
 import typer
@@ -26,6 +27,7 @@ from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import Camera, Job, SceneDescription, SceneKeyframe
 from backseat_driver.pipeline import ScenePipeline
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.write.json_writer import write_json
 
 _MONOLITH_ONLY = ("dataroot", "dataset_version", "camera", "all_cameras", "backend", "model")
@@ -130,6 +132,7 @@ def _describe_here(
     max_scenes: int | None,
 ) -> list[SceneDescription]:
     """Rung 1 (see `stacks.pipeline`): the loader (read) and captioner (process) run in this process."""
+    from backseat_driver.process.factory import build_http_client
     from backseat_driver.read.dataset.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
     from backseat_driver.stacks import pipeline as build_pipeline
 
@@ -141,10 +144,11 @@ def _describe_here(
     interactive = settings.log_format == LogFormat.COLORED and sys.stderr.isatty()
 
     _ensure_dataset(settings, dataroot, version, interactive)
-    pipeline = build_pipeline(settings, dataroot, version, cameras, backend, model)
+    http = build_http_client()
+    pipeline = build_pipeline(settings, http, dataroot, version, cameras, backend, model)
 
     logger.info("loading scenes from {!r} ({})", dataroot, version)
-    return _run_pipeline(pipeline, max_scenes, interactive)
+    return _run_pipeline(pipeline, http, max_scenes, interactive)
 
 
 def _ensure_dataset(settings: Settings, dataroot: str, version: str, interactive: bool) -> None:
@@ -164,9 +168,11 @@ def _ensure_dataset(settings: Settings, dataroot: str, version: str, interactive
         ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url, on_progress=advance_download)
 
 
-def _run_pipeline(pipeline: ScenePipeline, max_scenes: int | None, interactive: bool) -> list[SceneDescription]:
+def _run_pipeline(
+    pipeline: ScenePipeline, http: HttpClient, max_scenes: int | None, interactive: bool
+) -> list[SceneDescription]:
     if not interactive:
-        return asyncio.run(pipeline.run(max_scenes=max_scenes, on_progress=log_progress))
+        return asyncio.run(_closing(http, pipeline.run(max_scenes=max_scenes, on_progress=log_progress)))
     with Progress(
         TextColumn("{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), transient=True
     ) as progress:
@@ -177,11 +183,12 @@ def _run_pipeline(pipeline: ScenePipeline, max_scenes: int | None, interactive: 
                 task, total=total, completed=index - 1, description=f"{keyframe.scene_name} {keyframe.camera_channel}"
             )
 
-        return asyncio.run(pipeline.run(max_scenes=max_scenes, on_progress=advance))
+        return asyncio.run(_closing(http, pipeline.run(max_scenes=max_scenes, on_progress=advance)))
 
 
 def _describe_on_workers(api_url: str, max_scenes: int | None, timeout: float) -> list[SceneDescription]:
     """Distributed: the same steps run on the ingest and caption workers; this only submits the job and waits."""
+    from backseat_driver.process.factory import build_http_client
     from backseat_driver.transport.api_client import ApiJobClient
 
     def log_job(job: Job) -> None:
@@ -193,5 +200,20 @@ def _describe_on_workers(api_url: str, max_scenes: int | None, timeout: float) -
             job.expected_scenes,
         )
 
+    async def run() -> list[SceneDescription]:
+        http = build_http_client()
+        client = ApiJobClient(api_url, http)
+        return await _closing(
+            http, client.describe(max_scenes=max_scenes, timeout_seconds=timeout, on_progress=log_job)
+        )
+
     logger.info("submitting a job to {}", api_url)
-    return ApiJobClient(api_url).describe(max_scenes=max_scenes, timeout_seconds=timeout, on_progress=log_job)
+    return asyncio.run(run())
+
+
+async def _closing[T](http: HttpClient, work: Awaitable[T]) -> T:
+    """Await `work`, then close `http` on this loop: the client belongs to the one `asyncio.run` of the command."""
+    try:
+        return await work
+    finally:
+        await http.aclose()

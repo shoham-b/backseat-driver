@@ -53,7 +53,7 @@ class OllamaBackend(CaptionBackend):
         }
         try:
             async with asyncio.timeout(self._timeout):
-                body = await self._http.post_json_async(f"{self._base_url}/api/generate", payload, {}, "Ollama")
+                body = await self._http.post_json(f"{self._base_url}/api/generate", payload, {}, "Ollama")
         except TimeoutError as exc:
             raise RuntimeError(f"Ollama did not answer within {self._timeout:g} s") from exc
         if body.get("done_reason") == "length":
@@ -66,6 +66,6 @@ class OllamaBackend(CaptionBackend):
     async def healthcheck(self) -> bool:
         try:
             async with asyncio.timeout(_HEALTHCHECK_TIMEOUT):
-                return await self._http.is_reachable_async(f"{self._base_url}/api/tags", {})
+                return await self._http.is_reachable(f"{self._base_url}/api/tags", {})
         except TimeoutError:
             return False

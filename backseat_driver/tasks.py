@@ -24,6 +24,8 @@ from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import CaptionTask, IngestTask, JobReference
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner as build_configured_captioner
+from backseat_driver.process.factory import build_http_client
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
@@ -46,19 +48,27 @@ class Workers:
         build_loader: Callable[[Settings, DatasetStore], SceneLoader] = stored_loader,
         build_queue: Callable[[Settings], JobQueue] = celery_queue,
         build_store: Callable[[Settings], JobStore] = postgres_store,
-        build_captioner: Callable[[Settings], Captioner] = build_configured_captioner,
+        build_http: Callable[[], HttpClient] = build_http_client,
+        build_captioner: Callable[[Settings, HttpClient], Captioner] = build_configured_captioner,
         build_dataset: Callable[[Settings], DatasetStore] = build_dataset_store,
     ) -> None:
         self._settings = settings
         self._build_loader = build_loader
         self._build_queue = build_queue
         self._build_store = build_store
+        self._build_http = build_http
         self._build_captioner = build_captioner
         self._build_dataset = build_dataset
 
     @cached_property
     def store(self) -> JobStore:
         return self._build_store(self._settings)
+
+    @cached_property
+    def http(self) -> HttpClient:
+        http = self._build_http()
+        worker_loop.on_close(http.aclose)  # the client is bound to the worker loop, so it is released there
+        return http
 
     @cached_property
     def dataset(self) -> DatasetStore:
@@ -75,7 +85,7 @@ class Workers:
 
     @cached_property
     def caption_worker(self) -> CaptionWorker:
-        captioner = self._build_captioner(self._settings)
+        captioner = self._build_captioner(self._settings, self.http)
         worker_loop.run(captioner.load())
         return CaptionWorker(captioner=captioner, store=self.store, images=self.dataset)
 

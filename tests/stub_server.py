@@ -1,4 +1,4 @@
-"""A real HTTP server on localhost for tests that need to talk to one, so nothing in `urllib` has to be patched.
+"""A real HTTP server on localhost for tests that need to talk to one, so no HTTP library has to be patched.
 
 Each test supplies a function from the request to the reply; the server records every request it served.
 """

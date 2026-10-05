@@ -8,7 +8,7 @@ needs the API's address and nothing else, and a new job or result file shows up 
 Run it like the API: `fastapi run backseat_driver/show/ui_server.py` (`just ui`).
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 from pathlib import Path
@@ -22,6 +22,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.error_format import error_body
 from backseat_driver.errors import HttpStatusError, UnprocessableError
+from backseat_driver.process.factory import build_http_client
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.read.images.image_keys import validate_image_key
 from backseat_driver.read.images.local_image_store import LocalImageStore
 from backseat_driver.show.api_source import IMAGES_PATH, ApiReportSource
@@ -36,8 +38,10 @@ def get_settings_dependency(request: Request) -> Settings:
     return request.app.state.settings  # type: ignore[no-any-return]
 
 
-def get_source(settings: Annotated[Settings, Depends(get_settings_dependency)]) -> ApiReportSource | None:
-    return ApiReportSource(settings.api_url) if settings.ui_all_jobs else None
+def get_source(
+    settings: Annotated[Settings, Depends(get_settings_dependency)], request: Request
+) -> ApiReportSource | None:
+    return ApiReportSource(settings.api_url, request.app.state.http) if settings.ui_all_jobs else None
 
 
 def get_report_service(
@@ -89,13 +93,17 @@ def _require_something_to_show(settings: Settings) -> None:
         )
 
 
-def create_ui_app(settings: Settings) -> FastAPI:
+def create_ui_app(settings: Settings, build_http: Callable[[], HttpClient] = build_http_client) -> FastAPI:
     """The UI for `settings`; tests swap `get_source` through `dependency_overrides` instead of patching."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         _require_something_to_show(settings)
-        yield
+        app.state.http = build_http()
+        try:
+            yield
+        finally:
+            await app.state.http.aclose()
 
     app = FastAPI(title="Backseat Driver report UI", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
     app.state.settings = settings
@@ -110,16 +118,16 @@ def create_ui_app(settings: Settings) -> FastAPI:
         # Liveness without touching the API, which a probe must not depend on.
         return PlainTextResponse("ok")
 
-    # Plain `def` routes: rendering and proxying do blocking HTTP and file reads, which FastAPI runs in a thread.
+    # The page and the images are awaited on the app's loop, which owns the one HTTP client.
     @app.get("/", response_class=HTMLResponse)
     @app.get("/index.html", response_class=HTMLResponse)
-    def index(service: Annotated[ReportService, Depends(get_report_service)]) -> HTMLResponse:
-        return HTMLResponse(service.render(embed_images=False).html)
+    async def index(service: Annotated[ReportService, Depends(get_report_service)]) -> HTMLResponse:
+        return HTMLResponse((await service.render(embed_images=False)).html)
 
     @app.get(f"{IMAGES_PATH}{{key:path}}")
-    def image(key: str, api: Annotated[ApiReportSource, Depends(get_image_source)]) -> Response:
+    async def image(key: str, api: Annotated[ApiReportSource, Depends(get_image_source)]) -> Response:
         validate_image_key(key)
-        response = api.image(key)
+        response = await api.image(key)
         return Response(response.body, media_type=response.content_type, headers={"Cache-Control": _IMMUTABLE})
 
     return app

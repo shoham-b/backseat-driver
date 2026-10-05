@@ -13,11 +13,11 @@ from backseat_driver.process.http_client import HttpResponse
 
 class DescriptionSource(ABC):
     @abstractmethod
-    def descriptions(self) -> list[SceneDescription]:
+    async def descriptions(self) -> list[SceneDescription]:
         """Everything this source has, read afresh on each call."""
 
     @abstractmethod
-    def image(self, image_path: str) -> HttpResponse:
+    async def image(self, image_path: str) -> HttpResponse:
         """The bytes behind one of this source's own `image_path`s."""
 
     @abstractmethod

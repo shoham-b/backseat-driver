@@ -14,7 +14,9 @@ else, and none connects to anything until it is used.
 The `JobStore` row is the write made incremental: it also holds the job record (expected count, error) that says when
 the write is complete, which is why it comes with the seam and not only with machines.
 
-The captioner is the same at every rung, so it is built by `process.factory.build_captioner` wherever it is needed.
+The captioner is the same at every rung, so it is built by `process.factory.build_captioner` wherever it is needed, over
+the process's one HTTP client (`build_http_client`). That client belongs to the event loop that first uses it, so the
+owner of the loop closes it: the API's lifespan, a worker's `worker_loop`, a command's one `asyncio.run`.
 """
 
 from collections.abc import Callable, Sequence
@@ -25,6 +27,7 @@ from backseat_driver.models import CaptionTask, IngestTask
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.images.image_store import ImageStore
@@ -47,6 +50,7 @@ from backseat_driver.write.job_store.storage import JobStorage
 
 def pipeline(
     settings: Settings,
+    http: HttpClient,
     dataroot: str,
     version: str,
     cameras: Sequence[str],
@@ -54,7 +58,7 @@ def pipeline(
     model: str | None = None,
 ) -> ScenePipeline:
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channels=cameras)
-    captioner = build_captioner(settings, backend=backend, model_name=model)
+    captioner = build_captioner(settings, http, backend=backend, model_name=model)
     return ScenePipeline(
         loader=loader,
         captioner=captioner,

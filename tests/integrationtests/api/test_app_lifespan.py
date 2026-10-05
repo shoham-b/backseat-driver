@@ -12,7 +12,7 @@ from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
-from tests.fakes import make_settings
+from tests.fakes import FakeHttpClient, make_settings
 
 
 def test_the_distributed_mode_wires_the_real_adapters_without_connecting() -> None:
@@ -45,3 +45,14 @@ def test_the_monolith_is_the_default_and_needs_no_infrastructure() -> None:
 def test_the_distributed_mode_cannot_even_be_configured_without_a_dataset_bucket() -> None:
     with pytest.raises(ValueError, match="DATASET_BUCKET"):
         make_settings(vlm_backend=VlmBackend.HUGGINGFACE, mode=RunMode.DISTRIBUTED)
+
+
+def test_the_http_client_stays_open_while_serving_and_is_closed_at_shutdown() -> None:
+    http = FakeHttpClient()
+    app = create_app(make_settings(vlm_backend=VlmBackend.HUGGINGFACE), build_http=lambda: http)
+
+    with TestClient(app):
+        open_while_serving = not http.closed
+
+    assert open_while_serving
+    assert http.closed

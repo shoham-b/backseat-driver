@@ -279,7 +279,6 @@ class PostedJson:
     url: str
     payload: dict[str, Any]
     headers: dict[str, str]
-    timeout: float | None  # None for an async post, which the caller bounds with `asyncio.timeout`
     service: str
 
 
@@ -287,7 +286,6 @@ class PostedJson:
 class Probe:
     url: str
     headers: dict[str, str]
-    timeout: float | None  # None for an async call, which the caller bounds with `asyncio.timeout`
 
 
 class FakeHttpClient(HttpClient):
@@ -297,6 +295,7 @@ class FakeHttpClient(HttpClient):
         self.posts: list[PostedJson] = []
         self.probes: list[Probe] = []
         self.gets: list[Probe] = []
+        self.closed = False
         self.responses_by_url: dict[str, HttpResponse] = {}
         # Answers in order for a URL polled repeatedly; the last one repeats once the rest are used up.
         self.sequences_by_url: dict[str, list[HttpResponse]] = {}
@@ -304,25 +303,18 @@ class FakeHttpClient(HttpClient):
         self._error = error
         self._reachable = reachable
 
-    def post_json(
-        self, url: str, payload: dict[str, Any], headers: dict[str, str], timeout: float, service: str
-    ) -> dict[str, Any]:
-        self.posts.append(PostedJson(url, payload, headers, timeout, service))
-        if self._error:
-            raise self._error
-        return self._response
-
-    async def post_json_async(
+    async def post_json(
         self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
     ) -> dict[str, Any]:
         await asyncio.sleep(0)  # a real call yields to the loop; so does this
-        self.posts.append(PostedJson(url, payload, headers, None, service))
+        self.posts.append(PostedJson(url, payload, headers, service))
         if self._error:
             raise self._error
         return self._response
 
-    def get(self, url: str, headers: dict[str, str], timeout: float, service: str) -> HttpResponse:
-        self.gets.append(Probe(url, headers, timeout))
+    async def get(self, url: str, headers: dict[str, str], service: str) -> HttpResponse:
+        await asyncio.sleep(0)
+        self.gets.append(Probe(url, headers))
         if self._error:
             raise self._error
         if url in self.sequences_by_url:
@@ -330,14 +322,13 @@ class FakeHttpClient(HttpClient):
             return queued.pop(0) if len(queued) > 1 else queued[0]
         return self.responses_by_url[url]
 
-    def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
-        self.probes.append(Probe(url, headers, timeout))
+    async def is_reachable(self, url: str, headers: dict[str, str]) -> bool:
+        await asyncio.sleep(0)
+        self.probes.append(Probe(url, headers))
         return self._reachable
 
-    async def is_reachable_async(self, url: str, headers: dict[str, str]) -> bool:
-        await asyncio.sleep(0)
-        self.probes.append(Probe(url, headers, None))
-        return self._reachable
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 class FakeDescriptionSource(DescriptionSource):
@@ -347,10 +338,10 @@ class FakeDescriptionSource(DescriptionSource):
         self._descriptions = descriptions
         self._link_prefix = link_prefix
 
-    def descriptions(self) -> list[SceneDescription]:
+    async def descriptions(self) -> list[SceneDescription]:
         return self._descriptions
 
-    def image(self, image_path: str) -> HttpResponse:
+    async def image(self, image_path: str) -> HttpResponse:
         return HttpResponse(image_path.encode(), "image/test")
 
     def image_link(self, image_path: str) -> str | None:
