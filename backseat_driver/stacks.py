@@ -11,6 +11,9 @@ else, and none connects to anything until it is used.
     process Captioner   BackendCaptioner        BackendCaptioner           BackendCaptioner
     write  JobStore     (write_json)            SqlJobStore, SQLite        SqlJobStore, Postgres
 
+The `JobStore` row is the write made incremental: it also holds the job record (expected count, error) that says when
+the write is complete, which is why it comes with the seam and not only with machines.
+
 The captioner is the same at every rung, so it is built by `process.factory.build_captioner` wherever it is needed.
 """
 
@@ -35,9 +38,9 @@ from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
-from backseat_driver.write.job_store.job_store import JobStore
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.transport.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.storage import JobStorage
 
 # Rung 1: the pipeline. One process, one function call, no queue and no job store.

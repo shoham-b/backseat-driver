@@ -12,7 +12,7 @@ from backseat_driver.models import CaptionTask
 from backseat_driver.pipeline import describe_keyframe
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.read.images.image_store import ImageStore
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 
 
 class CaptionWorker:

@@ -8,7 +8,7 @@ from backseat_driver.api.dependencies import get_captioner, get_job_queue, get_j
 from backseat_driver.api.errors import UNAVAILABLE_RESPONSE, APIError
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 
 router = APIRouter(tags=["observability"])
 

@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import DeadLetter, JobState, SceneDescription
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.storage import JobStorage
 
 
