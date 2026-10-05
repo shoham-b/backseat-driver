@@ -16,10 +16,10 @@ components:
 # (`extra-files` in .github/release-please-config.json), so do not edit them by hand.
 images:
   # x-release-please-start-version
-  - {name: ghcr.io/shoham-b/backseat-driver-api, newTag: v0.2.2}
-  - {name: ghcr.io/shoham-b/backseat-driver-cli, newTag: v0.2.2}
-  - {name: ghcr.io/shoham-b/backseat-driver-ingest-worker, newTag: v0.2.2}
-  - {name: ghcr.io/shoham-b/backseat-driver-caption-worker, newTag: v0.2.2}
+  - {name: ghcr.io/shoham-b/backseat-driver-api, newTag: v0.2.3}
+  - {name: ghcr.io/shoham-b/backseat-driver-cli, newTag: v0.2.3}
+  - {name: ghcr.io/shoham-b/backseat-driver-ingest-worker, newTag: v0.2.3}
+  - {name: ghcr.io/shoham-b/backseat-driver-caption-worker, newTag: v0.2.3}
   # x-release-please-end
 patches:
   # ── The dev-only stateful services and their credentials are external here ──────────────────────────────────────
