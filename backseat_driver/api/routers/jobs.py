@@ -10,7 +10,6 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Response
-from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_transaction_id
@@ -29,7 +28,7 @@ class CreateJobRequest(BaseModel):
 
 
 @router.post("/jobs", status_code=HTTPStatus.ACCEPTED)
-async def create_job(
+def create_job(
     transaction_id: Annotated[str, Depends(get_transaction_id)],
     queue: Annotated[JobQueue, Depends(get_job_queue)],
     store: Annotated[JobStore, Depends(get_job_store)],
@@ -44,70 +43,71 @@ async def create_job(
         ),
     ] = None,
 ) -> Job:
-    """Start a job that describes every scene in the dataset."""
+    """Start a job that describes every scene in the dataset.
+
+    The routes here are plain `def`, so FastAPI runs them on worker threads: the store and queue clients block.
+    """
     max_scenes = body.max_scenes if body else None
     job_id = uuid4()
 
-    # The store and queue clients are blocking, so keep them off the event loop like /describe does.
     if idempotency_key is not None:
-        existing = await run_in_threadpool(store.find_job_by_idempotency_key, idempotency_key)
+        existing = store.find_job_by_idempotency_key(idempotency_key)
         if existing is not None:
             response.status_code = HTTPStatus.OK
             return existing
     try:
-        await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id, idempotency_key)
+        store.create_job(job_id, max_scenes, transaction_id, idempotency_key)
     except IdempotencyKeyInUseError as exc:
         # A concurrent retry can pass the lookup above before the first request has created its job; the store's
         # unique key lets only one of them in, and this one answers with the job that won.
-        existing = await run_in_threadpool(store.find_job_by_idempotency_key, exc.key)
+        existing = store.find_job_by_idempotency_key(exc.key)
         if existing is None:
             raise
         response.status_code = HTTPStatus.OK
         return existing
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
     try:
-        await run_in_threadpool(queue.enqueue_ingest, task)
+        queue.enqueue_ingest(task)
     except Exception as exc:
         # Otherwise the row would sit `pending` forever, waiting for an ingest task that was never queued.
-        await run_in_threadpool(store.fail_job, job_id, describe_failure("enqueue", exc))
+        store.fail_job(job_id, describe_failure("enqueue", exc))
         raise
-    return await run_in_threadpool(store.get_job, job_id)
+    return store.get_job(job_id)
 
 
 @router.get("/jobs")
-async def list_jobs(
+def list_jobs(
     store: Annotated[JobStore, Depends(get_job_store)],
     state: JobState | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[Job]:
     """Jobs, newest first, optionally only those in one `state`."""
-    # Like create_job: the store is a blocking SQL client, so the listing stays off the event loop.
-    jobs = await run_in_threadpool(store.list_jobs)
+    jobs = store.list_jobs()
     return [job for job in jobs if state is None or job.state is state][:limit]
 
 
 @router.get("/jobs/{job_id}", responses=NOT_FOUND_RESPONSE)
-async def get_job(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> Job:
+def get_job(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> Job:
     """Progress of a job: `pending` until ingest counts the scenes, then `running`, then `completed`."""
-    return await run_in_threadpool(store.get_job, job_id)
+    return store.get_job(job_id)
 
 
 @router.get("/dead-letters")
-async def list_recent_dead_letters(
+def list_recent_dead_letters(
     store: Annotated[JobStore, Depends(get_job_store)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[JobDeadLetter]:
     """The most recent tasks that ran out of retries across all jobs, newest first, each naming its job."""
-    return await run_in_threadpool(store.list_recent_dead_letters, limit)
+    return store.list_recent_dead_letters(limit)
 
 
 @router.get("/jobs/{job_id}/dead-letters", responses=NOT_FOUND_RESPONSE)
-async def list_dead_letters(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[DeadLetter]:
+def list_dead_letters(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[DeadLetter]:
     """The tasks of a job that ran out of retries, oldest first, each with its payload and the full error."""
-    return await run_in_threadpool(store.list_dead_letters, job_id)
+    return store.list_dead_letters(job_id)
 
 
 @router.get("/jobs/{job_id}/descriptions", responses=NOT_FOUND_RESPONSE)
-async def list_descriptions(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[SceneDescription]:
+def list_descriptions(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[SceneDescription]:
     """Descriptions produced so far for a job (all of them once the job is `completed`)."""
-    return await run_in_threadpool(store.list_descriptions, job_id)
+    return store.list_descriptions(job_id)

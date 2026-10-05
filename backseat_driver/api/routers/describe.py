@@ -10,7 +10,6 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
-from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
@@ -28,13 +27,16 @@ class DescribeResponse(BaseModel):
 
 
 @router.post("/describe")
-async def describe(
+def describe(
     image: UploadFile,
     captioner: Annotated[Captioner, Depends(get_captioner)],
     upload_dir: Annotated[Path, Depends(get_upload_dir)],
 ) -> DescribeResponse:
-    """Caption a single uploaded image using the configured VLM."""
-    contents = await image.read()
+    """Caption a single uploaded image using the configured VLM.
+
+    A plain `def`, so FastAPI runs it on a worker thread: inference blocks and must not stall the event loop.
+    """
+    contents = image.file.read()
     if not contents:
         raise UnprocessableError("uploaded file is empty")
 
@@ -44,9 +46,7 @@ async def describe(
     tmp_path = upload_dir / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
     tmp_path.write_bytes(contents)
     try:
-        # Inference is synchronous/CPU-bound — off the event loop so one
-        # slow request doesn't stall every other request being served.
-        description = await run_in_threadpool(captioner.caption, str(tmp_path))
+        description = captioner.caption(str(tmp_path))
     except Exception as exc:
         raise UnprocessableError(f"could not read image: {exc}") from exc
 

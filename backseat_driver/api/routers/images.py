@@ -10,7 +10,6 @@ from http import HTTPStatus
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header
-from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 
 from backseat_driver.api.dependencies import get_image_service
@@ -27,14 +26,13 @@ _CACHE_CONTROL = "public, max-age=86400, immutable"
     "/images/{key:path}",
     responses={HTTPStatus.NOT_MODIFIED: {"description": "The client's copy is current"}, **NOT_FOUND_RESPONSE},
 )
-async def get_image(
+def get_image(
     key: str,
     images: Annotated[ImageService, Depends(get_image_service)],
     if_none_match: Annotated[str | None, Header()] = None,
 ) -> Response:
     """A keyframe image by its dataset-relative key. Answers `304` to a matching `If-None-Match`."""
-    # The service reads from a store (a file or S3), which blocks, so it stays off the event loop.
-    data = await run_in_threadpool(images.read, key)
+    data = images.read(key)
     etag = f'"{hashlib.sha256(data).hexdigest()[:32]}"'
     headers = {"ETag": etag, "Cache-Control": _CACHE_CONTROL}
     if if_none_match == etag:
