@@ -11,7 +11,7 @@ from datetime import datetime
 from uuid import UUID
 
 from loguru import logger
-from sqlalchemy import create_engine, event, func, inspect, select, update
+from sqlalchemy import ColumnElement, and_, create_engine, event, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine, make_url
@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql.selectable import ScalarSelect
 
+from backseat_driver.models import JobState
 from backseat_driver.write.job_store.creation_clock import CreationClock
 from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
 
@@ -28,6 +29,21 @@ from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, Sce
 def _completed_scenes() -> ScalarSelect[int]:
     """Per job row, how many descriptions have been recorded."""
     return select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+
+
+def _in_state(state: JobState, completed: ScalarSelect[int]) -> ColumnElement[bool]:
+    """The rows `derive_state` would put in `state`, so a listing can filter in the database.
+
+    A job's state is never stored, hence this mirrors that function; a test pins the two together.
+    """
+    if state is JobState.FAILED:
+        return JobRow.error.is_not(None)
+    healthy = JobRow.error.is_(None)
+    if state is JobState.PENDING:
+        return and_(healthy, JobRow.expected_scenes.is_(None))
+    if state is JobState.COMPLETED:
+        return and_(healthy, JobRow.expected_scenes.is_not(None), completed >= JobRow.expected_scenes)
+    return and_(healthy, JobRow.expected_scenes.is_not(None), completed < JobRow.expected_scenes)
 
 
 def description_insert(job_id: UUID, values: dict) -> Insert:
@@ -158,11 +174,16 @@ class JobStorage:
             row = session.execute(statement).one_or_none()
         return None if row is None else (row[0], row[1])
 
-    def fetch_jobs(self) -> list[tuple[JobRow, int]]:
-        """Every job row with its completed-scene count, newest first."""
+    def fetch_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[tuple[JobRow, int]]:
+        """Job rows with their completed-scene counts, newest first; only those in `state`, at most `limit`."""
         completed = _completed_scenes()
+        statement = select(JobRow, completed).order_by(JobRow.created_at.desc())
+        if state is not None:
+            statement = statement.where(_in_state(state, completed))
+        if limit is not None:
+            statement = statement.limit(limit)
         with self._session() as session:
-            rows = session.execute(select(JobRow, completed).order_by(JobRow.created_at.desc())).all()
+            rows = session.execute(statement).all()
         return [(row[0], row[1]) for row in rows]
 
     def fetch_descriptions(self, job_id: UUID) -> list[SceneDescriptionRow]:

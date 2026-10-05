@@ -10,7 +10,7 @@ from threading import Lock
 from uuid import UUID
 
 from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
-from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.creation_clock import CreationClock
 
@@ -85,10 +85,11 @@ class InMemoryJobStore(JobStore):
         with self._lock:
             return self._to_job(job_id, self._get(job_id))
 
-    def list_jobs(self) -> list[Job]:
+    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
         with self._lock:
             jobs = [self._to_job(job_id, record) for job_id, record in self._jobs.items()]
-        return sorted(jobs, key=lambda job: job.created_at, reverse=True)
+        newest_first = sorted(jobs, key=lambda job: job.created_at, reverse=True)
+        return [job for job in newest_first if state is None or job.state is state][:limit]
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         with self._lock:

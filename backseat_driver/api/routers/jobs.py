@@ -82,8 +82,7 @@ async def list_jobs(
 ) -> list[Job]:
     """Jobs, newest first, optionally only those in one `state`."""
     # Like create_job: the store is a blocking SQL client, so the listing stays off the event loop.
-    jobs = await run_in_threadpool(store.list_jobs)
-    return [job for job in jobs if state is None or job.state is state][:limit]
+    return await run_in_threadpool(store.list_jobs, state, limit)
 
 
 @router.get("/jobs/{job_id}", responses=NOT_FOUND_RESPONSE)
