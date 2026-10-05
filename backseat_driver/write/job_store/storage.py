@@ -51,18 +51,26 @@ class JobStorage:
     def ensure_schema(self) -> None:
         """Create the tables if missing. Run once per deployment (`db init`), not per process.
 
-        Raises RuntimeError when a table that already exists lacks a column the code expects: `create_all` never alters
-        a table, so an old database would otherwise fail on the first query that touches the new column.
+        Raises RuntimeError when a table that already exists differs from what the code expects, in a column it lacks
+        or in its primary key: `create_all` never alters a table, so an old database would otherwise fail on the first
+        query that touches the new column, or on every description insert (whose `ON CONFLICT` target is the key).
         """
         engine = self._get_engine()
         Base.metadata.create_all(engine)
         existing = inspect(engine)
         for table in Base.metadata.sorted_tables:
+            differences: list[str] = []
             missing = {column.name for column in table.columns} - {c["name"] for c in existing.get_columns(table.name)}
             if missing:
+                differences.append(f"missing columns: {', '.join(sorted(missing))}")
+            found_key = set(existing.get_pk_constraint(table.name)["constrained_columns"])
+            expected_key = {column.name for column in table.primary_key.columns}
+            if found_key != expected_key:
+                differences.append(f"primary key {sorted(found_key)}, expected {sorted(expected_key)}")
+            if differences:
                 raise RuntimeError(
                     f"table {table.name!r} in {engine.url.render_as_string(hide_password=True)} predates the current "
-                    f"schema (missing columns: {', '.join(sorted(missing))}); there is no migration, so recreate the "
+                    f"schema ({'; '.join(differences)}); there is no migration, so recreate the "
                     "database (the monolith's output/jobs.db is only a job history and can be deleted)"
                 )
 
