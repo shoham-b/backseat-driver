@@ -21,15 +21,6 @@ def _fresh_settings() -> Iterator[None]:
     get_settings.cache_clear()
 
 
-@pytest.fixture(autouse=True)
-def _run_outside_the_repo(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Settings read `./.env`; an empty working directory keeps a developer's own file out of these tests.
-
-    The commands under test take their configuration from the `env` each test passes, not from the machine.
-    """
-    monkeypatch.chdir(tmp_path_factory.mktemp("cwd"))
-
-
 @pytest.fixture
 def stub_server() -> Iterator[Callable[[Responder], StubServer]]:
     """Starts a server answering with the given function; every server started is stopped when the test ends."""
@@ -92,4 +83,4 @@ def client_with() -> ClientFactory:
 
 @pytest.fixture(autouse=True)
 def _hermetic_settings(no_ambient_settings: None) -> None:
-    """Every test in this layer runs without the developer's `BACKSEAT_DRIVER_*` variables."""
+    """Every test in this layer runs without the developer's settings."""
