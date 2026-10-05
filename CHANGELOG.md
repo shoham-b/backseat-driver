@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Bug Fixes
 
 * cancel the other Anthropic requests when one fails ([#143](https://github.com/shoham-b/backseat-driver/issues/143)) ([ece71c7](https://github.com/shoham-b/backseat-driver/commit/ece71c7a3bf6ccb3ed0afeaef37f975273266017))
+* run one thread at a time inside the local caption model ([#147](https://github.com/shoham-b/backseat-driver/issues/147)) ([df1e45b](https://github.com/shoham-b/backseat-driver/commit/df1e45b8dea94fc04789a78c8d70cdbe5189046f))
 
 
 ### Performance Improvements
