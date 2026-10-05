@@ -15,6 +15,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from backseat_driver.concurrency import gather_all
 from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
@@ -64,8 +65,11 @@ class AnthropicBackend(CaptionBackend):
         return _caption_of(await self._post(image_path, model))
 
     async def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
-        """One request per image, all in flight at once: the wait is on the API, not on this process."""
-        bodies = await asyncio.gather(*(self._post(image_path, model) for image_path in image_paths))
+        """One request per image, all in flight at once: the wait is on the API, not on this process. The caller's batch
+        size (`caption_batch_size`) is what bounds how many.
+
+        The first failure cancels the other requests, so a batch that is going to fail stops billing."""
+        bodies = await gather_all(self._post(image_path, model) for image_path in image_paths)
         return [_caption_of(body) for body in bodies]
 
     async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
