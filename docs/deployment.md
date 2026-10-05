@@ -95,8 +95,8 @@ Not covered, by choice:
   cold start and depends on the hub. Baking the weights into the worker image is the fix and needs an image change.
 - **Egress** is unrestricted; the destinations differ per cluster.
 - **Caption workers have no liveness probe.** The solo pool cannot answer while it captions, so a probe would kill busy workers.
-- **`readOnlyRootFilesystem`** is not set. The API image is known to start with `--read-only --tmpfs /tmp` (checked in
-  CI); the workers and UI have not been tried that way.
+- **`readOnlyRootFilesystem`** is set on the API only (with `/tmp` and the model cache as writable volumes); the
+  workers and UI have not been tried that way.
 
 ## Autoscaling and the local kind cluster
 
@@ -154,6 +154,6 @@ KEDA reads queue depth from the management API.
 Every step a release used to be checked by hand for runs in CI: lint, types and the unit and integration tests (on Linux
 and Windows), the report UI in headless Chrome, the built wheel installed into an empty environment, the Compose stack
 end to end (`just test-system`), the Kubernetes base on a kind cluster with autoscaling, the schemas of every manifest,
-and that the images run as uid 10001 and the API starts read-only. What CI cannot do (the real dataset, the quality of
+and that the pods start as non-root with every capability dropped (the API with a read-only root filesystem). What CI cannot do (the real dataset, the quality of
 the captions, how the report looks, a production cluster, real-data performance) is in the repository's
 `manual-testing/` folder, which is not part of these docs.

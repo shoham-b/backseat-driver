@@ -218,9 +218,6 @@ jobs:
           files: deploy/kind-ci/docker-bake.hcl
           load: true
 
-      - name: Image hardening
-        run: docker/check-image-hardening.sh
-
       - name: Create ./data (mounted into the kind node)
         run: mkdir -p data
 

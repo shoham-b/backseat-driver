@@ -128,6 +128,12 @@ def test_our_pods_run_as_non_root_without_privilege_escalation() -> None:
         assert container["securityContext"]["capabilities"]["drop"] == ["ALL"], name
 
 
+def test_api_root_filesystem_is_read_only() -> None:
+    (api,) = [c for _, c in _our_containers() if c["name"] == "api"]
+
+    assert api["securityContext"]["readOnlyRootFilesystem"] is True
+
+
 def test_api_probes_hit_real_routes() -> None:
     routes = set(api_app.openapi()["paths"])
     (api,) = [c for _, c in _our_containers() if c["name"] == "api"]

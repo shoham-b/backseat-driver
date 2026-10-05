@@ -17,7 +17,7 @@ move it out of this folder.
 | Built wheel installs into an empty environment, CLI starts, every extra resolves | `package` job |
 | Compose stack end to end (API, broker, database, workers, real BLIP model) | `test-system` job |
 | Kubernetes base on kind with KEDA: probes, workers, autoscaling up and down | `kind` job |
-| Images run as uid 10001, API starts with `--read-only --cap-drop ALL` | `kind` job (`Image hardening` step) |
+| Pods start non-root with all capabilities dropped; the API with a read-only root filesystem | `kind` job (the manifests' `securityContext`) and `test_deployment.py` |
 | Manifests and compose file validate against their schemas | `deploy-config` job |
 | Benchmarks on synthetic data | `codspeed` workflow |
 
