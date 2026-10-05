@@ -89,6 +89,50 @@ jobs:
           name: junit-xml
           path: junit.xml
 
+  # The suite above runs from the source tree with every extra installed, so it cannot see a dependency the wheel forgot
+  # to declare. This installs the built wheel alone into an empty environment, the way a user gets it.
+  package:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - name: Install the wheel into an empty environment and start the CLI
+        run: |
+          uv venv "$RUNNER_TEMP/clean"
+          wheel="$(ls "$PWD"/dist/*.whl)"
+          uv pip install --python "$RUNNER_TEMP/clean/bin/python" "$wheel"
+          "$RUNNER_TEMP/clean/bin/backseat-driver" --version
+          "$RUNNER_TEMP/clean/bin/backseat-driver" describe --help
+          "$RUNNER_TEMP/clean/bin/backseat-driver" report --help
+      - name: Every extra resolves
+        run: |
+          wheel="$(ls "$PWD"/dist/*.whl)"
+          for extra in cli api ingest-worker caption-worker; do
+            uv pip install --dry-run --python "$RUNNER_TEMP/clean/bin/python" "${wheel}[${extra}]"
+          done
+
+  # CI is otherwise Linux only; the recipes and the developer machines are partly Windows.
+  test-windows:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --group dev
+      - run: uv run pytest tests/unittests tests/integrationtests
+
   test-ui:
     needs: changes
     if: ${{ github.event_name == 'push' || needs.changes.outputs.code == 'true' }}
@@ -173,6 +217,9 @@ jobs:
         with:
           files: deploy/kind-ci/docker-bake.hcl
           load: true
+
+      - name: Image hardening
+        run: docker/check-image-hardening.sh
 
       - name: Create ./data (mounted into the kind node)
         run: mkdir -p data

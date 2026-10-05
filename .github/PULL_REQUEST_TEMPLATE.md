@@ -11,7 +11,7 @@
 - [ ] Unit/integration tests pass (`just test`)
 - [ ] Type check passes (`just typecheck`)
 - [ ] Lint passes (`just lint`)
-- [ ] Manual testing done (describe below)
+- [ ] Manual testing done if `manual-testing/` lists a guide for what changed (describe below)
 
 ## Notes for reviewer
 

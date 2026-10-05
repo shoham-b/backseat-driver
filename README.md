@@ -147,7 +147,7 @@ Published at **https://shoham-b.github.io/backseat-driver/**; the source is in [
 | [From pipeline to cluster](docs/ladder.md) | How one pipeline grows into a cluster, with diagrams |
 | [Architecture](docs/architecture.md) | Tech stack and object model |
 | [Distributed mode](docs/distributed.md) | Services, scaling and delivery guarantees |
-| [Deployment](docs/deployment.md) | Images, Compose profiles, Kubernetes manifests, release checklist |
+| [Deployment](docs/deployment.md) | Images, Compose profiles, Kubernetes manifests, what CI checks |
 | [Design decisions](docs/design-decisions.md) | The alternatives considered |
 | [Development](docs/development.md) | Task list, tests, conventions |
 | [CLI](docs/cli.md) and [API](docs/api.md) reference | Commands, and the `backseat_driver.*` modules |
