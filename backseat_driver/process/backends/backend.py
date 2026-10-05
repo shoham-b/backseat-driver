@@ -5,6 +5,7 @@ A backend knows how to reach and drive a runtime; which model it runs is a
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 from backseat_driver.process.model import CaptionModel
 
@@ -19,6 +20,10 @@ class CaptionBackend(ABC):
     @abstractmethod
     def generate(self, image_path: str, model: CaptionModel) -> str:
         """Describe the image at `image_path` with `model`."""
+
+    def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        """Describe each image, in order. Override to run them together; this one runs them one by one."""
+        return [self.generate(image_path, model) for image_path in image_paths]
 
     @abstractmethod
     def healthcheck(self) -> bool:

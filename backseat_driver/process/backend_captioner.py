@@ -1,5 +1,7 @@
 """The `Captioner` the rest of the code uses: one model run on one backend."""
 
+from collections.abc import Sequence
+
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.model import CaptionModel
@@ -21,6 +23,9 @@ class BackendCaptioner(Captioner):
 
     def caption(self, image_path: str) -> str:
         return self._backend.generate(image_path, self._model)
+
+    def caption_many(self, image_paths: Sequence[str]) -> list[str]:
+        return self._backend.generate_many(image_paths, self._model)
 
     def healthcheck(self) -> bool:
         return self._backend.healthcheck()

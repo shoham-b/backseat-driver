@@ -14,45 +14,24 @@ Usage::
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Sequence
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import Camera, SceneKeyframe
+from backseat_driver.read.dataset.nuscenes_tables import NuScenesTables
 from backseat_driver.read.dataset.scene_loader import SceneLoader
-
-if TYPE_CHECKING:
-    from nuscenes.nuscenes import NuScenes
-
 
 ALL_CAMERA_CHANNELS = tuple(camera.channel for camera in Camera)
 
 
-def open_nuscenes(version: str, dataroot: str) -> NuScenes:
-    """Open the dataset with the devkit; it is imported here, not at module scope, as it is heavy."""
-    from nuscenes.nuscenes import NuScenes
-
-    return NuScenes(version=version, dataroot=dataroot, verbose=False)
-
-
-def open_nuscenes_tables(version: str, dataroot: str) -> NuScenes:
-    """Open a dataroot that holds only the metadata tables, for finding keyframes without downloading any image.
-
-    The devkit insists that every map file named in `map.json` exists when it opens the dataset, though it only reads
-    them on demand. Empty placeholders satisfy it, which spares ingest the (large) maps.
-    """
-    root = Path(dataroot)
-    for record in json.loads((root / version / "map.json").read_text()):
-        placeholder = root / record["filename"]
-        placeholder.parent.mkdir(parents=True, exist_ok=True)
-        placeholder.touch()
-    return open_nuscenes(version, dataroot)
+def open_nuscenes(version: str, dataroot: str) -> NuScenesTables:
+    """Open the metadata tables; a dataroot holding only them works, so ingest never downloads an image."""
+    return NuScenesTables(version, dataroot)
 
 
 class NuScenesSceneLoader(SceneLoader):
-    """Reads scenes from a local nuScenes dataset via nuscenes-devkit."""
+    """Reads scenes from a local nuScenes dataset's metadata tables."""
 
     def __init__(
         self,
@@ -80,7 +59,7 @@ class NuScenesSceneLoader(SceneLoader):
 
     @staticmethod
     def _keyframe_for_camera(
-        nusc: NuScenes, scene: dict[str, Any], sample: dict[str, Any], channel: str
+        nusc: NuScenesTables, scene: dict[str, Any], sample: dict[str, Any], channel: str
     ) -> SceneKeyframe:
         sample_data_token = sample["data"].get(channel)
         if sample_data_token is None:
@@ -94,7 +73,7 @@ class NuScenesSceneLoader(SceneLoader):
         )
 
     @staticmethod
-    def _middle_sample(nusc: NuScenes, scene: dict[str, Any]) -> dict[str, Any]:
+    def _middle_sample(nusc: NuScenesTables, scene: dict[str, Any]) -> dict[str, Any]:
         samples: list[dict[str, Any]] = []
         token = scene["first_sample_token"]
         while token:

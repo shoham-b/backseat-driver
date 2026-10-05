@@ -94,6 +94,7 @@ All settings are prefixed with `BACKSEAT_DRIVER_`. Copy `.env.example` to `.env`
 | `BACKSEAT_DRIVER_OLLAMA_URL` | `http://localhost:11434` | Ollama server URL |
 | `BACKSEAT_DRIVER_ANTHROPIC_MODEL_NAME` | required for `anthropic` | Claude model, e.g. `claude-haiku-4-5-20251001` |
 | `BACKSEAT_DRIVER_ANTHROPIC_API_KEY` | unset | Required for the `anthropic` backend; each caption is a billed request |
+| `BACKSEAT_DRIVER_CAPTION_BATCH_SIZE` | `8` | Images `describe` captions together: one forward pass for `huggingface` (about twice the CPU throughput), concurrent requests for `anthropic`. `1` captions one at a time |
 | `BACKSEAT_DRIVER_OUTPUT_DIR` | `output` | Directory for result files and the report |
 | `BACKSEAT_DRIVER_API_HOST` / `_API_PORT` | `127.0.0.1` / `8080` | API bind address (optional API only) |
 | `BACKSEAT_DRIVER_UI_HOST` / `_UI_PORT` | `127.0.0.1` / `8081` | Bind address of the UI (`just ui`); containers bind `0.0.0.0` through the `fastapi run` command |

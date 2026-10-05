@@ -11,7 +11,7 @@ import pytest
 from pytest_codspeed import BenchmarkFixture
 
 from backseat_driver.models import CaptionTask, IngestTask, SceneDescription
-from backseat_driver.pipeline import ScenePipeline
+from backseat_driver.pipeline import ScenePipeline, describe_keyframes
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.write.json_writer import write_json
@@ -37,6 +37,32 @@ def test_pipeline_run(benchmark: BenchmarkFixture, scenes: int) -> None:
     descriptions = benchmark(pipeline.run)
 
     assert len(descriptions) == scenes
+
+
+@pytest.mark.parametrize("batch_size", [1, 8, 32])
+def test_pipeline_run_by_batch_size(benchmark: BenchmarkFixture, batch_size: int) -> None:
+    """The bookkeeping batching adds (an `ExitStack` of local copies per batch, one `caption_many` call)."""
+    pipeline = ScenePipeline(
+        FakeSceneLoader([make_keyframe(n) for n in range(500)]),
+        FakeCaptioner(),
+        PassthroughImageStore(),
+        batch_size=batch_size,
+    )
+
+    descriptions = benchmark(pipeline.run)
+
+    assert len(descriptions) == 500
+
+
+@pytest.mark.parametrize("batch_size", [1, 8, 32])
+def test_describe_keyframes(benchmark: BenchmarkFixture, batch_size: int) -> None:
+    keyframes = [make_keyframe(n) for n in range(batch_size)]
+    paths = [keyframe.image_path for keyframe in keyframes]
+    captioner = FakeCaptioner()
+
+    descriptions = benchmark(describe_keyframes, keyframes, captioner, paths)
+
+    assert len(descriptions) == batch_size
 
 
 @pytest.mark.parametrize("scenes", SCENE_COUNTS)

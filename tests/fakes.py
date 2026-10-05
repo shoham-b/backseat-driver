@@ -1,7 +1,7 @@
 """In-memory test doubles — no broker, no database, no model."""
 
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -200,17 +200,23 @@ class FakeCaptioner(Captioner):
     def __init__(self, caption_text: str | None = None) -> None:
         self._caption_text = caption_text
         self.seen_paths: list[str] = []
+        self.loads = 0
+        self.batches: list[list[str]] = []
 
     @property
     def model_name(self) -> str:
         return "fake-model"
 
     def load(self) -> None:
-        pass
+        self.loads += 1
 
     def caption(self, image_path: str) -> str:
         self.seen_paths.append(image_path)
         return self._caption_text or f"a caption for {image_path}"
+
+    def caption_many(self, image_paths: Sequence[str]) -> list[str]:
+        self.batches.append(list(image_paths))
+        return super().caption_many(image_paths)
 
     def healthcheck(self) -> bool:
         return True

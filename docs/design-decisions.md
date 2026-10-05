@@ -116,11 +116,11 @@ The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_
 
 **Decision: upload the dataset once, and make the bucket its home.** A one-time `backseat-driver dataset upload` copies the metadata tables (`<version>/*.json`) and the images of the configured camera into the bucket, keeping the nuScenes layout, and skips anything already there so it can be rerun. After that:
 
-- **Ingest** downloads only the small metadata tables to a scratch directory and runs the devkit over them to find the keyframes. A keyframe's `image_path` is its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`), as it is everywhere, and the task carries that key's URI.
+- **Ingest** downloads only the small metadata tables to a scratch directory and reads the keyframes straight from them (`NuScenesTables`). A keyframe's `image_path` is its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`), as it is everywhere, and the task carries that key's URI.
 - **Caption workers** fetch that one object, caption it and delete it.
 - **No worker mounts the dataset.** Only the upload step reads it from disk.
 
-Two details came out of testing it. The devkit refuses to open a dataset unless every map file named in `map.json` exists, so ingest creates empty placeholders for them instead of downloading the maps (`open_nuscenes_tables`). And sweeps and maps are not uploaded at all, because no worker reads them.
+Two details came out of testing it. Ingest runs once per message, so what it imports is paid on every job: nuscenes-devkit pulls in matplotlib, scikit-learn and scipy (about 7 s) and refuses to open a dataset unless every map file named in `map.json` exists. `NuScenesTables` reads only the five small tables keyframe selection needs, which takes a fraction of a second and needs no map. And sweeps and maps are not uploaded at all, because no worker reads them.
 
 **Revisit if:** the full dataset's metadata tables become too large to download per job. They could then be cached on the ingest worker's disk, or the keyframes precomputed once and stored.
 

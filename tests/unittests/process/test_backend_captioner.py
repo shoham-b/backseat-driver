@@ -36,6 +36,17 @@ def test_caption_runs_the_model_on_the_backend() -> None:
     assert backend.generated == [("scene.png", model)]
 
 
+def test_caption_many_runs_the_whole_batch_on_the_backend() -> None:
+    backend = _RecordingBackend()
+    model = CaptionModel("some/model")
+    captioner = BackendCaptioner(backend, model)
+
+    descriptions = captioner.caption_many(["a.png", "b.png"])
+
+    assert descriptions == ["a caption", "a caption"]
+    assert backend.generated == [("a.png", model), ("b.png", model)]
+
+
 def test_load_and_healthcheck_delegate_to_the_backend() -> None:
     backend = _RecordingBackend()
     model = CaptionModel("some/model")

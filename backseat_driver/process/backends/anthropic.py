@@ -6,6 +6,8 @@ key and network access at runtime, and each caption is a billed request.
 """
 
 import base64
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from backseat_driver.errors import UnprocessableError
@@ -75,6 +77,13 @@ class AnthropicBackend(CaptionBackend):
             f"{self._base_url}/v1/messages", payload, self._headers(), self._timeout, "Anthropic"
         )
         return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()
+
+    def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        """One request per image, all in flight at once: the wait is on the API, not on this process."""
+        if not image_paths:
+            return []
+        with ThreadPoolExecutor(max_workers=len(image_paths)) as pool:
+            return list(pool.map(lambda image_path: self.generate(image_path, model), image_paths))
 
     def healthcheck(self) -> bool:
         # Listing models is free and verifies both reachability and that the key is accepted.

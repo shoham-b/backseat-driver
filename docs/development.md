@@ -103,9 +103,7 @@ live in `tests/fakes.py` and the layer's `conftest.py`.
 uv run pytest tests/unittests -v
 ```
 
-No I/O, no network, no GPU. `read/dataset/nuscenes_scene_loader.py` and `process/backends/huggingface.py` import nuscenes-devkit and
-transformers lazily inside their default factories, which the loader and backend take as constructor arguments so these tests can pass a fake — see
-`tests/unittests/read/dataset/test_nuscenes_scene_loader.py` and `tests/unittests/process/backends/test_huggingface.py`.
+No I/O, no network, no GPU. `process/backends/huggingface.py` imports transformers lazily inside its default factory, which the backend takes as a constructor argument so these tests can pass a fake — see `tests/unittests/process/backends/test_huggingface.py`. The scene loader takes its table reader the same way (`tests/unittests/read/dataset/test_nuscenes_scene_loader.py`).
 
 ### Integration tests
 
@@ -163,9 +161,10 @@ just bench   # or: uv run pytest tests/benchmarks --codspeed
 ```
 
 `tests/benchmarks/` holds [pytest-codspeed](https://codspeed.io/docs/reference/pytest-codspeed) benchmarks
-for the pipeline, the queue workers, queue-message (de)serialization, the JSON writer and nuScenes keyframe
-selection. Like the unit tests they run against in-memory fakes, so they measure the code around the VLM, not
-the model. The `CodSpeed` workflow runs them in CPU simulation mode on every push and pull request and reports
+for the pipeline (by batch size), the queue workers, queue-message (de)serialization, the JSON writer, nuScenes
+keyframe selection and table reads, and the backends' per-image work (decoding, request building). Like the unit tests they run against in-memory fakes, so they measure the code around the VLM, not
+the model. What the ingest worker imports is guarded by `tests/integrationtests/transport/test_import_cost.py`, since
+it is paid per message. The `CodSpeed` workflow runs them in CPU simulation mode on every push and pull request and reports
 regressions on the PR. To measure locally the same way, install the [CodSpeed CLI](https://codspeed.io/docs/cli)
 and run `codspeed run --mode simulation -- uv run pytest tests/benchmarks --codspeed`.
 

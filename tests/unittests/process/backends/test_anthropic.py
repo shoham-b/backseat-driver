@@ -37,6 +37,30 @@ def test_caption_sends_image_prompt_and_auth_and_joins_text_blocks(image_path: s
     assert "only the caption" in posted.payload["system"]
 
 
+def test_generate_many_returns_one_caption_per_image(tmp_path: Path) -> None:
+    paths = []
+    for name in ("a", "b", "c"):
+        path = tmp_path / f"{name}.jpg"
+        path.write_bytes(name.encode())
+        paths.append(str(path))
+    http = FakeHttpClient(response=_text_response("ok"))
+
+    descriptions = AnthropicBackend(http, api_key="k").generate_many(paths, _MODEL)
+
+    assert descriptions == ["ok", "ok", "ok"]
+    sent = {post.payload["messages"][0]["content"][0]["source"]["data"] for post in http.posts}
+    assert sent == {base64.b64encode(name).decode() for name in (b"a", b"b", b"c")}
+
+
+def test_generate_many_of_nothing_makes_no_request() -> None:
+    http = FakeHttpClient(response=_text_response("ok"))
+
+    descriptions = AnthropicBackend(http, api_key="k").generate_many([], _MODEL)
+
+    assert descriptions == []
+    assert http.posts == []
+
+
 def test_caption_sends_the_image_bytes_and_the_models_prompt(image_path: str) -> None:
     http = FakeHttpClient(response=_text_response("ok"))
 

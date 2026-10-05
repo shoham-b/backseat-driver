@@ -6,6 +6,7 @@ with a `CaptionModel`.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 
 
 class Captioner(ABC):
@@ -21,6 +22,10 @@ class Captioner(ABC):
 
     @abstractmethod
     def caption(self, image_path: str) -> str: ...
+
+    def caption_many(self, image_paths: Sequence[str]) -> list[str]:
+        """Describe each image, in order. Override to run them together; this one runs them one by one."""
+        return [self.caption(image_path) for image_path in image_paths]
 
     @abstractmethod
     def healthcheck(self) -> bool:

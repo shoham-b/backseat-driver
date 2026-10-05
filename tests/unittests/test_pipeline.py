@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from backseat_driver.models import SceneKeyframe
-from backseat_driver.pipeline import ScenePipeline
+from backseat_driver.pipeline import ScenePipeline, describe_keyframes
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader
 
 
@@ -121,3 +121,79 @@ def test_run_propagates_a_captioning_failure_and_still_releases_the_local_copy()
         pipeline.run()
 
     assert images.released == images.opened == ["fake://samples/CAM_FRONT/scene-1.jpg"]
+
+
+def test_run_captions_in_batches_of_batch_size() -> None:
+    keyframes = [_keyframe(n) for n in range(1, 6)]
+    captioner = FakeCaptioner()
+    pipeline = ScenePipeline(
+        loader=FakeSceneLoader(keyframes), captioner=captioner, images=FakeImageStore(), batch_size=2
+    )
+
+    descriptions = pipeline.run()
+
+    assert [len(batch) for batch in captioner.batches] == [2, 2, 1]
+    assert [d.scene_name for d in descriptions] == [f"scene-{n}" for n in range(1, 6)]
+
+
+def test_run_reports_progress_once_per_batch_with_its_first_keyframe() -> None:
+    keyframes = [_keyframe(n) for n in range(1, 6)]
+    pipeline = ScenePipeline(
+        loader=FakeSceneLoader(keyframes), captioner=FakeCaptioner(), images=FakeImageStore(), batch_size=2
+    )
+    seen: list[tuple[int, int, str]] = []
+
+    pipeline.run(on_progress=lambda index, total, kf: seen.append((index, total, kf.scene_name)))
+
+    assert seen == [(1, 5, "scene-1"), (3, 5, "scene-3"), (5, 5, "scene-5")]
+
+
+def test_run_holds_every_local_copy_of_a_batch_until_the_batch_is_captioned() -> None:
+    images = FakeImageStore()
+    pipeline = ScenePipeline(
+        loader=FakeSceneLoader([_keyframe(1), _keyframe(2)]),
+        captioner=FakeCaptioner(),
+        images=images,
+        batch_size=2,
+    )
+
+    pipeline.run()
+
+    assert images.opened == images.released[::-1]
+
+
+def test_run_loads_the_captioner() -> None:
+    captioner = FakeCaptioner()
+    pipeline = ScenePipeline(loader=FakeSceneLoader([_keyframe(1)]), captioner=captioner, images=FakeImageStore())
+
+    pipeline.run()
+
+    assert captioner.loads == 1
+
+
+class _UnloadableCaptioner(FakeCaptioner):
+    def load(self) -> None:
+        raise RuntimeError("no weights")
+
+
+def test_run_fails_when_the_captioner_cannot_load_before_captioning_anything() -> None:
+    captioner = _UnloadableCaptioner()
+    pipeline = ScenePipeline(loader=FakeSceneLoader([_keyframe(1)]), captioner=captioner, images=FakeImageStore())
+
+    with pytest.raises(RuntimeError, match="no weights"):
+        pipeline.run()
+
+    assert captioner.seen_paths == []
+
+
+@pytest.mark.parametrize("batch_size", [0, -1])
+def test_a_batch_size_below_one_is_rejected(batch_size: int) -> None:
+    with pytest.raises(ValueError, match="batch_size must be at least 1"):
+        ScenePipeline(
+            loader=FakeSceneLoader([]), captioner=FakeCaptioner(), images=FakeImageStore(), batch_size=batch_size
+        )
+
+
+def test_describe_keyframes_rejects_a_path_count_that_differs_from_the_keyframe_count() -> None:
+    with pytest.raises(ValueError, match="1 local paths for 2 keyframes"):
+        describe_keyframes([_keyframe(1), _keyframe(2)], FakeCaptioner(), ["a.jpg"])
