@@ -5,7 +5,7 @@ read and turns a missing object into the domain's `NotFoundError`, so the store'
 S3 object) never reach the HTTP layer.
 """
 
-import asyncio
+import anyio
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.read.images.image_keys import validate_image_key
@@ -22,6 +22,6 @@ class ImageService:
         validate_image_key(key)
         try:
             async with self._store.local_copy(self._store.uri_for(key)) as path:
-                return await asyncio.to_thread(path.read_bytes)
+                return await anyio.Path(path).read_bytes()
         except FileNotFoundError as exc:
             raise NotFoundError(f"image {key!r} not found") from exc

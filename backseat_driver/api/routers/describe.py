@@ -5,11 +5,11 @@ pipeline as a small inference service, instead of (or alongside) running the
 CLI as a scheduled batch job.
 """
 
-import asyncio
 import re
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
+import anyio
 from fastapi import APIRouter, Depends, UploadFile
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
@@ -41,7 +41,7 @@ async def describe(
     # because the captioners sniff the image type from it.
     suffix = PurePosixPath((image.filename or "").replace("\\", "/")).suffix.lower()
     tmp_path = upload_dir / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
-    await asyncio.to_thread(tmp_path.write_bytes, contents)
+    await anyio.Path(tmp_path).write_bytes(contents)
     # A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is the service's own
     # and stays a 500.
     description = await captioner.caption(str(tmp_path))
