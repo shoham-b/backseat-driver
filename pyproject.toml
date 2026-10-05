@@ -12,6 +12,8 @@ dependencies = [
     "rich>=13",
     "loguru>=0.7",
     "pydantic-settings>=2.9",
+    # The Anthropic backend sends a batch of captions concurrently, on any image that can run it.
+    "httpx>=0.28",
 ]
 
 # The runtime sets, one per image and entry point: `pip install "backseat-driver[cli]"`, `uv sync --extra api`.

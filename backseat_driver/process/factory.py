@@ -1,6 +1,7 @@
 """Builds the configured `Captioner` so the API, CLI and workers pick a backend and model the same way."""
 
 from backseat_driver.config import Settings, VlmBackend
+from backseat_driver.process.async_http_client import HttpxAsyncHttpClient
 from backseat_driver.process.backend_captioner import BackendCaptioner
 from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.backends.backend import CaptionBackend
@@ -20,7 +21,9 @@ def build_backend(settings: Settings, backend: VlmBackend) -> CaptionBackend:
     # `build_captioner` rejects unknown backends via `model_name_for`, so only Anthropic is left.
     if settings.anthropic_api_key is None:
         raise ValueError("BACKSEAT_DRIVER_ANTHROPIC_API_KEY must be set to use the anthropic backend")
-    return AnthropicBackend(UrllibHttpClient(), api_key=settings.anthropic_api_key.get_secret_value())
+    return AnthropicBackend(
+        UrllibHttpClient(), HttpxAsyncHttpClient(), api_key=settings.anthropic_api_key.get_secret_value()
+    )
 
 
 def build_captioner(settings: Settings, backend: VlmBackend | None = None, model_name: str | None = None) -> Captioner:

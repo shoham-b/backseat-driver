@@ -17,7 +17,7 @@ from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
 from backseat_driver.read.dataset.nuscenes_tables import NuScenesTables
-from tests.fakes import FakeHttpClient
+from tests.fakes import FakeAsyncHttpClient, FakeHttpClient
 
 BATCH_SIZES = [1, 8, 32]
 # nuScenes front-camera frames are 1600x900 JPEGs.
@@ -58,7 +58,7 @@ def test_huggingface_generate_many(benchmark: BenchmarkFixture, frames: list[str
 @pytest.mark.parametrize("batch_size", BATCH_SIZES)
 def test_anthropic_generate_many(benchmark: BenchmarkFixture, frames: list[str], batch_size: int) -> None:
     http = FakeHttpClient(response={"content": [{"type": "text", "text": "a street"}]})
-    backend = AnthropicBackend(http, api_key="bench")
+    backend = AnthropicBackend(http, FakeAsyncHttpClient(http), api_key="bench")
     model = CaptionModel("claude-bench", prompt="describe")
 
     descriptions = benchmark(backend.generate_many, frames[:batch_size], model)

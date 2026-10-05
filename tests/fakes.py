@@ -1,5 +1,6 @@
 """In-memory test doubles — no broker, no database, no model."""
 
+import asyncio
 import tempfile
 from collections.abc import Iterator, Sequence
 from contextlib import AbstractContextManager, contextmanager, nullcontext
@@ -23,6 +24,7 @@ from backseat_driver.models import (
     SceneDescription,
     SceneKeyframe,
 )
+from backseat_driver.process.async_http_client import AsyncHttpClient
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.http_client import HttpClient, HttpResponse
 from backseat_driver.read.dataset.scene_loader import SceneLoader
@@ -323,6 +325,19 @@ class FakeHttpClient(HttpClient):
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         self.probes.append(Probe(url, headers, timeout))
         return self._reachable
+
+
+class FakeAsyncHttpClient(AsyncHttpClient):
+    """Awaitable front for a `FakeHttpClient`, so the same canned answers and recorded posts serve both ports."""
+
+    def __init__(self, http: FakeHttpClient) -> None:
+        self._http = http
+
+    async def post_json(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        await asyncio.sleep(0)
+        return self._http.post_json(url, payload, headers, timeout=0, service=service)
 
 
 class FakeDescriptionSource(DescriptionSource):

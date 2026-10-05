@@ -5,12 +5,14 @@ more detailed than BLIP's one-liners. Unlike the local backends this needs an AP
 key and network access at runtime, and each caption is a billed request.
 """
 
+import asyncio
 import base64
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Any
 
 from backseat_driver.errors import UnprocessableError
+from backseat_driver.process.async_http_client import AsyncHttpClient
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
@@ -37,6 +39,7 @@ class AnthropicBackend(CaptionBackend):
     def __init__(
         self,
         http: HttpClient,
+        async_http: AsyncHttpClient,
         api_key: str,
         base_url: str = "https://api.anthropic.com",
         max_tokens: int = 512,
@@ -45,6 +48,7 @@ class AnthropicBackend(CaptionBackend):
         if not api_key:
             raise ValueError("AnthropicBackend requires a non-empty api_key")
         self._http = http
+        self._async_http = async_http
         self._api_key = api_key
         self._base_url = base_url.rstrip("/")
         self._max_tokens = max_tokens
@@ -55,11 +59,42 @@ class AnthropicBackend(CaptionBackend):
         return
 
     def generate(self, image_path: str, model: CaptionModel) -> str:
+        body = self._http.post_json(
+            self._messages_url, self._payload(image_path, model), self._headers(), self._timeout, "Anthropic"
+        )
+        return _caption_of(body)
+
+    def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        """One request per image, all in flight at once: the wait is on the API, not on this process.
+
+        Runs its own event loop, so it cannot be called from inside a running one.
+        """
+        if not image_paths:
+            return []
+        return asyncio.run(self._generate_all(image_paths, model))
+
+    async def _generate_all(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        bodies = await asyncio.gather(*(self._post(image_path, model) for image_path in image_paths))
+        return [_caption_of(body) for body in bodies]
+
+    async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
+        payload = self._payload(image_path, model)
+        try:
+            async with asyncio.timeout(self._timeout):
+                return await self._async_http.post_json(self._messages_url, payload, self._headers(), "Anthropic")
+        except TimeoutError as exc:
+            raise RuntimeError(f"Anthropic did not answer within {self._timeout:g} s") from exc
+
+    @property
+    def _messages_url(self) -> str:
+        return f"{self._base_url}/v1/messages"
+
+    def _payload(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
         media_type = _MEDIA_TYPES_BY_SUFFIX.get(Path(image_path).suffix.lower())
         if media_type is None:
             raise UnprocessableError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
         image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
-        payload = {
+        return {
             "model": model.name,
             "max_tokens": self._max_tokens,
             "system": _SYSTEM_PROMPT,
@@ -73,17 +108,6 @@ class AnthropicBackend(CaptionBackend):
                 }
             ],
         }
-        body = self._http.post_json(
-            f"{self._base_url}/v1/messages", payload, self._headers(), self._timeout, "Anthropic"
-        )
-        return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()
-
-    def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
-        """One request per image, all in flight at once: the wait is on the API, not on this process."""
-        if not image_paths:
-            return []
-        with ThreadPoolExecutor(max_workers=len(image_paths)) as pool:
-            return list(pool.map(lambda image_path: self.generate(image_path, model), image_paths))
 
     def healthcheck(self) -> bool:
         # Listing models is free and verifies both reachability and that the key is accepted.
@@ -91,3 +115,7 @@ class AnthropicBackend(CaptionBackend):
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": self._api_key, "anthropic-version": _API_VERSION}
+
+
+def _caption_of(body: dict[str, Any]) -> str:
+    return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()
