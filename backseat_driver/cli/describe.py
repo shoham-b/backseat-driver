@@ -12,6 +12,7 @@ Usage::
     backseat_driver describe --mode distributed --output output/cluster.json
 """
 
+import asyncio
 import sys
 from typing import Annotated
 
@@ -165,7 +166,7 @@ def _ensure_dataset(settings: Settings, dataroot: str, version: str, interactive
 
 def _run_pipeline(pipeline: ScenePipeline, max_scenes: int | None, interactive: bool) -> list[SceneDescription]:
     if not interactive:
-        return pipeline.run(max_scenes=max_scenes, on_progress=log_progress)
+        return asyncio.run(pipeline.run(max_scenes=max_scenes, on_progress=log_progress))
     with Progress(
         TextColumn("{task.description}"), BarColumn(), MofNCompleteColumn(), TimeRemainingColumn(), transient=True
     ) as progress:
@@ -176,7 +177,7 @@ def _run_pipeline(pipeline: ScenePipeline, max_scenes: int | None, interactive: 
                 task, total=total, completed=index - 1, description=f"{keyframe.scene_name} {keyframe.camera_channel}"
             )
 
-        return pipeline.run(max_scenes=max_scenes, on_progress=advance)
+        return asyncio.run(pipeline.run(max_scenes=max_scenes, on_progress=advance))
 
 
 def _describe_on_workers(api_url: str, max_scenes: int | None, timeout: float) -> list[SceneDescription]:

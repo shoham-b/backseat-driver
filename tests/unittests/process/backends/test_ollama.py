@@ -15,11 +15,11 @@ def image_path(tmp_path: Path) -> str:
     return str(path)
 
 
-def test_caption_posts_the_model_prompt_and_image_and_returns_the_stripped_response(image_path: str) -> None:
+async def test_caption_posts_the_model_prompt_and_image_and_returns_the_stripped_response(image_path: str) -> None:
     http = FakeHttpClient(response={"response": "  a long, detailed description  "})
     backend = OllamaBackend(http, base_url="http://ollama:11434/")
 
-    description = backend.generate(image_path, CaptionModel("llava", prompt="list the road users"))
+    description = await backend.generate(image_path, CaptionModel("llava", prompt="list the road users"))
 
     assert description == "a long, detailed description"
     (posted,) = http.posts
@@ -33,50 +33,50 @@ def test_caption_posts_the_model_prompt_and_image_and_returns_the_stripped_respo
     }
 
 
-def test_caption_of_a_missing_file_fails_fast_without_calling_the_server(tmp_path: Path) -> None:
+async def test_caption_of_a_missing_file_fails_fast_without_calling_the_server(tmp_path: Path) -> None:
     http = FakeHttpClient()
 
     with pytest.raises(FileNotFoundError):
-        OllamaBackend(http).generate(str(tmp_path / "missing.png"), CaptionModel("llava"))
+        await OllamaBackend(http).generate(str(tmp_path / "missing.png"), CaptionModel("llava"))
 
     assert http.posts == []
 
 
-def test_caption_limits_generated_tokens(image_path: str) -> None:
+async def test_caption_limits_generated_tokens(image_path: str) -> None:
     http = FakeHttpClient(response={"response": "wet road", "done_reason": "stop"})
     backend = OllamaBackend(http, max_tokens=64)
 
-    backend.generate(image_path, CaptionModel("llava"))
+    await backend.generate(image_path, CaptionModel("llava"))
 
     (posted,) = http.posts
     assert posted.payload["options"] == {"num_predict": 64}
 
 
-def test_caption_fails_when_generation_hits_the_token_limit(image_path: str) -> None:
+async def test_caption_fails_when_generation_hits_the_token_limit(image_path: str) -> None:
     http = FakeHttpClient(response={"response": "road, road, road, road", "done_reason": "length"})
     backend = OllamaBackend(http, max_tokens=64)
 
     with pytest.raises(RuntimeError, match=r"hit the 64-token limit on .*scene\.png"):
-        backend.generate(image_path, CaptionModel("llava"))
+        await backend.generate(image_path, CaptionModel("llava"))
 
 
-def test_caption_propagates_http_failures(image_path: str) -> None:
+async def test_caption_propagates_http_failures(image_path: str) -> None:
     backend = OllamaBackend(FakeHttpClient(error=RuntimeError("Cannot reach Ollama at http://x: refused")))
 
     with pytest.raises(RuntimeError, match="Cannot reach Ollama"):
-        backend.generate(image_path, CaptionModel("llava"))
+        await backend.generate(image_path, CaptionModel("llava"))
 
 
-def test_healthcheck_probes_the_tags_endpoint() -> None:
+async def test_healthcheck_probes_the_tags_endpoint() -> None:
     http = FakeHttpClient()
 
-    OllamaBackend(http, base_url="http://ollama:11434/").healthcheck()
+    await OllamaBackend(http, base_url="http://ollama:11434/").healthcheck()
 
     assert [probe.url for probe in http.probes] == ["http://ollama:11434/api/tags"]
 
 
 @pytest.mark.parametrize("reachable", [True, False])
-def test_healthcheck_reports_whether_the_server_is_reachable(reachable: bool) -> None:
+async def test_healthcheck_reports_whether_the_server_is_reachable(reachable: bool) -> None:
     backend = OllamaBackend(FakeHttpClient(reachable=reachable))
 
-    assert backend.healthcheck() is reachable
+    assert await backend.healthcheck() is reachable

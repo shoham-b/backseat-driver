@@ -12,6 +12,8 @@ dependencies = [
     "rich>=13",
     "loguru>=0.7",
     "pydantic-settings>=2.9",
+    # The Anthropic backend sends a batch of captions concurrently, on any image that can run it.
+    "httpx>=0.28",
 ]
 
 # The runtime sets, one per image and entry point: `pip install "backseat-driver[cli]"`, `uv sync --extra api`.
@@ -24,7 +26,6 @@ vlm = [
     "transformers>=4.44,<6",
     "pillow>=10.4",
 ]
-nuscenes = ["nuscenes-devkit>=1.1.11"]
 # Broker + database clients shared by the API and the queue workers.
 jobs = [
     "celery>=5.6.3",
@@ -37,15 +38,15 @@ object-storage = ["boto3>=1.35"]
 # Stemming for the report metrics.
 report = ["snowballstemmer>=2.2"]
 # Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
-ingest-worker = ["backseat-driver[nuscenes,jobs,object-storage]"]
+ingest-worker = ["backseat-driver[jobs,object-storage]"]
 caption-worker = ["backseat-driver[vlm,jobs,object-storage]"]
 # Everything the batch CLI pipeline needs at runtime. The report UI is a FastAPI app run with `fastapi run`.
 cli = [
     "fastapi[standard]>=0.115",
-    "backseat-driver[report,vlm,nuscenes,jobs,object-storage]",
+    "backseat-driver[report,vlm,jobs,object-storage]",
 ]
-# Everything the HTTP API needs at runtime (no nuscenes-devkit: the API never opens the dataset, it only serves
-# single images from it, hence the object-storage client).
+# Everything the HTTP API needs at runtime (the API never opens the dataset, it only serves single images from it,
+# hence the object-storage client).
 api = [
     "fastapi[standard]>=0.115",
     "python-multipart>=0.0.12",

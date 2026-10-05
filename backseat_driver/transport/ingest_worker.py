@@ -6,6 +6,8 @@ once its work is durably recorded, which is what lets the task be acked afterwar
 delivery), and every step is safe to run twice.
 """
 
+import asyncio
+
 from loguru import logger
 
 from backseat_driver.models import CaptionTask, IngestTask
@@ -30,7 +32,7 @@ class IngestWorker:
         if task.max_scenes is not None and task.max_scenes < 1:
             raise ValueError(f"max_scenes must be at least 1, got {task.max_scenes}")
         with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
-            keyframes = first_scenes(self._loader.load_keyframes(), task.max_scenes)
+            keyframes = first_scenes(asyncio.run(self._loader.load_keyframes()), task.max_scenes)
 
             # One description is recorded per keyframe, so that is what the job expects. Recorded before fanning out,
             # so a job can't look complete while tasks are still being published.

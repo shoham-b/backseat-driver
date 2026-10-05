@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from http import HTTPStatus
 from io import BytesIO
@@ -22,19 +23,19 @@ class _RecordingCaptioner(FakeCaptioner):
         self.contents: list[bytes] = []
         self.seen_resolved: list[Path] = []
 
-    def caption(self, image_path: str) -> str:
-        self.contents.append(Path(image_path).read_bytes())
-        self.seen_resolved.append(Path(image_path).resolve())
-        return super().caption(image_path)
+    async def caption(self, image_path: str) -> str:
+        self.contents.append(await asyncio.to_thread(Path(image_path).read_bytes))
+        self.seen_resolved.append(await asyncio.to_thread(Path(image_path).resolve))
+        return await super().caption(image_path)
 
 
 class _RejectingCaptioner(FakeCaptioner):
-    def caption(self, image_path: str) -> str:
+    async def caption(self, image_path: str) -> str:
         raise UnprocessableError("cannot identify image file")
 
 
 class _BrokenCaptioner(FakeCaptioner):
-    def caption(self, image_path: str) -> str:
+    async def caption(self, image_path: str) -> str:
         raise RuntimeError("model server exploded")
 
 
@@ -154,7 +155,7 @@ def test_the_failed_upload_is_still_cleaned_up(client_with: ClientFactory) -> No
     seen: list[str] = []
 
     class _Failing(FakeCaptioner):
-        def caption(self, image_path: str) -> str:
+        async def caption(self, image_path: str) -> str:
             seen.append(image_path)
             raise ValueError("bad")
 

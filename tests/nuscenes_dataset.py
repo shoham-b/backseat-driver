@@ -1,6 +1,7 @@
-"""Builds a tiny but real nuScenes dataset on disk, so tests can run the actual nuscenes-devkit over it.
+"""Builds a tiny nuScenes dataset on disk in the real file format, so tests can run the real table reader over it.
 
-Only the tables and files the devkit insists on are written; everything else is empty. Each scene has three
+The tables the real dataset has, with the fields nuScenes gives them (a `sample` has no `data`; it is derived).
+Tables nothing reads are empty. Each scene has three
 samples with one CAM_FRONT image, so the loader's "middle sample" choice is observable from the image name.
 """
 

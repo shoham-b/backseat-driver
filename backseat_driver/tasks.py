@@ -10,6 +10,7 @@ Importing this module reads the settings and builds the Celery app, which `celer
 Every other dependency (broker, database, bucket, model) is built on first use and cached.
 """
 
+import asyncio
 from collections.abc import Callable
 from functools import cached_property
 from typing import Any, NamedTuple
@@ -75,7 +76,7 @@ class Workers:
     @cached_property
     def caption_worker(self) -> CaptionWorker:
         captioner = self._build_captioner(self._settings)
-        captioner.load()
+        asyncio.run(captioner.load())
         return CaptionWorker(captioner=captioner, store=self.store, images=self.dataset)
 
 

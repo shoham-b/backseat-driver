@@ -1,4 +1,4 @@
-# Each worker has its own image (no torch in ingest, no nuscenes-devkit in caption). Neither mounts the dataset: the
+# Each worker has its own image (no torch in ingest). Neither mounts the dataset: the
 # dataset-upload Job puts it in the dataset bucket (object-store.yaml in development), ingest reads only its metadata
 # tables from there and the caption workers fetch single images, so both can run on any node.
 # Scale caption-worker with `kubectl scale` or let KEDA do it (deploy/components/keda-autoscaling); replicas share one queue.

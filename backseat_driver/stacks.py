@@ -25,7 +25,7 @@ from backseat_driver.models import CaptionTask, IngestTask
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.process.captioner import Captioner
 from backseat_driver.process.factory import build_captioner
-from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.read.images.local_image_store import LocalImageStore
@@ -55,7 +55,12 @@ def pipeline(
 ) -> ScenePipeline:
     loader = NuScenesSceneLoader(dataroot=dataroot, version=version, camera_channels=cameras)
     captioner = build_captioner(settings, backend=backend, model_name=model)
-    return ScenePipeline(loader=loader, captioner=captioner, images=LocalImageStore(dataroot))
+    return ScenePipeline(
+        loader=loader,
+        captioner=captioner,
+        images=LocalImageStore(dataroot),
+        batch_size=settings.caption_batch_size,
+    )
 
 
 # Rung 2: the seam. The same steps as tasks, both ends of the queue in the API process on one thread.
@@ -123,7 +128,6 @@ def stored_loader(settings: Settings, dataset: DatasetStore) -> SceneLoader:
             dataroot=dataroot,
             version=settings.nuscenes_version,
             camera_channels=[settings.camera_channel],
-            open_dataset=open_nuscenes_tables,
         ),
     )
 

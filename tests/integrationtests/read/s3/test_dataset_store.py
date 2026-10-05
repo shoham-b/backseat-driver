@@ -18,29 +18,29 @@ def _file(path: Path, content: bytes = b"x") -> Path:
     return path
 
 
-def test_an_uploaded_image_is_readable_through_a_local_copy_that_is_removed_afterwards(tmp_path: Path) -> None:
+async def test_an_uploaded_image_is_readable_through_a_local_copy_that_is_removed_afterwards(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store.upload("samples/CAM_FRONT/a.jpg", _file(tmp_path / "a.jpg", b"jpeg bytes"))
 
-    with store.local_copy(store.uri_for("samples/CAM_FRONT/a.jpg")) as copy:
+    async with store.local_copy(store.uri_for("samples/CAM_FRONT/a.jpg")) as copy:
         content, name = copy.read_bytes(), copy.name
 
     assert (content, name) == (b"jpeg bytes", "a.jpg")
     assert not copy.exists()
 
 
-def test_the_local_copy_is_removed_when_the_caller_fails(tmp_path: Path) -> None:
+async def test_the_local_copy_is_removed_when_the_caller_fails(tmp_path: Path) -> None:
     store = _store(tmp_path)
     store.upload("k/a.jpg", _file(tmp_path / "a.jpg"))
     seen: list[Path] = []
 
-    def use_then_fail() -> None:
-        with store.local_copy(store.uri_for("k/a.jpg")) as copy:
+    async def use_then_fail() -> None:
+        async with store.local_copy(store.uri_for("k/a.jpg")) as copy:
             seen.append(copy)
             raise RuntimeError("model exploded")
 
     with pytest.raises(RuntimeError):
-        use_then_fail()
+        await use_then_fail()
 
     assert not seen[0].exists()
 
@@ -123,18 +123,17 @@ class _FailingClient:
 
 
 @pytest.mark.parametrize("code", ["404", "NoSuchKey"])
-def test_a_missing_object_is_reported_as_a_missing_file(code: str) -> None:
+async def test_a_missing_object_is_reported_as_a_missing_file(code: str) -> None:
     store = S3DatasetStore("nuscenes", make_client=lambda _endpoint: _FailingClient(_ClientError(code)))
 
-    with (
-        pytest.raises(FileNotFoundError, match=r"s3://nuscenes/samples/a.jpg"),
-        store.local_copy("s3://nuscenes/samples/a.jpg"),
-    ):
-        pass
+    with pytest.raises(FileNotFoundError, match=r"s3://nuscenes/samples/a.jpg"):
+        async with store.local_copy("s3://nuscenes/samples/a.jpg"):
+            pass
 
 
-def test_any_other_download_failure_is_not_mistaken_for_a_missing_file() -> None:
+async def test_any_other_download_failure_is_not_mistaken_for_a_missing_file() -> None:
     store = S3DatasetStore("nuscenes", make_client=lambda _endpoint: _FailingClient(_ClientError("AccessDenied")))
 
-    with pytest.raises(_ClientError), store.local_copy("s3://nuscenes/samples/a.jpg"):
-        pass
+    with pytest.raises(_ClientError):
+        async with store.local_copy("s3://nuscenes/samples/a.jpg"):
+            pass

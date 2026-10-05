@@ -1,3 +1,4 @@
+import asyncio
 from http import HTTPStatus
 from typing import Annotated
 
@@ -28,7 +29,7 @@ def readiness(
 
     A plain `def` (run on a worker thread): the probes do blocking network I/O.
     """
-    if not captioner.healthcheck():
+    if not asyncio.run(captioner.healthcheck()):
         raise APIError("VLM captioner unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
     if not queue.healthcheck():
         raise APIError("message queue unavailable", HTTPStatus.SERVICE_UNAVAILABLE)

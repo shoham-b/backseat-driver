@@ -1,7 +1,7 @@
 """`ImageStore` for a single machine: keys are paths below the dataroot, so nothing is copied."""
 
-from collections.abc import Iterator
-from contextlib import contextmanager
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from backseat_driver.read.images.image_store import ImageStore
@@ -20,7 +20,7 @@ class LocalImageStore(ImageStore):
             raise ValueError(f"Image key {key!r} is outside the dataroot")
         return str(path)
 
-    @contextmanager
-    def local_copy(self, uri: str) -> Iterator[Path]:
+    @asynccontextmanager
+    async def local_copy(self, uri: str) -> AsyncIterator[Path]:
         # The file is the dataset's own, so it is yielded in place and never deleted on exit.
         yield Path(uri)

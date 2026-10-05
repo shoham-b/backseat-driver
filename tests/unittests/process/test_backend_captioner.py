@@ -8,40 +8,51 @@ class _RecordingBackend(CaptionBackend):
         self.loaded: list[CaptionModel] = []
         self.generated: list[tuple[str, CaptionModel]] = []
 
-    def load(self, model: CaptionModel) -> None:
+    async def load(self, model: CaptionModel) -> None:
         self.loaded.append(model)
 
-    def generate(self, image_path: str, model: CaptionModel) -> str:
+    async def generate(self, image_path: str, model: CaptionModel) -> str:
         self.generated.append((image_path, model))
         return "a caption"
 
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         return False
 
 
-def test_model_name_comes_from_the_model() -> None:
+async def test_model_name_comes_from_the_model() -> None:
     captioner = BackendCaptioner(_RecordingBackend(), CaptionModel("some/model"))
 
     assert captioner.model_name == "some/model"
 
 
-def test_caption_runs_the_model_on_the_backend() -> None:
+async def test_caption_runs_the_model_on_the_backend() -> None:
     backend = _RecordingBackend()
     model = CaptionModel("some/model", prompt="describe")
     captioner = BackendCaptioner(backend, model)
 
-    description = captioner.caption("scene.png")
+    description = await captioner.caption("scene.png")
 
     assert description == "a caption"
     assert backend.generated == [("scene.png", model)]
 
 
-def test_load_and_healthcheck_delegate_to_the_backend() -> None:
+async def test_caption_many_runs_the_whole_batch_on_the_backend() -> None:
     backend = _RecordingBackend()
     model = CaptionModel("some/model")
     captioner = BackendCaptioner(backend, model)
 
-    captioner.load()
+    descriptions = await captioner.caption_many(["a.png", "b.png"])
+
+    assert descriptions == ["a caption", "a caption"]
+    assert backend.generated == [("a.png", model), ("b.png", model)]
+
+
+async def test_load_and_healthcheck_delegate_to_the_backend() -> None:
+    backend = _RecordingBackend()
+    model = CaptionModel("some/model")
+    captioner = BackendCaptioner(backend, model)
+
+    await captioner.load()
 
     assert backend.loaded == [model]
-    assert captioner.healthcheck() is False
+    assert await captioner.healthcheck() is False

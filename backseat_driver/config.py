@@ -3,7 +3,7 @@ from enum import StrEnum
 from functools import lru_cache
 from typing import Literal, Self
 
-from pydantic import SecretStr, computed_field, model_validator
+from pydantic import Field, SecretStr, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     ollama_url: str = "http://localhost:11434"
     anthropic_model_name: str | None = None
     anthropic_api_key: SecretStr | None = None
+    # Images `describe` captions together: one forward pass for HuggingFace, concurrent requests for Anthropic. 1 turns
+    # batching off.
+    caption_batch_size: int = Field(default=8, ge=1)
 
     # Where the monolith keeps its jobs (a SQLite file), so they survive a restart and the report UI can list them.
     # Distributed mode uses `database_url` instead.

@@ -23,7 +23,7 @@ def _new_job(store: FakeJobStore, expected_scenes: int | None = None) -> UUID:
 
 
 class _FailingCaptioner(FakeCaptioner):
-    def caption(self, image_path: str) -> str:
+    async def caption(self, image_path: str) -> str:
         raise RuntimeError("model exploded")
 
 

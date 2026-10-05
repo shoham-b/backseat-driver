@@ -3,6 +3,7 @@ the model is a stub Ollama server on localhost. Nothing is faked or patched, so 
 is routed to the right collaborators; the command functions themselves hold no logic.
 """
 
+import asyncio
 import json
 import shutil
 from collections.abc import Callable
@@ -15,7 +16,7 @@ from typer.testing import CliRunner
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
 from backseat_driver.models import IngestTask, JobState
-from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
+from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader
 from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.read.s3.stored_scene_loader import StoredSceneLoader
 from backseat_driver.read.s3.uploader import DatasetUploader
@@ -33,8 +34,6 @@ from tests.nuscenes_dataset import (
 )
 from tests.stub_server import Responder, StubServer, json_reply
 from tests.waiting import wait_until
-
-pytest.importorskip("nuscenes.nuscenes", reason="nuscenes-devkit (and its OpenCV libraries) is not installed")
 
 runner = CliRunner()
 CAPTION = "a parked truck near construction"
@@ -65,9 +64,9 @@ def test_describe_fetches_the_dataset_and_describes_every_scene_with_its_referen
     output = tmp_path / "result.json"
 
     result = runner.invoke(app, ["describe", "--camera", "front", "--output", str(output)], env=cli_env)
-    written = json.loads(output.read_text())
 
     assert result.exit_code == 0, result.output
+    written = json.loads(output.read_text())
     assert [d["scene_name"] for d in written] == ["scene-0000", "scene-0001"]
     assert [d["reference_description"] for d in written] == SCENE_LABELS
     assert [d["description"] for d in written] == [CAPTION] * 2
@@ -188,8 +187,8 @@ def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_p
 class _ByteCountingCaptioner(FakeCaptioner):
     """Reads the image it is given, so it fails unless a real local file is there."""
 
-    def caption(self, image_path: str) -> str:
-        return f"{len(Path(image_path).read_bytes())} bytes"
+    async def caption(self, image_path: str) -> str:
+        return f"{len(await asyncio.to_thread(Path(image_path).read_bytes))} bytes"
 
 
 def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path: Path) -> None:
@@ -201,9 +200,7 @@ def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path:
     queue, store = FakeJobQueue(), FakeJobStore()
 
     def make_loader(root: str) -> NuScenesSceneLoader:
-        return NuScenesSceneLoader(
-            dataroot=root, version=VERSION, camera_channels=["CAM_FRONT"], open_dataset=open_nuscenes_tables
-        )
+        return NuScenesSceneLoader(dataroot=root, version=VERSION, camera_channels=["CAM_FRONT"])
 
     loader = StoredSceneLoader(dataset, VERSION, make_loader)
     job_id = uuid4()
@@ -220,7 +217,7 @@ def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path:
     assert [d.reference_description for d in descriptions] == SCENE_LABELS
 
 
-def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: Path) -> None:
+async def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     settings = make_settings(nuscenes_dataroot=str(dataroot), nuscenes_version=VERSION)
     images = build_image_store(settings)
@@ -233,7 +230,7 @@ def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: 
     descriptions = store.list_descriptions(job_id)
 
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
-    with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
+    async with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
         assert path.read_bytes()
 
 

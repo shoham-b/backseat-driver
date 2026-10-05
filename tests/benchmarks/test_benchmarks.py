@@ -14,6 +14,7 @@ import pytest
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.pipeline import ScenePipeline, describe_keyframe
 from backseat_driver.write.json_writer import write_json
+from tests.benchmarks.loop import run
 from tests.fakes import FakeCaptioner, FakeSceneLoader, PassthroughImageStore, make_keyframe
 
 pytest.importorskip("pytest_codspeed")
@@ -33,25 +34,28 @@ def pipeline(keyframes: list[SceneKeyframe]) -> ScenePipeline:
 
 @pytest.fixture
 def descriptions(pipeline: ScenePipeline) -> list[SceneDescription]:
-    return pipeline.run()
+    return run(pipeline.run())
 
 
 @pytest.mark.benchmark
 def test_pipeline_run(pipeline: ScenePipeline) -> None:
-    pipeline.run()
+    run(pipeline.run())
 
 
 @pytest.mark.benchmark
 def test_pipeline_run_capped(pipeline: ScenePipeline) -> None:
-    pipeline.run(max_scenes=SCENE_COUNT // 10)
+    run(pipeline.run(max_scenes=SCENE_COUNT // 10))
 
 
 @pytest.mark.benchmark
 def test_describe_keyframe(keyframes: list[SceneKeyframe]) -> None:
     captioner = FakeCaptioner()
 
-    for keyframe in keyframes:
-        describe_keyframe(keyframe, captioner, keyframe.image_path)
+    async def describe_all() -> None:
+        for keyframe in keyframes:
+            await describe_keyframe(keyframe, captioner, keyframe.image_path)
+
+    run(describe_all())
 
 
 @pytest.mark.benchmark

@@ -243,7 +243,7 @@ def test_tasks_declare_the_shared_retry_limit() -> None:
 class _LoadCountingCaptioner(FakeCaptioner):
     loads = 0
 
-    def load(self) -> None:
+    async def load(self) -> None:
         self.loads += 1
 
 

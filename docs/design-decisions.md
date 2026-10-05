@@ -11,8 +11,8 @@ These three came up independently from two different sources (this design conver
 | Decision | Choice | Why |
 |---|---|---|
 | VLM backend seam | `Captioner` as an abstract class, `BackendCaptioner` pairing a `CaptionBackend` (HuggingFace, Ollama, Anthropic) with a `CaptionModel` (Strategy) | The one thing stated up front as likely to change (local BLIP → hosted API VLM later) and the one thing slow enough to be worth faking in tests |
-| Dataset access seam | `NuScenesSceneLoader` wraps `nuscenes-devkit` behind `SceneLoader` (Adapter) | Isolates the rest of the codebase from the devkit's dict/token-graph API; a devkit version bump only touches this one file |
-| Wiring | Constructor injection — `ScenePipeline(loader, captioner)`, concrete instances built at the CLI entry point, not inside the pipeline | Makes `ScenePipeline` importable and unit-testable without ever importing `nuscenes-devkit` or `transformers` |
+| Dataset access seam | `NuScenesSceneLoader` reads nuScenes' JSON tables (`NuScenesTables`) behind `SceneLoader` (Adapter) | Isolates the rest of the codebase from the dataset's dict/token-graph layout; a format change only touches the loader and the table reader |
+| Wiring | Constructor injection — `ScenePipeline(loader, captioner)`, concrete instances built at the CLI entry point, not inside the pipeline | Makes `ScenePipeline` importable and unit-testable without ever importing `transformers` |
 
 ## Open questions, decided
 
@@ -84,7 +84,7 @@ What is **not** persisted is the in-process queue. A job that was running when t
 
 **Options:** one worker that reads the dataset and captions every scene; or two queue consumers, `ingest` and `caption`.
 
-**Decision: two.** They differ in everything that matters for scaling. Ingest opens the dataset, counts the scenes and publishes one message per scene: I/O-bound, once per job, cheap. Captioning runs the model once per scene: CPU/GPU-bound, many tasks per job, and the only step worth scaling. Separate workers mean caption replicas scale from the queue depth while ingest stays small, and each gets its own image (`ingest-worker` has nuscenes-devkit and no torch; `caption-worker` has torch and no devkit), so GPU nodes carry only the model. Ingest is not scaled because it only pushes to the queue.
+**Decision: two.** They differ in everything that matters for scaling. Ingest opens the dataset, counts the scenes and publishes one message per scene: I/O-bound, once per job, cheap. Captioning runs the model once per scene: CPU/GPU-bound, many tasks per job, and the only step worth scaling. Separate workers mean caption replicas scale from the queue depth while ingest stays small, and each gets its own image (`ingest-worker` has no torch; `caption-worker` has torch), so GPU nodes carry only the model. Ingest is not scaled because it only pushes to the queue.
 
 **Revisit if:** captioning never needs more than one process. Then one worker would be simpler, and the monolith mode already is exactly that.
 
@@ -116,11 +116,11 @@ The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_
 
 **Decision: upload the dataset once, and make the bucket its home.** A one-time `backseat-driver dataset upload` copies the metadata tables (`<version>/*.json`) and the images of the configured camera into the bucket, keeping the nuScenes layout, and skips anything already there so it can be rerun. After that:
 
-- **Ingest** downloads only the small metadata tables to a scratch directory and runs the devkit over them to find the keyframes. A keyframe's `image_path` is its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`), as it is everywhere, and the task carries that key's URI.
+- **Ingest** downloads only the small metadata tables to a scratch directory and reads the keyframes straight from them (`NuScenesTables`). A keyframe's `image_path` is its dataset-relative key (`samples/CAM_FRONT/<name>.jpg`), as it is everywhere, and the task carries that key's URI.
 - **Caption workers** fetch that one object, caption it and delete it.
 - **No worker mounts the dataset.** Only the upload step reads it from disk.
 
-Two details came out of testing it. The devkit refuses to open a dataset unless every map file named in `map.json` exists, so ingest creates empty placeholders for them instead of downloading the maps (`open_nuscenes_tables`). And sweeps and maps are not uploaded at all, because no worker reads them.
+Two details came out of testing it. Ingest runs once per message, so what it imports is paid on every job: nuscenes-devkit, which this project used to call, pulls in matplotlib, scikit-learn and scipy (about 7 s) and refuses to open a dataset unless every map file named in `map.json` exists. `NuScenesTables` reads only the five small tables keyframe selection needs, which takes a fraction of a second and needs no map. And sweeps and maps are not uploaded at all, because no worker reads them.
 
 **Revisit if:** the full dataset's metadata tables become too large to download per job. They could then be cached on the ingest worker's disk, or the keyframes precomputed once and stored.
 
@@ -145,7 +145,7 @@ Two details came out of testing it. The devkit refuses to open a dataset unless 
 
 **Options:** the API does the fan-out itself as a background task; an always-on ingest worker; or a run-to-completion Job per request.
 
-The API option is attractive now that ingest only reads metadata, and the monolith already works that way. It was not chosen for the distributed mode: it puts nuscenes-devkit into an API image that is deliberately kept without it, runs the metadata load and fan-out on a serving pod, and has no recovery if the pod dies after answering 202 but before publishing every message (the job would stay `running` forever).
+The API option is attractive now that ingest only reads metadata, and the monolith already works that way. It was not chosen for the distributed mode: it puts the dataset's metadata reader into an API image that is deliberately kept without it, runs the metadata load and fan-out on a serving pod, and has no recovery if the pod dies after answering 202 but before publishing every message (the job would stay `running` forever).
 
 **Decision: keep the queue, and run ingest as a Job per queued task.**
 
@@ -191,7 +191,7 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 **First attempt:** the devkit loader reported the path it had joined onto the dataroot, so in the monolith `image_path` was a filesystem path. The job flow needed a key that means the same image on any machine, so a `RelativeSceneLoader` wrapper stripped the dataroot back off by string prefix, and the report and UI guessed which of the two meanings a value had by checking whether the API had served it.
 
-**Decision: `image_path` is always the dataset-relative key** (`samples/CAM_FRONT/<name>.jpg`), which the devkit already holds as `sample_data["filename"]`. An `ImageStore` is the one thing that turns a key into bytes: `ScenePipeline` takes one just as `CaptionWorker` does, and the report resolves keys through the local dataroot, or through the API when it was given jobs. The wrapper and the guessing are gone.
+**Decision: `image_path` is always the dataset-relative key** (`samples/CAM_FRONT/<name>.jpg`), which the dataset already holds as `sample_data["filename"]`. An `ImageStore` is the one thing that turns a key into bytes: `ScenePipeline` takes one just as `CaptionWorker` does, and the report resolves keys through the local dataroot, or through the API when it was given jobs. The wrapper and the guessing are gone.
 
 **Consequence:** result files written by `describe` hold keys, not absolute paths, so they are portable but need the dataroot (or an API that has the dataset) to render a report. Files written by an earlier version hold absolute paths and have to be generated again.
 

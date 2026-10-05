@@ -68,11 +68,12 @@ def test_the_client_is_built_on_first_use_with_the_endpoint_and_then_reused() ->
 
 
 @pytest.mark.parametrize("uri", ["/data/a.jpg", "s3://nuscenes", "s3://nuscenes/", "s3:///a.jpg", "http://x/a.jpg"])
-def test_local_copy_rejects_uris_that_are_not_s3_objects(uri: str) -> None:
+async def test_local_copy_rejects_uris_that_are_not_s3_objects(uri: str) -> None:
     builder = _ClientBuilder()
     store = S3DatasetStore("nuscenes", make_client=builder)
 
-    with pytest.raises(ValueError, match="Not an S3 image URI"), store.local_copy(uri):
-        pass
+    with pytest.raises(ValueError, match="Not an S3 image URI"):
+        async with store.local_copy(uri):
+            pass
 
     assert builder.endpoints == []

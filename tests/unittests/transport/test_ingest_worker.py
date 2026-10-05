@@ -24,7 +24,7 @@ def _worker(keyframes: list[SceneKeyframe], queue: FakeJobQueue, store: FakeJobS
 
 
 class _MissingDataset(SceneLoader):
-    def load_keyframes(self) -> list[SceneKeyframe]:
+    async def load_keyframes(self) -> list[SceneKeyframe]:
         raise FileNotFoundError("dataset missing")
 
 

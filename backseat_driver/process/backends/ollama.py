@@ -6,12 +6,15 @@ loaded in-process. Unlike the HuggingFace BLIP pipeline, a multimodal Ollama mod
 more verbose and steerable.
 """
 
+import asyncio
 import base64
 from pathlib import Path
 
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
+
+_HEALTHCHECK_TIMEOUT = 5.0
 
 
 class OllamaBackend(CaptionBackend):
@@ -29,12 +32,12 @@ class OllamaBackend(CaptionBackend):
         self._timeout = timeout
         self._max_tokens = max_tokens
 
-    def load(self, model: CaptionModel) -> None:
+    async def load(self, model: CaptionModel) -> None:
         # The Ollama server owns the model lifecycle and loads it on the first request.
         return
 
-    def generate(self, image_path: str, model: CaptionModel) -> str:
-        image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
+    async def generate(self, image_path: str, model: CaptionModel) -> str:
+        image_b64 = base64.b64encode(await asyncio.to_thread(Path(image_path).read_bytes)).decode("ascii")
         # Ollama generates without limit by default, and llava sometimes loops on one image until the request times out.
         payload = {
             "model": model.name,
@@ -43,7 +46,11 @@ class OllamaBackend(CaptionBackend):
             "stream": False,
             "options": {"num_predict": self._max_tokens},
         }
-        body = self._http.post_json(f"{self._base_url}/api/generate", payload, {}, self._timeout, "Ollama")
+        try:
+            async with asyncio.timeout(self._timeout):
+                body = await self._http.post_json_async(f"{self._base_url}/api/generate", payload, {}, "Ollama")
+        except TimeoutError as exc:
+            raise RuntimeError(f"Ollama did not answer within {self._timeout:g} s") from exc
         if body.get("done_reason") == "length":
             raise RuntimeError(
                 f"Ollama model {model.name!r} hit the {self._max_tokens}-token limit on {image_path} "
@@ -51,5 +58,9 @@ class OllamaBackend(CaptionBackend):
             )
         return body["response"].strip()
 
-    def healthcheck(self) -> bool:
-        return self._http.is_reachable(f"{self._base_url}/api/tags", {}, 5)
+    async def healthcheck(self) -> bool:
+        try:
+            async with asyncio.timeout(_HEALTHCHECK_TIMEOUT):
+                return await self._http.is_reachable_async(f"{self._base_url}/api/tags", {})
+        except TimeoutError:
+            return False

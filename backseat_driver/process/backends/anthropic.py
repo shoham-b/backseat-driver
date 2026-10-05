@@ -5,8 +5,11 @@ more detailed than BLIP's one-liners. Unlike the local backends this needs an AP
 key and network access at runtime, and each caption is a billed request.
 """
 
+import asyncio
 import base64
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.backend import CaptionBackend
@@ -14,6 +17,7 @@ from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
 
 _API_VERSION = "2023-06-01"
+_HEALTHCHECK_TIMEOUT = 5.0
 # A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).
 _MEDIA_TYPES_BY_SUFFIX = {
     ".jpg": "image/jpeg",
@@ -48,16 +52,36 @@ class AnthropicBackend(CaptionBackend):
         self._max_tokens = max_tokens
         self._timeout = timeout
 
-    def load(self, model: CaptionModel) -> None:
+    async def load(self, model: CaptionModel) -> None:
         # Hosted model: nothing to load locally.
         return
 
-    def generate(self, image_path: str, model: CaptionModel) -> str:
+    async def generate(self, image_path: str, model: CaptionModel) -> str:
+        return _caption_of(await self._post(image_path, model))
+
+    async def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
+        """One request per image, all in flight at once: the wait is on the API, not on this process."""
+        bodies = await asyncio.gather(*(self._post(image_path, model) for image_path in image_paths))
+        return [_caption_of(body) for body in bodies]
+
+    async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
+        payload = await asyncio.to_thread(self._payload, image_path, model)
+        try:
+            async with asyncio.timeout(self._timeout):
+                return await self._http.post_json_async(self._messages_url, payload, self._headers(), "Anthropic")
+        except TimeoutError as exc:
+            raise RuntimeError(f"Anthropic did not answer within {self._timeout:g} s") from exc
+
+    @property
+    def _messages_url(self) -> str:
+        return f"{self._base_url}/v1/messages"
+
+    def _payload(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
         media_type = _MEDIA_TYPES_BY_SUFFIX.get(Path(image_path).suffix.lower())
         if media_type is None:
             raise UnprocessableError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
         image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
-        payload = {
+        return {
             "model": model.name,
             "max_tokens": self._max_tokens,
             "system": _SYSTEM_PROMPT,
@@ -71,14 +95,18 @@ class AnthropicBackend(CaptionBackend):
                 }
             ],
         }
-        body = self._http.post_json(
-            f"{self._base_url}/v1/messages", payload, self._headers(), self._timeout, "Anthropic"
-        )
-        return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()
 
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         # Listing models is free and verifies both reachability and that the key is accepted.
-        return self._http.is_reachable(f"{self._base_url}/v1/models?limit=1", self._headers(), 5)
+        try:
+            async with asyncio.timeout(_HEALTHCHECK_TIMEOUT):
+                return await self._http.is_reachable_async(f"{self._base_url}/v1/models?limit=1", self._headers())
+        except TimeoutError:
+            return False
 
     def _headers(self) -> dict[str, str]:
         return {"x-api-key": self._api_key, "anthropic-version": _API_VERSION}
+
+
+def _caption_of(body: dict[str, Any]) -> str:
+    return "".join(block["text"] for block in body["content"] if block["type"] == "text").strip()

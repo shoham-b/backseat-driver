@@ -17,6 +17,6 @@ def test_a_key_that_leaves_the_dataroot_does_not_resolve(key: str) -> None:
         LocalImageStore("/data/nu").uri_for(key)
 
 
-def test_local_copy_yields_the_same_path_without_copying() -> None:
-    with LocalImageStore("/data/nu").local_copy("/data/nu/a.jpg") as path:
+async def test_local_copy_yields_the_same_path_without_copying() -> None:
+    async with LocalImageStore("/data/nu").local_copy("/data/nu/a.jpg") as path:
         assert path == Path("/data/nu/a.jpg")

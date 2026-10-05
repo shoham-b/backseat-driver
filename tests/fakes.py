@@ -1,8 +1,9 @@
 """In-memory test doubles — no broker, no database, no model."""
 
+import asyncio
 import tempfile
-from collections.abc import Iterator
-from contextlib import AbstractContextManager, contextmanager, nullcontext
+from collections.abc import AsyncIterator, Sequence
+from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -143,8 +144,8 @@ class FakeImageStore(ImageStore):
     def uri_for(self, key: str) -> str:
         return f"fake://{key}"
 
-    @contextmanager
-    def local_copy(self, uri: str) -> Iterator[Path]:
+    @asynccontextmanager
+    async def local_copy(self, uri: str) -> AsyncIterator[Path]:
         self.opened.append(uri)
         try:
             yield Path("/fetched") / PurePosixPath(uri).name
@@ -159,8 +160,8 @@ class PassthroughImageStore(ImageStore):
     def uri_for(self, key: str) -> str:
         return key
 
-    def local_copy(self, uri: str) -> AbstractContextManager[Path]:
-        return nullcontext(_PASSTHROUGH_PATH)
+    def local_copy(self, uri: str) -> AbstractAsyncContextManager[Path]:
+        return nullcontext(_PASSTHROUGH_PATH)  # `nullcontext` is also an async context manager
 
 
 _PASSTHROUGH_PATH = Path("/fetched")
@@ -190,7 +191,7 @@ class FakeSceneLoader(SceneLoader):
     def __init__(self, keyframes: list[SceneKeyframe]) -> None:
         self._keyframes = keyframes
 
-    def load_keyframes(self) -> list[SceneKeyframe]:
+    async def load_keyframes(self) -> list[SceneKeyframe]:
         return self._keyframes
 
 
@@ -200,19 +201,25 @@ class FakeCaptioner(Captioner):
     def __init__(self, caption_text: str | None = None) -> None:
         self._caption_text = caption_text
         self.seen_paths: list[str] = []
+        self.loads = 0
+        self.batches: list[list[str]] = []
 
     @property
     def model_name(self) -> str:
         return "fake-model"
 
-    def load(self) -> None:
-        pass
+    async def load(self) -> None:
+        self.loads += 1
 
-    def caption(self, image_path: str) -> str:
+    async def caption(self, image_path: str) -> str:
         self.seen_paths.append(image_path)
         return self._caption_text or f"a caption for {image_path}"
 
-    def healthcheck(self) -> bool:
+    async def caption_many(self, image_paths: Sequence[str]) -> list[str]:
+        self.batches.append(list(image_paths))
+        return await super().caption_many(image_paths)
+
+    async def healthcheck(self) -> bool:
         return True
 
 
@@ -272,7 +279,7 @@ class PostedJson:
     url: str
     payload: dict[str, Any]
     headers: dict[str, str]
-    timeout: float
+    timeout: float | None  # None for an async post, which the caller bounds with `asyncio.timeout`
     service: str
 
 
@@ -280,7 +287,7 @@ class PostedJson:
 class Probe:
     url: str
     headers: dict[str, str]
-    timeout: float
+    timeout: float | None  # None for an async call, which the caller bounds with `asyncio.timeout`
 
 
 class FakeHttpClient(HttpClient):
@@ -305,6 +312,15 @@ class FakeHttpClient(HttpClient):
             raise self._error
         return self._response
 
+    async def post_json_async(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        await asyncio.sleep(0)  # a real call yields to the loop; so does this
+        self.posts.append(PostedJson(url, payload, headers, None, service))
+        if self._error:
+            raise self._error
+        return self._response
+
     def get(self, url: str, headers: dict[str, str], timeout: float, service: str) -> HttpResponse:
         self.gets.append(Probe(url, headers, timeout))
         if self._error:
@@ -316,6 +332,11 @@ class FakeHttpClient(HttpClient):
 
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:
         self.probes.append(Probe(url, headers, timeout))
+        return self._reachable
+
+    async def is_reachable_async(self, url: str, headers: dict[str, str]) -> bool:
+        await asyncio.sleep(0)
+        self.probes.append(Probe(url, headers, None))
         return self._reachable
 
 

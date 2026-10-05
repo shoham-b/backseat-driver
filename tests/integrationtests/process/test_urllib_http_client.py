@@ -59,6 +59,44 @@ def test_post_json_rejects_a_non_json_success_body(stub_server: StubFactory) -> 
         UrllibHttpClient().post_json(server.url, {}, {}, timeout=1, service="Svc")
 
 
+async def test_post_json_async_sends_payload_merges_headers_and_returns_decoded_body(
+    stub_server: StubFactory,
+) -> None:
+    server = stub_server(_always(HTTPStatus.OK, b'{"ok": true}'))
+
+    body = await UrllibHttpClient().post_json_async(f"{server.url}/y", {"a": 1}, {"X-Key": "k"}, service="Svc")
+
+    (request,) = server.requests
+    assert body == {"ok": True}
+    assert request.method == "POST"
+    assert request.path == "/y"
+    assert request.json() == {"a": 1}
+    assert request.headers["Content-Type"] == "application/json"
+    assert request.headers["X-Key"] == "k"
+
+
+async def test_post_json_async_raises_with_status_and_body_on_http_error(stub_server: StubFactory) -> None:
+    server = stub_server(_always(HTTPStatus.TOO_MANY_REQUESTS, b"slow down"))
+
+    with pytest.raises(RuntimeError, match=r"Svc returned HTTP 429: slow down"):
+        await UrllibHttpClient().post_json_async(server.url, {}, {}, service="Svc")
+
+
+async def test_post_json_async_tolerates_undecodable_error_bodies(stub_server: StubFactory) -> None:
+    server = stub_server(_always(HTTPStatus.INTERNAL_SERVER_ERROR, b"\xff\xfe"))
+
+    with pytest.raises(RuntimeError, match="HTTP 500"):
+        await UrllibHttpClient().post_json_async(server.url, {}, {}, service="Svc")
+
+
+async def test_post_json_async_names_the_service_and_url_when_unreachable(stub_server: StubFactory) -> None:
+    server = stub_server(_always(HTTPStatus.OK, b"{}"))
+    server.stop()
+
+    with pytest.raises(RuntimeError, match=rf"Cannot reach Svc at {server.url}"):
+        await UrllibHttpClient().post_json_async(server.url, {}, {}, service="Svc")
+
+
 def test_is_reachable_is_true_for_a_200_and_sends_the_headers(stub_server: StubFactory) -> None:
     server = stub_server(_always(HTTPStatus.OK, b"{}"))
 

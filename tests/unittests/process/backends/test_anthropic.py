@@ -1,5 +1,7 @@
+import asyncio
 import base64
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -22,11 +24,11 @@ def _text_response(*texts: str) -> dict[str, object]:
     return {"content": [{"type": "text", "text": text} for text in texts]}
 
 
-def test_caption_sends_image_prompt_and_auth_and_joins_text_blocks(image_path: str) -> None:
+async def test_caption_sends_image_prompt_and_auth_and_joins_text_blocks(image_path: str) -> None:
     http = FakeHttpClient(response=_text_response("  A wet two-lane road. ", "Rain falls.  "))
     backend = AnthropicBackend(http, api_key="test-key")
 
-    description = backend.generate(image_path, _MODEL)
+    description = await backend.generate(image_path, _MODEL)
 
     assert description == "A wet two-lane road. Rain falls."
     (posted,) = http.posts
@@ -37,10 +39,96 @@ def test_caption_sends_image_prompt_and_auth_and_joins_text_blocks(image_path: s
     assert "only the caption" in posted.payload["system"]
 
 
-def test_caption_sends_the_image_bytes_and_the_models_prompt(image_path: str) -> None:
+async def test_generate_many_returns_one_caption_per_image(tmp_path: Path) -> None:
+    paths = []
+    for name in ("a", "b", "c"):
+        path = tmp_path / f"{name}.jpg"
+        path.write_bytes(name.encode())
+        paths.append(str(path))
     http = FakeHttpClient(response=_text_response("ok"))
 
-    AnthropicBackend(http, api_key="k").generate(image_path, _MODEL)
+    descriptions = await AnthropicBackend(http, api_key="k").generate_many(paths, _MODEL)
+
+    assert descriptions == ["ok", "ok", "ok"]
+    sent = {post.payload["messages"][0]["content"][0]["source"]["data"] for post in http.posts}
+    assert sent == {base64.b64encode(name).decode() for name in (b"a", b"b", b"c")}
+
+
+class _EchoHttp(FakeHttpClient):
+    """Answers each request with the image it carried, the first image slowest, so replies arrive in reverse order."""
+
+    def __init__(self, parties: int) -> None:
+        super().__init__()
+        self._parties = parties
+        self._arrived = 0
+        self._all_arrived = asyncio.Event()
+
+    async def post_json_async(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        image = base64.b64decode(payload["messages"][0]["content"][0]["source"]["data"]).decode()
+        # No request completes until every one has been sent: one at a time, the first would wait forever.
+        self._arrived += 1
+        if self._arrived == self._parties:
+            self._all_arrived.set()
+        await asyncio.wait_for(self._all_arrived.wait(), timeout=5)
+        await asyncio.sleep(0.01 * (self._parties - int(image)))
+        return _text_response(f"caption {image}")
+
+
+async def test_generate_many_sends_every_request_before_any_returns_and_keeps_the_input_order(tmp_path: Path) -> None:
+    paths = []
+    for n in range(3):
+        path = tmp_path / f"{n}.jpg"
+        path.write_bytes(str(n).encode())
+        paths.append(str(path))
+    backend = AnthropicBackend(_EchoHttp(parties=3), api_key="k")
+
+    descriptions = await backend.generate_many(paths, _MODEL)
+
+    assert descriptions == ["caption 0", "caption 1", "caption 2"]
+
+
+async def test_generate_many_fails_when_one_request_fails(tmp_path: Path) -> None:
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"a")
+    http = FakeHttpClient(error=RuntimeError("Anthropic returned HTTP 429: slow down"))
+    backend = AnthropicBackend(http, api_key="k")
+
+    with pytest.raises(RuntimeError, match="HTTP 429"):
+        await backend.generate_many([str(path)], _MODEL)
+
+
+class _NeverAnswersHttp(FakeHttpClient):
+    async def post_json_async(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        await asyncio.Event().wait()
+        raise AssertionError("unreachable")
+
+
+async def test_generate_many_gives_up_on_a_request_after_the_timeout(tmp_path: Path) -> None:
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"a")
+    backend = AnthropicBackend(_NeverAnswersHttp(), api_key="k", timeout=0.05)
+
+    with pytest.raises(RuntimeError, match=r"did not answer within 0\.05 s"):
+        await backend.generate_many([str(path)], _MODEL)
+
+
+async def test_generate_many_of_nothing_makes_no_request() -> None:
+    http = FakeHttpClient(response=_text_response("ok"))
+
+    descriptions = await AnthropicBackend(http, api_key="k").generate_many([], _MODEL)
+
+    assert descriptions == []
+    assert http.posts == []
+
+
+async def test_caption_sends_the_image_bytes_and_the_models_prompt(image_path: str) -> None:
+    http = FakeHttpClient(response=_text_response("ok"))
+
+    await AnthropicBackend(http, api_key="k").generate(image_path, _MODEL)
 
     image_block, prompt_block = http.posts[0].payload["messages"][0]["content"]
     assert image_block["source"] == {
@@ -62,28 +150,28 @@ def test_caption_sends_the_image_bytes_and_the_models_prompt(image_path: str) ->
         ("UPPER.JPG", "image/jpeg"),
     ],
 )
-def test_caption_tags_each_supported_image_type(tmp_path: Path, filename: str, media_type: str) -> None:
+async def test_caption_tags_each_supported_image_type(tmp_path: Path, filename: str, media_type: str) -> None:
     path = tmp_path / filename
     path.write_bytes(b"x")
     http = FakeHttpClient(response=_text_response("ok"))
 
-    AnthropicBackend(http, api_key="k").generate(str(path), _MODEL)
+    await AnthropicBackend(http, api_key="k").generate(str(path), _MODEL)
 
     assert http.posts[0].payload["messages"][0]["content"][0]["source"]["media_type"] == media_type
 
 
-def test_caption_rejects_unsupported_image_type(tmp_path: Path) -> None:
+async def test_caption_rejects_unsupported_image_type(tmp_path: Path) -> None:
     path = tmp_path / "scene.bmp"
     path.write_bytes(b"x")
     http = FakeHttpClient()
 
     with pytest.raises(UnprocessableError, match="Unsupported image type"):
-        AnthropicBackend(http, api_key="test-key").generate(str(path), _MODEL)
+        await AnthropicBackend(http, api_key="test-key").generate(str(path), _MODEL)
 
     assert http.posts == []
 
 
-def test_caption_ignores_non_text_blocks_and_strips_the_joined_text(image_path: str) -> None:
+async def test_caption_ignores_non_text_blocks_and_strips_the_joined_text(image_path: str) -> None:
     content = [
         {"type": "thinking", "thinking": "hmm"},
         {"type": "text", "text": " one "},
@@ -91,34 +179,34 @@ def test_caption_ignores_non_text_blocks_and_strips_the_joined_text(image_path: 
     ]
     backend = AnthropicBackend(FakeHttpClient(response={"content": content}), api_key="k")
 
-    assert backend.generate(image_path, _MODEL) == "one two"
+    assert await backend.generate(image_path, _MODEL) == "one two"
 
 
-def test_caption_of_a_missing_file_fails_fast_without_calling_the_api(tmp_path: Path) -> None:
+async def test_caption_of_a_missing_file_fails_fast_without_calling_the_api(tmp_path: Path) -> None:
     http = FakeHttpClient()
 
     with pytest.raises(FileNotFoundError):
-        AnthropicBackend(http, api_key="k").generate(str(tmp_path / "missing.jpg"), _MODEL)
+        await AnthropicBackend(http, api_key="k").generate(str(tmp_path / "missing.jpg"), _MODEL)
 
     assert http.posts == []
 
 
-def test_caption_propagates_http_failures(image_path: str) -> None:
+async def test_caption_propagates_http_failures(image_path: str) -> None:
     backend = AnthropicBackend(FakeHttpClient(error=RuntimeError("invalid x-api-key")), api_key="bad")
 
     with pytest.raises(RuntimeError, match="invalid x-api-key"):
-        backend.generate(image_path, _MODEL)
+        await backend.generate(image_path, _MODEL)
 
 
-def test_an_empty_api_key_is_rejected() -> None:
+async def test_an_empty_api_key_is_rejected() -> None:
     with pytest.raises(ValueError, match="api_key"):
         AnthropicBackend(FakeHttpClient(), api_key="")
 
 
-def test_healthcheck_lists_models_with_the_key() -> None:
+async def test_healthcheck_lists_models_with_the_key() -> None:
     http = FakeHttpClient()
 
-    AnthropicBackend(http, api_key="secret", base_url="https://api.test/").healthcheck()
+    await AnthropicBackend(http, api_key="secret", base_url="https://api.test/").healthcheck()
 
     (probe,) = http.probes
     assert probe.url == "https://api.test/v1/models?limit=1"
@@ -126,7 +214,7 @@ def test_healthcheck_lists_models_with_the_key() -> None:
 
 
 @pytest.mark.parametrize("reachable", [True, False])
-def test_healthcheck_reports_whether_the_api_accepts_the_key(reachable: bool) -> None:
+async def test_healthcheck_reports_whether_the_api_accepts_the_key(reachable: bool) -> None:
     backend = AnthropicBackend(FakeHttpClient(reachable=reachable), api_key="k")
 
-    assert backend.healthcheck() is reachable
+    assert await backend.healthcheck() is reachable
