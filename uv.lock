@@ -277,7 +277,6 @@ name = "backseat-driver"
 version = "0.2.3"
 source = { editable = "." }
 dependencies = [
-    { name = "anyio" },
     { name = "httpx" },
     { name = "loguru" },
     { name = "pydantic-settings" },
@@ -379,7 +378,6 @@ systemtest = [
 [package.metadata]
 requires-dist = [
     { name = "aioboto3", marker = "extra == 'object-storage'", specifier = ">=13" },
-    { name = "anyio", specifier = ">=4" },
     { name = "backseat-driver", extras = ["jobs", "object-storage"], marker = "extra == 'ingest-worker'" },
     { name = "backseat-driver", extras = ["report", "vlm", "jobs", "object-storage"], marker = "extra == 'cli'" },
     { name = "backseat-driver", extras = ["vlm", "jobs", "object-storage"], marker = "extra == 'api'" },

@@ -65,7 +65,7 @@ class AnthropicBackend(CaptionBackend):
         return [_caption_of(body) for body in bodies]
 
     async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:
-        payload = await asyncio.to_thread(self._payload, image_path, model)
+        payload = self._payload(image_path, model)  # reads and encodes one keyframe: quicker than a thread
         try:
             async with asyncio.timeout(self._timeout):
                 return await self._http.post_json_async(self._messages_url, payload, self._headers(), "Anthropic")

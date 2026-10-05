@@ -59,7 +59,7 @@ class S3DatasetStore(DatasetStore):
                     f"No objects under s3://{self._bucket}/{prefix}: has the dataset been uploaded?"
                 )
             targets = {key: directory / key.removeprefix(prefix) for key in keys}
-            await asyncio.to_thread(_make_parents, targets.values())
+            _make_parents(targets.values())
             await asyncio.gather(
                 *(client.download_file(self._bucket, key, str(target)) for key, target in targets.items())
             )

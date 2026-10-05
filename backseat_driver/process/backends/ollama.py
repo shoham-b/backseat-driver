@@ -8,8 +8,7 @@ more verbose and steerable.
 
 import asyncio
 import base64
-
-import anyio
+from pathlib import Path
 
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
@@ -38,7 +37,8 @@ class OllamaBackend(CaptionBackend):
         return
 
     async def generate(self, image_path: str, model: CaptionModel) -> str:
-        image_b64 = base64.b64encode(await anyio.Path(image_path).read_bytes()).decode("ascii")
+        # One keyframe: reading it inline is quicker than a thread, and the wait that matters is the request below.
+        image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")  # noqa: ASYNC240
         # Ollama generates without limit by default, and llava sometimes loops on one image until the request times out.
         payload = {
             "model": model.name,
