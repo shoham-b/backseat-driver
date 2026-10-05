@@ -36,7 +36,7 @@ class ApiReportSource(DescriptionSource):
         job = Job.model_validate_json(self._get(f"/jobs/{quote(job_id)}").body)
         if job.state is not JobState.COMPLETED:
             raise RuntimeError(
-                f"job {job_id} is {job.state.value} ({job.completed_scenes}/{job.expected_scenes} scenes); "
+                f"job {job_id} is {job.state.value} ({job.completed_scenes}/{job.expected_scenes} descriptions); "
                 "wait until it is completed"
             )
         return self._descriptions_of(job_id)

@@ -53,7 +53,7 @@ def test_a_job_that_is_still_running_is_an_error_not_a_partial_report() -> None:
     job_id, http = str(uuid4()), FakeHttpClient()
     http.responses_by_url = {f"{API}/jobs/{job_id}": _job(job_id, JobState.RUNNING, completed=1)}
 
-    with pytest.raises(RuntimeError, match=r"running \(1/2 scenes\)"):
+    with pytest.raises(RuntimeError, match=r"running \(1/2 descriptions\)"):
         ApiReportSource(API, http).job_descriptions(job_id)
 
     assert [probe.url for probe in http.gets] == [f"{API}/jobs/{job_id}"]

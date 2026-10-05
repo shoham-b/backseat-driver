@@ -63,6 +63,41 @@ pin the image tags with the `images:` block in `kustomization.yaml`. Both PVCs a
 cluster, pin the pods that share a volume to one node. No worker mounts a volume, so the workers can run on any node:
 they only reach the broker, Postgres and the dataset bucket.
 
+## Production
+
+`deploy/production` is a Kustomize overlay on the base (`kubectl apply -k deploy/production`). It deploys only the
+stateless parts (API, UI, workers, Jobs) and expects the stateful ones to be external:
+
+| Needs | Why it is not in the overlay |
+|---|---|
+| Managed Postgres | the base StatefulSet has one 5Gi volume and no backups |
+| RabbitMQ with the management plugin | the base Deployment has no volume, so a restart loses queued work; KEDA also reads queue depth from the management API |
+| A real S3 bucket | the base store is in memory |
+
+What the overlay changes: the dev Postgres, RabbitMQ, S3 mock and Secret are deleted; image tags are pinned to a release
+(the release PR bumps them); the ConfigMap loses the broker URL and the S3 endpoint; KEDA autoscaling is on; and it adds
+an Ingress with TLS, NetworkPolicies (default-deny ingress; the API accepts only the ingress controller and the UI, the UI
+only the ingress controller), PodDisruptionBudgets, zone and node spreading, a 120 s grace period for caption workers so an
+in-flight caption finishes on SIGTERM, memory limits on the ingest Jobs and the UI, and two UI replicas.
+
+Before applying, replace the `example.com` hosts and the `REPLACE-ME` bucket and region in `kustomization.yaml` and
+`ingress.yaml` (the API host appears in the Ingress and `UI_PUBLIC_API_URL`, the UI host in the Ingress and
+`CORS_ORIGINS`), then create two Secrets in the `backseat-driver` namespace:
+
+- `backseat-driver-secrets`: `BACKSEAT_DRIVER_DATABASE_URL`, `BACKSEAT_DRIVER_RABBITMQ_URL`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY` (or use workload identity instead) and, for the anthropic backend,
+  `BACKSEAT_DRIVER_ANTHROPIC_API_KEY`. Create it with external-secrets, sealed secrets or similar, never from a file in git.
+- `rabbitmq-management`: `host`, the broker's management API URL with credentials, read by KEDA.
+
+Not covered, by choice:
+
+- **Model weights** are still downloaded from the model hub into an `emptyDir` on every pod start, so each scale-up pays a
+  cold start and depends on the hub. Baking the weights into the worker image is the fix and needs an image change.
+- **Egress** is unrestricted; the destinations differ per cluster.
+- **Caption workers have no liveness probe.** The solo pool cannot answer while it captions, so a probe would kill busy workers.
+- **`readOnlyRootFilesystem`** is not set. The API image is known to start with `--read-only --tmpfs /tmp` (release
+  checklist); the workers and UI have not been tried that way.
+
 ## Autoscaling and the local kind cluster
 
 `deploy/components/keda-autoscaling` is an optional kustomize component that scales the workers on RabbitMQ queue depth
@@ -129,4 +164,4 @@ Run through this before tagging a release; each step lists what "good" looks lik
    --cap-drop ALL`.
 6. **Kubernetes**: `kubectl kustomize deploy/k8s | kubectl apply --dry-run=server -f -` accepts every object (CI also
    validates the rendered YAML against the Kubernetes schemas); on a real cluster, `kubectl rollout status` succeeds for
-   `api`, both workers and `ui`.
+   `api`, both workers and `ui`. The release PR has bumped the image tags in `deploy/production/kustomization.yaml` to the new version.

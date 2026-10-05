@@ -21,7 +21,7 @@ class _Record:
         self.expected_scenes: int | None = None
         self.error: str | None = None
         self.created_at = datetime.now(UTC)
-        self.descriptions: dict[str, SceneDescription] = {}
+        self.descriptions: dict[tuple[str, str], SceneDescription] = {}
 
 
 class InMemoryJobStore(JobStore):
@@ -56,8 +56,9 @@ class InMemoryJobStore(JobStore):
             record.error = record.error or error
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
+        key = (description.scene_token, description.camera_channel)
         with self._lock:
-            self._get(job_id).descriptions.setdefault(description.scene_token, description)
+            self._get(job_id).descriptions.setdefault(key, description)
 
     def get_job(self, job_id: UUID) -> Job:
         with self._lock:
@@ -71,7 +72,7 @@ class InMemoryJobStore(JobStore):
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         with self._lock:
-            return sorted(self._get(job_id).descriptions.values(), key=lambda d: d.scene_name)
+            return sorted(self._get(job_id).descriptions.values(), key=lambda d: (d.scene_name, d.camera_channel))
 
     def healthcheck(self) -> bool:
         return True

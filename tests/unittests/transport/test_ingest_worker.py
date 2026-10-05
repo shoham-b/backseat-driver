@@ -168,3 +168,29 @@ def test_ingest_stops_fanning_out_when_the_queue_fails_so_the_message_is_retried
         _worker(keyframes, queue, store).handle(_ingest_task(job_id))
 
     assert [t.keyframe for t in queue.caption_tasks] == keyframes[:1]
+
+
+def _both_cameras(n: int) -> list[SceneKeyframe]:
+    front = make_keyframe(n)
+    return [front, front.model_copy(update={"camera_channel": "CAM_BACK", "image_path": f"/img/{n}-back.jpg"})]
+
+
+def test_ingest_expects_a_description_for_every_camera_of_every_scene() -> None:
+    queue, store = FakeJobQueue(), FakeJobStore()
+    job_id = _new_job(store)
+
+    _worker(_both_cameras(1) + _both_cameras(2), queue, store).handle(_ingest_task(job_id))
+
+    assert store.get_job(job_id).expected_scenes == 4
+    assert len(queue.caption_tasks) == 4
+
+
+def test_ingest_counts_max_scenes_in_scenes_not_cameras() -> None:
+    queue, store = FakeJobQueue(), FakeJobStore()
+    job_id = _new_job(store, max_scenes=1)
+    keyframes = _both_cameras(1) + _both_cameras(2)
+
+    _worker(keyframes, queue, store).handle(_ingest_task(job_id, max_scenes=1))
+
+    assert [t.keyframe for t in queue.caption_tasks] == keyframes[:2]
+    assert store.get_job(job_id).expected_scenes == 2
