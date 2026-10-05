@@ -4,7 +4,6 @@ is routed to the right collaborators; the command functions themselves hold no l
 """
 
 import json
-import re
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -23,6 +22,7 @@ from backseat_driver.read.s3.uploader import DatasetUploader
 from backseat_driver.stacks import build_image_store, build_job_backend
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
+from tests.ansi import plain
 from tests.fakes import DiskS3Client, FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, make_settings
 from tests.nuscenes_dataset import (
     SCENE_LABELS,
@@ -57,11 +57,6 @@ def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
         "BACKSEAT_DRIVER_OLLAMA_MODEL_NAME": "llava",
         "BACKSEAT_DRIVER_OUTPUT_DIR": str(tmp_path / "output"),
     }
-
-
-def _plain(output: str) -> str:
-    """CLI output without terminal styling, which CI sets (FORCE_COLOR) and which splits option names."""
-    return re.sub(r"\x1b\[[0-9;]*m", "", output)
 
 
 def test_describe_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
@@ -147,7 +142,7 @@ def test_describe_requires_a_camera_choice(cli_env: dict[str, str], tmp_path: Pa
     result = runner.invoke(app, ["describe", "--output", str(tmp_path / "x.json")], env=cli_env)
 
     assert result.exit_code == 2
-    assert "--all-cameras" in _plain(result.output)
+    assert "--all-cameras" in plain(result.output)
 
 
 def test_describe_rejects_all_cameras_together_with_camera(cli_env: dict[str, str], tmp_path: Path) -> None:
@@ -236,11 +231,11 @@ def test_describe_distributed_rejects_options_that_only_apply_to_the_monolith(
     )
 
     assert result.exit_code == 2
-    assert "--camera" in _plain(result.output)
+    assert "--camera" in plain(result.output)
 
 
 def test_describe_distributed_requires_an_output_path(cli_env: dict[str, str]) -> None:
     result = runner.invoke(app, ["describe", "--mode", "distributed"], env=cli_env)
 
     assert result.exit_code == 2
-    assert "--output" in _plain(result.output)
+    assert "--output" in plain(result.output)
