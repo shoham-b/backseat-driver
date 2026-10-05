@@ -103,6 +103,7 @@ systemtest = [
     "pytest>=8",
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
+    "hypothesis>=6",
     { include-group = "core" },
 ]
 docs = [
