@@ -10,6 +10,7 @@ first use. One pipeline is kept per model name.
 from collections.abc import Callable
 from typing import Any
 
+from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.model import CaptionModel
 
@@ -41,11 +42,15 @@ class HuggingFaceBackend(CaptionBackend):
         self._pipelines[model.name] = self._pipeline_factory(model.name)
 
     def generate(self, image_path: str, model: CaptionModel) -> str:
-        from PIL import Image
+        from PIL import Image, UnidentifiedImageError
 
         self.load(model)
-        with Image.open(image_path) as image:
-            result = self._pipelines[model.name](image.convert("RGB"))
+        try:
+            with Image.open(image_path) as image:
+                rgb = image.convert("RGB")
+        except UnidentifiedImageError as exc:
+            raise UnprocessableError(f"could not read image: {exc}") from exc
+        result = self._pipelines[model.name](rgb)
         return result[0]["generated_text"].strip()
 
     def healthcheck(self) -> bool:
