@@ -24,7 +24,7 @@ async def test_jobs_and_descriptions_survive_a_restart(tmp_path: Path) -> None:
     await before.set_expected_scenes(job_id, 1)
     description = _describe(1)
     await before.record_description(job_id, description)
-    await before.close()
+    await before.aclose()
 
     after = await _monolith_store(database)  # a new process would build exactly this
 
@@ -32,13 +32,13 @@ async def test_jobs_and_descriptions_survive_a_restart(tmp_path: Path) -> None:
     assert (job.state, job.completed_scenes, job.max_scenes) == (JobState.COMPLETED, 1, 2)
     assert [d.scene_name for d in await after.list_descriptions(job_id)] == [description.scene_name]
     assert [j.job_id for j in await after.list_jobs()] == [job_id]
-    await after.close()
+    await after.aclose()
 
 
 async def test_the_database_folder_is_created_when_missing(tmp_path: Path) -> None:
     database = tmp_path / "does" / "not" / "exist" / "jobs.db"
 
-    await (await _monolith_store(database)).close()
+    await (await _monolith_store(database)).aclose()
 
     assert database.is_file()
 

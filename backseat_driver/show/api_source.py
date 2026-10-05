@@ -42,15 +42,12 @@ class ApiReportSource(DescriptionSource):
 
     def all_descriptions(self) -> list[SceneDescription]:
         """The descriptions of every completed job, the newest job winning where several ran the same model."""
-        seen: set[tuple[str, str, str]] = set()
-        latest: list[SceneDescription] = []
+        latest: dict[tuple[str, str, str], SceneDescription] = {}
         for job in self._api.list_jobs(JobState.COMPLETED, _MAX_JOBS):
             for description in self._api.descriptions(str(job.job_id)):
                 identity = (description.model_name, description.scene_token, description.camera_channel)
-                if identity not in seen:
-                    seen.add(identity)
-                    latest.append(description)
-        return latest
+                latest.setdefault(identity, description)
+        return list(latest.values())
 
     def image(self, image_path: str) -> HttpResponse:
         return self._api.image(image_path)

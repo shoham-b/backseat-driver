@@ -52,7 +52,7 @@ class InProcessJobQueue(JobQueue):
     async def healthcheck(self) -> bool:
         return True
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Stop the consumer; tasks still waiting are dropped."""
         if self._consumer is not None:
             self._consumer.cancel()

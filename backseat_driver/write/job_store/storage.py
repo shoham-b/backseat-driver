@@ -6,6 +6,7 @@ Never connects until first used.
 """
 
 from collections.abc import Callable
+from contextlib import closing
 from datetime import datetime
 from uuid import UUID
 
@@ -56,9 +57,8 @@ def description_insert(job_id: UUID, values: dict) -> Insert:
 
 def _enforce_foreign_keys(dbapi_connection: DBAPIConnection, _record: ConnectionPoolEntry) -> None:
     """SQLite ignores foreign keys unless each connection asks for them; Postgres always enforces them."""
-    cursor = dbapi_connection.cursor()
-    cursor.execute("PRAGMA foreign_keys=ON")
-    cursor.close()
+    with closing(dbapi_connection.cursor()) as cursor:
+        cursor.execute("PRAGMA foreign_keys=ON")
 
 
 class JobStorage:
@@ -67,7 +67,7 @@ class JobStorage:
 
     A connection belongs to the event loop that opened it, so a storage must be used from one loop for its whole
     life: the API's, or a worker process's (`worker_loop`). Use a command's own `asyncio.run` only with a storage built
-    for that call, and `close()` it before the loop ends.
+    for that call, and `aclose()` it before the loop ends.
     """
 
     def __init__(
@@ -93,7 +93,7 @@ class JobStorage:
             await connection.run_sync(Base.metadata.create_all)
             await connection.run_sync(_check_schema)
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         """Release the pooled connections; the next operation opens new ones."""
         if self._engine is not None:
             await self._engine.dispose()

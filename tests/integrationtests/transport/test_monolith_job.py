@@ -20,8 +20,8 @@ async def _monolith(loader: FakeSceneLoader) -> AsyncIterator[tuple[JobQueue, Jo
     try:
         yield queue, store
     finally:
-        await queue.close()
-        await store.close()
+        await queue.aclose()
+        await store.aclose()
 
 
 async def test_a_job_runs_to_completion_without_a_broker() -> None:

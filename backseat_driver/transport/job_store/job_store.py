@@ -71,7 +71,7 @@ class JobStore(ABC):
     async def healthcheck(self) -> bool:
         """True if the database is reachable."""
 
-    async def close(self) -> None:  # noqa: B027  # optional: only a pooled store holds anything open
+    async def aclose(self) -> None:  # noqa: B027  # optional: only a pooled store holds anything open
         """Release what the store holds open (pooled connections). The default holds nothing."""
 
 

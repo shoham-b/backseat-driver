@@ -8,6 +8,7 @@ captions combined, never camera by camera (a back camera cannot mention the van 
 """
 
 import re
+from collections import defaultdict
 from statistics import fmean
 
 from pydantic import BaseModel
@@ -75,9 +76,9 @@ def build_report(descriptions: list[SceneDescription]) -> Report:
 
     Raises ValueError when one model described the same scene through the same camera twice (two runs mixed up).
     """
-    by_view: dict[tuple[str, str], list[SceneDescription]] = {}
+    by_view: defaultdict[tuple[str, str], list[SceneDescription]] = defaultdict(list)
     for d in descriptions:
-        by_view.setdefault((d.scene_token, d.camera_channel), []).append(d)
+        by_view[d.scene_token, d.camera_channel].append(d)
 
     rows = [_scene_row(group) for group in by_view.values()]
     rows.sort(key=lambda r: (r.scene_name, r.camera_channel))
@@ -117,9 +118,9 @@ def _reference_of(group: list[SceneDescription]) -> str | None:
 
 
 def _scene_scores(descriptions: list[SceneDescription]) -> list[SceneScore]:
-    by_scene_model: dict[tuple[str, str], list[SceneDescription]] = {}
+    by_scene_model: defaultdict[tuple[str, str], list[SceneDescription]] = defaultdict(list)
     for d in descriptions:
-        by_scene_model.setdefault((d.scene_token, d.model_name), []).append(d)
+        by_scene_model[d.scene_token, d.model_name].append(d)
 
     scores = []
     for (scene_token, model_name), group in sorted(by_scene_model.items()):
