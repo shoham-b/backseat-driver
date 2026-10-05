@@ -24,6 +24,7 @@ from backseat_driver.cli.interruptible import run_interruptibly
 from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import Camera, Job, SceneDescription, SceneKeyframe
+from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.write.json_writer import write_json
 
 _MONOLITH_ONLY = ("dataroot", "dataset_version", "camera", "all_cameras", "backend", "model")
@@ -128,7 +129,6 @@ def _describe_here(
     max_scenes: int | None,
 ) -> list[SceneDescription]:
     """Rung 1 (see `stacks.pipeline`): the loader (read) and captioner (process) run in this process."""
-    from backseat_driver.read.dataset.nuscenes_dataset import ensure_nuscenes_dataset
     from backseat_driver.read.dataset.nuscenes_scene_loader import ALL_CAMERA_CHANNELS
     from backseat_driver.stacks import pipeline as build_pipeline
 
@@ -139,21 +139,31 @@ def _describe_here(
     # A moving bar would garble piped output and JSON logs, so those get log lines instead.
     interactive = settings.log_format == LogFormat.COLORED and sys.stderr.isatty()
 
-    if interactive:
-        with Progress(
-            TextColumn("nuScenes download"), BarColumn(), DownloadColumn(), TimeRemainingColumn(), transient=True
-        ) as downloads:
-            task = downloads.add_task("download", total=None)
-
-            def advance_download(downloaded: int, total: int | None) -> None:
-                downloads.update(task, total=total, completed=downloaded)
-
-            ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url, on_progress=advance_download)
-    else:
-        ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
+    _ensure_dataset(settings, dataroot, version, interactive)
     pipeline = build_pipeline(settings, dataroot, version, cameras, backend, model)
 
     logger.info("loading scenes from {!r} ({})", dataroot, version)
+    return _run_pipeline(pipeline, max_scenes, interactive)
+
+
+def _ensure_dataset(settings: Settings, dataroot: str, version: str, interactive: bool) -> None:
+    from backseat_driver.read.dataset.nuscenes_dataset import ensure_nuscenes_dataset
+
+    if not interactive:
+        ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url)
+        return
+    with Progress(
+        TextColumn("nuScenes download"), BarColumn(), DownloadColumn(), TimeRemainingColumn(), transient=True
+    ) as downloads:
+        task = downloads.add_task("download", total=None)
+
+        def advance_download(downloaded: int, total: int | None) -> None:
+            downloads.update(task, total=total, completed=downloaded)
+
+        ensure_nuscenes_dataset(dataroot, version, settings.nuscenes_url, on_progress=advance_download)
+
+
+def _run_pipeline(pipeline: ScenePipeline, max_scenes: int | None, interactive: bool) -> list[SceneDescription]:
     if not interactive:
         return pipeline.run(max_scenes=max_scenes, on_progress=log_progress)
     with Progress(
