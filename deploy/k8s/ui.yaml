@@ -25,7 +25,8 @@ spec:
             - configMapRef: {name: backseat-driver-config}
           env:
             - {name: BACKSEAT_DRIVER_UI_ALL_JOBS, value: "true"}
-            - {name: BACKSEAT_DRIVER_API_URL, value: "http://api"}
+            - {name: BACKSEAT_DRIVER_API_HOST, value: api}
+            - {name: BACKSEAT_DRIVER_API_PORT, value: "80"}
             - {name: BACKSEAT_DRIVER_UI_PUBLIC_API_URL, value: "http://localhost:8080"}
           # /healthz does not call the API, so a probe never depends on it (the page itself does).
           readinessProbe:

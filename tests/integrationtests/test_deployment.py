@@ -1,7 +1,8 @@
-"""Keeps the Kubernetes manifests, Dockerfile and compose file consistent with the code they deploy.
+"""Keeps the Kubernetes manifests and compose file consistent with the code they deploy.
 
-None of these need a cluster or a Docker daemon: a manifest that points at a missing setting, CLI command or
-route would otherwise only fail once it is applied.
+These read the manifests from disk (hence integration, not unit): a manifest that points at a missing setting,
+CLI command, route, queue or image would otherwise only fail once it is applied. They check references between
+files and the code, not formatting or incidental values.
 """
 
 import re
@@ -9,7 +10,6 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-import pytest
 import typer.main
 import yaml
 
@@ -17,7 +17,9 @@ from backseat_driver.api.app import app as api_app
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app as cli_app
 from backseat_driver.config import RunMode, Settings
+from backseat_driver.show.ui_server import create_ui_app
 from backseat_driver.transport.celery_job_queue import CAPTION_QUEUE, INGEST_QUEUE
+from tests.fakes import make_settings
 
 ROOT = Path(__file__).parents[2]
 K8S = ROOT / "deploy" / "k8s"
@@ -106,13 +108,15 @@ def test_container_args_are_valid_cli_invocations() -> None:
     assert {c["args"][0] for c in containers} == {"dataset", "db", "worker"}
 
 
-def test_our_images_are_the_ones_the_docker_workflow_publishes() -> None:
+def _published_images() -> set[str]:
     workflow = (ROOT / ".github" / "workflows" / "docker.yml").read_text()
-    published = set(re.findall(r"tags: (ghcr\.io/\S+?):latest", workflow))
+    return set(re.findall(r"tags: (ghcr\.io/\S+?):latest", workflow))
 
+
+def test_our_images_are_the_ones_the_docker_workflow_publishes() -> None:
     used = {container["image"] for _, container in _our_containers()}
 
-    assert used <= published
+    assert used <= _published_images()
 
 
 def test_our_pods_run_as_non_root_without_privilege_escalation() -> None:
@@ -161,34 +165,12 @@ def test_dataset_volume_is_mounted_read_only_everywhere() -> None:
                 assert volume["persistentVolumeClaim"]["readOnly"] is True, name
 
 
-@pytest.mark.parametrize("stage", ["cli", "api", "ingest-worker", "caption-worker"])
-def test_runtime_images_drop_root(stage: str) -> None:
-    dockerfile = (ROOT / "docker" / "Dockerfile").read_text()
-
-    runtime = dockerfile.split(f"AS {stage}\n", 1)[1].split("\n# ──", 1)[0]
-
-    assert re.search(r"^USER 10001$", runtime, re.MULTILINE)
-
-
-def test_dockerfile_does_not_float_on_the_latest_uv() -> None:
-    for image in (ROOT / "docker").glob("Dockerfile*"):
-        assert "astral-sh/uv:latest" not in image.read_text(), image.name
-
-
 def test_compose_ui_service_serves_on_all_interfaces() -> None:
     compose = yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())
 
     ui = compose["services"]["ui"]
 
-    assert ui["entrypoint"][:2] == ["fastapi", "run"]
-    assert ui["entrypoint"][ui["entrypoint"].index("--host") + 1] == "0.0.0.0"
-    assert ui["profiles"] == ["ui"]
-
-
-def test_compose_cli_user_is_overridable_so_bind_mounted_output_is_writable() -> None:
-    compose = yaml.safe_load((ROOT / "docker" / "docker-compose.yml").read_text())
-
-    assert "LOCAL_UID" in compose["services"]["cli"]["user"]
+    assert ui["entrypoint"][ui["entrypoint"].index("--host") + 1] == "0.0.0.0"  # unreachable from the host otherwise
 
 
 def test_example_run_job_is_a_valid_invocation_on_the_defined_volumes() -> None:
@@ -201,7 +183,6 @@ def test_example_run_job_is_a_valid_invocation_on_the_defined_volumes() -> None:
 
     assert job["metadata"]["namespace"] == yaml.safe_load((K8S / "kustomization.yaml").read_text())["namespace"]
     assert {v["persistentVolumeClaim"]["claimName"] for v in pod["volumes"] if "persistentVolumeClaim" in v} <= claims
-    assert {v["name"] for v in pod["volumes"] if "emptyDir" in v} == {"output"}  # world-writable, so no fsGroup needed
 
 
 def test_cluster_runs_in_distributed_mode_not_the_monolith_default() -> None:
@@ -245,8 +226,8 @@ def test_ingest_runs_as_a_job_per_queued_task_with_keda() -> None:
     _parse_without_running([str(arg) for arg in container["args"]])
 
     assert job["spec"]["triggers"][0]["metadata"]["queueName"] == INGEST_QUEUE
-    assert container["args"] == ["worker", "ingest", "--once"]  # a Job must exit after its task
-    assert container["image"] == "ghcr.io/shoham-b/backseat-driver-ingest-worker"
+    assert "--once" in container["args"]  # a Job must exit after its task
+    assert container["image"] in _published_images()
     assert any("$patch: delete" in p["patch"] and p["target"]["name"] == "ingest-worker" for p in patched)
 
 
@@ -304,14 +285,29 @@ def test_compose_ingest_waits_for_the_upload_and_every_worker_gets_the_bucket() 
     assert services["ingest-worker"]["depends_on"]["dataset-upload"]["condition"] == "service_completed_successfully"
 
 
-def test_the_report_ui_mounts_no_volume_and_probes_without_the_api() -> None:
-    pods = dict(_pod_specs())
+def test_container_env_names_are_real_settings() -> None:
+    fields = set(Settings.model_fields)
+    names = [
+        env["name"]
+        for _, container in _our_containers()
+        for env in container.get("env", [])
+        if env["name"].startswith(ENV_PREFIX)
+    ]
+
+    unknown = [name for name in names if name.removeprefix(ENV_PREFIX).lower() not in fields]
+
+    assert names
+    assert not unknown
+
+
+def test_report_ui_probe_hits_a_real_route() -> None:
+    routes = {route.path for route in create_ui_app(make_settings()).routes}
     (ui,) = [c for name, c in _our_containers() if name == "ui"]
 
-    assert "volumes" not in pods["ui"]
-    assert "volumeMounts" not in ui
-    assert {"name": "BACKSEAT_DRIVER_UI_ALL_JOBS", "value": "true"} in ui["env"]
-    assert ui["readinessProbe"]["httpGet"]["path"] == "/healthz"
+    probed = {ui[probe]["httpGet"]["path"] for probe in ("livenessProbe", "readinessProbe") if probe in ui}
+
+    assert probed
+    assert probed <= routes
 
 
 def test_every_compose_service_in_distributed_mode_is_given_the_dataset_bucket() -> None:

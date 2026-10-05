@@ -1,7 +1,7 @@
 # Deployment
 
 Everything below was exercised by hand before release (see [Release checklist](#release-checklist)); the parts that
-can be checked without a cluster or a daemon are also pinned by `tests/unittests/test_deployment.py`.
+can be checked without a cluster or a daemon are also pinned by `tests/integrationtests/test_deployment.py`.
 
 ## Images
 
