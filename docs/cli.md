@@ -41,7 +41,7 @@ uv run backseat-driver describe [OPTIONS]
 | `--backend` | `BACKSEAT_DRIVER_VLM_BACKEND` | `huggingface` | `huggingface` (terse BLIP captions) , `ollama` (needs a running Ollama server) or `anthropic` (hosted Claude; needs `..._ANTHROPIC_API_KEY`) — the last two are prompted for a short keyword list in the style of the nuScenes labels |
 | `--model` | `BACKSEAT_DRIVER_VLM_MODEL_NAME` / `..._OLLAMA_MODEL_NAME` / `..._ANTHROPIC_MODEL_NAME` | **required** (no default) | Model for the chosen backend, e.g. `Salesforce/blip-image-captioning-base`, `llava`, `claude-haiku-4-5-20251001`. Fails fast if neither the flag nor the variable is set |
 | `--output` | — | `<output dir>/<backend>__<model>.json` | Where to write the JSON results. By default inferred from the backend and model (see below); the directory is `BACKSEAT_DRIVER_OUTPUT_DIR` (default `output`) |
-| `--max-scenes` | — | (all scenes) | Only process the first N scenes (all of a scene's cameras count as one) |
+| `--max-scenes` | — | (all scenes) | Only process the first N scenes, at least 1 (all of a scene's cameras count as one) |
 | `--api-url` | `BACKSEAT_DRIVER_API_HOST` / `..._API_PORT` | `http://127.0.0.1:8080` | Distributed only: the API to submit the job to |
 | `--timeout` | — | `3600` | Distributed only: seconds to wait for the job before failing |
 

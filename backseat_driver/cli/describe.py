@@ -70,7 +70,7 @@ def describe(
         ),
     ] = None,
     max_scenes: Annotated[
-        int | None, typer.Option(help="Only process the first N scenes (useful for a quick run)")
+        int | None, typer.Option(min=1, help="Only process the first N scenes (useful for a quick run)")
     ] = None,
     api_url: Annotated[
         str | None, typer.Option(help="Distributed: the API to submit the job to [default: the configured API]")
