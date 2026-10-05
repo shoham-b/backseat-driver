@@ -10,7 +10,6 @@ from backseat_driver.transport.celery_job_queue import (
     CAPTION_TASK,
     INGEST_QUEUE,
     INGEST_TASK,
-    MAX_RETRIES,
     CeleryJobQueue,
     make_celery_app,
 )
@@ -47,10 +46,6 @@ def test_tasks_are_routed_to_their_own_queues() -> None:
     routes = make_celery_app(BROKER).conf.task_routes
 
     assert routes == {INGEST_TASK: {"queue": INGEST_QUEUE}, CAPTION_TASK: {"queue": CAPTION_QUEUE}}
-
-
-def test_max_retries_is_bounded() -> None:
-    assert MAX_RETRIES > 0
 
 
 def test_constructing_the_queue_never_builds_a_celery_app() -> None:

@@ -1,5 +1,5 @@
 import pytest
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from backseat_driver.show.metrics import content_words, score
@@ -65,10 +65,21 @@ def test_score_rejects_reference_without_content_words() -> None:
         score("a truck", "the of a")
 
 
+def test_score_of_an_empty_description_is_zero_not_a_division_error() -> None:
+    result = score("", "parked truck")
+
+    assert (result.precision, result.recall, result.f1) == (0.0, 0.0, 0.0)
+
+
+def test_score_counts_a_repeated_word_once() -> None:
+    result = score("truck truck truck", "truck")
+
+    assert (result.precision, result.recall) == (1.0, 1.0)
+
+
 @given(description=st.text(), reference=st.text(alphabet=st.characters(codec="ascii"), min_size=1))
 def test_score_metrics_stay_within_unit_interval(description: str, reference: str) -> None:
-    if not content_words(reference):
-        return
+    assume(content_words(reference))
 
     result = score(description, reference)
 

@@ -3,17 +3,28 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from hypothesis import settings
 
-from backseat_driver.config import Settings
+# Hypothesis' 200ms per-example deadline measures the machine, not the code: a loaded laptop or CI runner fails
+# property tests of pure functions. What the properties assert does not depend on speed.
+settings.register_profile("tests", deadline=None)
+settings.load_profile("tests")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption("--api-url", default="http://localhost:8080", help="Target of the smoke and system tests")
 
 
-@pytest.fixture(scope="session")
-def settings() -> Settings:
-    return Settings()
+def pytest_configure(config: pytest.Config) -> None:
+    """Drop the app's own configuration from the environment before anything reads it.
+
+    `no_ambient_settings` hides these variables, and the `.env` file, for each unit and integration test. This covers
+    what that cannot: collection, because importing `backseat_driver.api.app` already builds a `Settings` (from the
+    working directory's `.env` too, so an invalid one still breaks collection), and the UI and smoke tests, whose
+    subprocess and target would otherwise inherit a developer's variables.
+    """
+    for name in [name for name in os.environ if name.startswith("BACKSEAT_DRIVER_")]:
+        del os.environ[name]
 
 
 @pytest.fixture(scope="session")

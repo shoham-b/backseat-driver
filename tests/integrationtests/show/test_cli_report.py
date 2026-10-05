@@ -1,6 +1,5 @@
 """`report` over real result files; `ui` is exercised by the Selenium tests, which run the real server."""
 
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -8,17 +7,9 @@ from typer.testing import CliRunner
 
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
-from backseat_driver.config import get_settings
 from backseat_driver.models import SceneDescription
 
 runner = CliRunner()
-
-
-@pytest.fixture(autouse=True)
-def _fresh_settings() -> Iterator[None]:
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 @pytest.fixture

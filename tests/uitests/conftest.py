@@ -37,6 +37,7 @@ DESCRIPTIONS = {
 }
 PHONE = (390, 800)
 DESKTOP = (1200, 900)
+UI_SERVER = Path(__file__).parents[2] / "backseat_driver" / "show" / "ui_server.py"
 
 
 def _free_port() -> int:
@@ -75,11 +76,14 @@ def result_files(tmp_path_factory: pytest.TempPathFactory) -> list[Path]:
 
 def _serve_ui(result_files: list[Path]) -> Iterator[str]:
     port = _free_port()
-    command = [sys.executable, "-m", "fastapi", "run", "backseat_driver/show/ui_server.py", "--port", str(port)]
+    command = [sys.executable, "-m", "fastapi", "run", str(UI_SERVER), "--port", str(port)]
     # The images sit beside the result files, so that directory is also the dataroot their keys resolve in.
+    # It is also the server's working directory, so the repo's own `.env` is not read by the server under test.
     directory = str(result_files[0].parent)
     env = {**os.environ, "BACKSEAT_DRIVER_OUTPUT_DIR": directory, "BACKSEAT_DRIVER_NUSCENES_DATAROOT": directory}
-    server = subprocess.Popen(command, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    server = subprocess.Popen(
+        command, env=env, cwd=directory, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
     try:
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline:

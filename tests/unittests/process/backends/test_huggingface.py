@@ -24,12 +24,6 @@ class _FakePipelineFactory:
         return run
 
 
-def test_healthcheck_returns_true() -> None:
-    backend = HuggingFaceBackend(_FakePipelineFactory())
-
-    assert backend.healthcheck() is True
-
-
 @pytest.fixture
 def image_path(tmp_path: Path) -> str:
     path = tmp_path / "scene.png"

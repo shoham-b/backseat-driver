@@ -285,6 +285,8 @@ class FakeHttpClient(HttpClient):
         self.probes: list[Probe] = []
         self.gets: list[Probe] = []
         self.responses_by_url: dict[str, HttpResponse] = {}
+        # Answers in order for a URL polled repeatedly; the last one repeats once the rest are used up.
+        self.sequences_by_url: dict[str, list[HttpResponse]] = {}
         self._response = response if response is not None else {}
         self._error = error
         self._reachable = reachable
@@ -301,6 +303,9 @@ class FakeHttpClient(HttpClient):
         self.gets.append(Probe(url, headers, timeout))
         if self._error:
             raise self._error
+        if url in self.sequences_by_url:
+            queued = self.sequences_by_url[url]
+            return queued.pop(0) if len(queued) > 1 else queued[0]
         return self.responses_by_url[url]
 
     def is_reachable(self, url: str, headers: dict[str, str], timeout: float) -> bool:

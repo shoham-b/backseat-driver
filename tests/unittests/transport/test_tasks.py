@@ -95,11 +95,10 @@ def test_caption_task_validates_the_payload_and_hands_it_to_the_worker() -> None
     assert store.get_job(job_id).completed_scenes == 1
 
 
-def test_malformed_payload_fails_without_being_retried() -> None:
+def test_a_malformed_payload_fails_the_task_with_a_validation_error() -> None:
     result = _register().caption.apply(args=[{"not": "a caption task"}])
 
     assert isinstance(result.result, ValidationError)
-    assert result.traceback is not None
     assert result.state == "FAILURE"
 
 

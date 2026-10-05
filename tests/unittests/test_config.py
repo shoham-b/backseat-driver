@@ -10,6 +10,7 @@ from tests.fakes import keyword_settings
 
 def test_defaults() -> None:
     s = keyword_settings()
+
     assert s.api_host == "127.0.0.1"
     assert s.api_port == 8080
     assert s.log_format == "colored"
@@ -17,6 +18,7 @@ def test_defaults() -> None:
     assert s.nuscenes_version == "v1.0-mini"
     assert s.camera_channel == "CAM_FRONT"
     assert s.output_dir == "output"
+    assert s.mode is RunMode.MONOLITH
 
 
 def _settings_from_env_file(tmp_path: Path, **variables: str) -> Settings:
@@ -35,30 +37,36 @@ def test_nuscenes_env_override(tmp_path: Path) -> None:
 
 def test_env_override(tmp_path: Path) -> None:
     s = _settings_from_env_file(tmp_path, api_port="9090")
+
     assert s.api_port == 9090
 
 
 def test_get_settings_is_cached() -> None:
     get_settings.cache_clear()
-    a = get_settings()
-    b = get_settings()
-    assert a is b
+
+    first = get_settings()
+    second = get_settings()
+
+    assert first is second
 
 
 def test_api_url_property() -> None:
     s = keyword_settings(api_host="0.0.0.0", api_port=8000)
+
     assert s.api_url == "http://0.0.0.0:8000"
 
 
 @given(port=st.integers(min_value=1, max_value=65535))
 def test_api_url_includes_port(port: int) -> None:
     s = keyword_settings(api_port=port)
+
     assert f":{port}" in s.api_url
 
 
 @given(host=st.from_regex(r"[a-z0-9][a-z0-9.-]*", fullmatch=True))
 def test_api_url_includes_host(host: str) -> None:
     s = keyword_settings(api_host=host)
+
     assert host in s.api_url
 
 
