@@ -175,7 +175,11 @@ def _describe_on_workers(api_url: str, max_scenes: int | None, timeout: float) -
 
     def log_job(job: Job) -> None:
         logger.info(
-            "job {} is {} ({}/{} scenes)", job.job_id, job.state.value, job.completed_scenes, job.expected_scenes
+            "job {} is {} ({}/{} descriptions)",
+            job.job_id,
+            job.state.value,
+            job.completed_scenes,
+            job.expected_scenes,
         )
 
     logger.info("submitting a job to {}", api_url)
