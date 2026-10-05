@@ -145,6 +145,12 @@ The core never imports the added packages. `tests/unittests/test_layering.py` ch
 
 `describe` calls `stacks.pipeline`, the API calls `stacks.build_job_backend` (which picks `seam` or `machines` from `BACKSEAT_DRIVER_MODE`), and the Celery workers build their ends from `stored_loader`, `celery_queue` and `postgres_store`. To see what a rung is made of, read its function.
 
+### One HTTP client per process
+
+Every HTTP call the app makes (the Ollama and Anthropic backends, the API client behind `describe --mode distributed` and the report) goes through the async `HttpClient` port, whose one adapter, `HttpxHttpClient`, wraps a single shared `httpx.AsyncClient`. Requests reuse its connections instead of opening a connection and doing a TLS handshake each, which is what a worker captioning thousands of keyframes, or a batch fanning out to Anthropic, would otherwise pay for on every request. The recipe `build_http_client` only builds it; the client is created on the first call and never connects before that.
+
+An httpx client belongs to the event loop that first used it, so whoever owns the loop closes it: the API's lifespan and the report UI's lifespan, a Celery worker's `worker_loop` (which awaits registered closers before the loop closes), and a one-shot command inside its single `asyncio.run`. A call from any other loop raises a `RuntimeError` that says so. Each call is bounded by `asyncio.timeout` in its caller; the client itself has no timeout. Its connection limit (100) caps sockets, not requests in flight: the caption batch size is what bounds those, and a request waiting for a free connection would already be inside its caller's timeout, so keep the limit above the batch size.
+
 ## One command, either rung
 
 ```bash

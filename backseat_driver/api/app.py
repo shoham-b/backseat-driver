@@ -1,4 +1,4 @@
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from contextlib import aclosing, asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,25 +20,28 @@ from backseat_driver.api.state import AppState
 from backseat_driver.config import Settings, get_settings
 from backseat_driver.errors import BackseatDriverError
 from backseat_driver.logger import LogFormat, setup_logging
-from backseat_driver.process.factory import build_captioner
+from backseat_driver.process.factory import build_captioner, build_http_client
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.stacks import build_image_store, build_job_backend
 
 
-def create_app(settings: Settings) -> FastAPI:
+def create_app(settings: Settings, build_http: Callable[[], HttpClient] = build_http_client) -> FastAPI:
     """Build the service for `settings`; tests build their own with `dependency_overrides` instead of patching."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         setup_logging(LogFormat(settings.log_format), service="api")
 
-        captioner = build_captioner(settings)
+        http = build_http()
+        captioner = build_captioner(settings, http)
         # The bucket in distributed mode, the local dataroot otherwise; a distributed API without a bucket fails here.
         image_store = build_image_store(settings)
         # In distributed mode neither client connects until first use, so startup never blocks on the broker
         # or database; /ready reports whether they are reachable.
         job_queue, job_store = await build_job_backend(settings, captioner, image_store)
-        # The queue closes first, as its consumer uses the store, and the store still closes if the queue raises.
-        async with aclosing(job_store), aclosing(job_queue):
+        # The queue closes first, as its consumer uses the store and the captioner, whose calls use the HTTP client;
+        # each still closes if one before it raises.
+        async with aclosing(http), aclosing(job_store), aclosing(job_queue):
             app.state.services = AppState(settings, captioner, image_store, job_queue, job_store)
 
             logger.bind(api_url=settings.api_url, mode=settings.mode).info("startup complete")

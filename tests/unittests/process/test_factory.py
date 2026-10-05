@@ -6,13 +6,13 @@ from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.backends.ollama import OllamaBackend
 from backseat_driver.process.factory import build_backend, build_captioner
-from tests.fakes import keyword_settings
+from tests.fakes import FakeHttpClient, keyword_settings
 
 
 def test_settings_backend_is_used_when_none_is_given() -> None:
     settings = keyword_settings(vlm_backend=VlmBackend.OLLAMA, ollama_model_name="llava")
 
-    captioner = build_captioner(settings)
+    captioner = build_captioner(settings, FakeHttpClient())
 
     assert captioner.model_name == "llava"
 
@@ -20,8 +20,8 @@ def test_settings_backend_is_used_when_none_is_given() -> None:
 def test_huggingface_uses_configured_model_and_override() -> None:
     settings = keyword_settings(vlm_model_name="configured/model")
 
-    configured = build_captioner(settings)
-    overridden = build_captioner(settings, model_name="other/model")
+    configured = build_captioner(settings, FakeHttpClient())
+    overridden = build_captioner(settings, FakeHttpClient(), model_name="other/model")
 
     assert (configured.model_name, overridden.model_name) == ("configured/model", "other/model")
 
@@ -29,8 +29,8 @@ def test_huggingface_uses_configured_model_and_override() -> None:
 def test_ollama_uses_configured_model_and_override() -> None:
     settings = keyword_settings(ollama_model_name="llama3.2-vision")
 
-    configured = build_captioner(settings, backend=VlmBackend.OLLAMA)
-    overridden = build_captioner(settings, backend=VlmBackend.OLLAMA, model_name="bakllava")
+    configured = build_captioner(settings, FakeHttpClient(), backend=VlmBackend.OLLAMA)
+    overridden = build_captioner(settings, FakeHttpClient(), backend=VlmBackend.OLLAMA, model_name="bakllava")
 
     assert (configured.model_name, overridden.model_name) == ("llama3.2-vision", "bakllava")
 
@@ -38,8 +38,8 @@ def test_ollama_uses_configured_model_and_override() -> None:
 def test_anthropic_uses_configured_model_and_override() -> None:
     settings = keyword_settings(anthropic_api_key=SecretStr("k"), anthropic_model_name="claude-a")
 
-    configured = build_captioner(settings, backend=VlmBackend.ANTHROPIC)
-    overridden = build_captioner(settings, backend=VlmBackend.ANTHROPIC, model_name="claude-b")
+    configured = build_captioner(settings, FakeHttpClient(), backend=VlmBackend.ANTHROPIC)
+    overridden = build_captioner(settings, FakeHttpClient(), backend=VlmBackend.ANTHROPIC, model_name="claude-b")
 
     assert (configured.model_name, overridden.model_name) == ("claude-a", "claude-b")
 
@@ -48,7 +48,7 @@ def test_anthropic_requires_api_key() -> None:
     settings = keyword_settings(anthropic_api_key=None, anthropic_model_name="claude-a")
 
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
-        build_captioner(settings, backend=VlmBackend.ANTHROPIC)
+        build_captioner(settings, FakeHttpClient(), backend=VlmBackend.ANTHROPIC)
 
 
 @pytest.mark.parametrize(
@@ -62,16 +62,18 @@ def test_anthropic_requires_api_key() -> None:
 def test_build_backend_selects_runtime_independent_of_model(backend: VlmBackend, expected: type) -> None:
     settings = keyword_settings(anthropic_api_key=SecretStr("k"))
 
-    assert isinstance(build_backend(settings, backend), expected)
+    assert isinstance(build_backend(settings, FakeHttpClient(), backend), expected)
 
 
 def test_unknown_backend_fails_fast() -> None:
     with pytest.raises(ValueError, match="Unknown captioner backend"):
-        build_captioner(keyword_settings(), backend="bogus")  # ty: ignore[invalid-argument-type]
+        build_captioner(keyword_settings(), FakeHttpClient(), backend="bogus")  # ty: ignore[invalid-argument-type]
 
 
 @pytest.mark.parametrize("backend", list(VlmBackend))
 def test_every_declared_backend_is_buildable(backend: VlmBackend) -> None:
     settings = keyword_settings(anthropic_api_key=SecretStr("k"))
 
-    assert build_captioner(settings, backend=backend, model_name="some-model").model_name == "some-model"
+    assert (
+        build_captioner(settings, FakeHttpClient(), backend=backend, model_name="some-model").model_name == "some-model"
+    )

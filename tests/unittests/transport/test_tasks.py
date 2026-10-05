@@ -9,6 +9,7 @@ from backseat_driver.config import Settings
 from backseat_driver.logger import LogFormat
 from backseat_driver.models import CaptionTask, IngestTask, JobState
 from backseat_driver.process.captioner import Captioner
+from backseat_driver.process.http_client import HttpClient
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.transport.caption_worker import CaptionWorker
@@ -17,6 +18,7 @@ from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import (
     FakeCaptioner,
     FakeDatasetStore,
+    FakeHttpClient,
     FakeImageStore,
     FakeJobQueue,
     FakeJobStore,
@@ -257,6 +259,9 @@ class _RecordingBuilders:
         self.store_calls: list[Settings] = []
         self.dataset_calls: list[Settings] = []
         self.captioner = _LoadCountingCaptioner()
+        self.http_calls = 0
+        self.captioner_https: list[HttpClient] = []
+        self.http = FakeHttpClient()
 
     def loader(self, settings: Settings, dataset: DatasetStore) -> SceneLoader:
         self.loader_calls.append(settings)
@@ -270,7 +275,12 @@ class _RecordingBuilders:
         self.store_calls.append(settings)
         return FakeJobStore()
 
-    def build_captioner(self, settings: Settings) -> Captioner:
+    def build_http(self) -> HttpClient:
+        self.http_calls += 1
+        return self.http
+
+    def build_captioner(self, settings: Settings, http: HttpClient) -> Captioner:
+        self.captioner_https.append(http)
         return self.captioner
 
     def dataset(self, settings: Settings) -> FakeDatasetStore:
@@ -284,6 +294,7 @@ def _workers(builders: _RecordingBuilders, settings: Settings | None = None) -> 
         build_loader=builders.loader,
         build_queue=builders.queue,
         build_store=builders.store,
+        build_http=builders.build_http,
         build_captioner=builders.build_captioner,
         build_dataset=builders.dataset,
     )
@@ -315,6 +326,17 @@ def test_caption_worker_loads_the_model_once_and_is_cached() -> None:
     assert builders.captioner.loads == 1
 
 
+def test_the_captioner_is_built_over_the_one_http_client_of_the_process() -> None:
+    builders = _RecordingBuilders()
+    workers = _workers(builders)
+
+    _ = workers.caption_worker
+    _ = workers.http
+
+    assert builders.captioner_https == [builders.http]
+    assert builders.http_calls == 1
+
+
 def test_store_is_shared_between_workers() -> None:
     builders = _RecordingBuilders()
     workers = _workers(builders)
@@ -331,6 +353,7 @@ def test_workers_build_nothing_until_asked() -> None:
     _workers(builders)
 
     assert builders.loader_calls == builders.queue_calls == builders.store_calls == builders.dataset_calls == []
+    assert builders.http_calls == 0
     assert builders.captioner.loads == 0
 
 

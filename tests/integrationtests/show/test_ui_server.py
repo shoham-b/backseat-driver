@@ -122,7 +122,7 @@ async def test_keys_that_are_not_keyframe_images_are_never_forwarded_to_the_api(
 
 async def test_an_image_the_api_does_not_have_is_not_found() -> None:
     class _Missing(FakeHttpClient):
-        def get(self, url: str, headers: dict[str, str], timeout: float, service: str) -> HttpResponse:
+        async def get(self, url: str, headers: dict[str, str], service: str) -> HttpResponse:
             raise HttpStatusError(HTTPStatus.NOT_FOUND, "the API returned HTTP 404")
 
     async with _ui(_Missing()) as ui:
@@ -192,3 +192,17 @@ async def test_starting_with_nothing_to_show_fails_fast(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="no result files"):
         async with app.router.lifespan_context(app):
             pass
+
+
+async def test_the_ui_shares_one_http_client_and_closes_it_at_shutdown() -> None:
+    http = FakeHttpClient()
+    app = create_ui_app(
+        make_settings(api_url=API, ui_all_jobs=True, output_dir=str(OUTPUT_DIR)), build_http=lambda: http
+    )
+
+    async with app.router.lifespan_context(app):
+        shared, open_while_serving = app.state.http, not http.closed
+
+    assert shared is http
+    assert open_while_serving
+    assert http.closed

@@ -63,7 +63,7 @@ class _EchoHttp(FakeHttpClient):
         self._arrived = 0
         self._all_arrived = asyncio.Event()
 
-    async def post_json_async(
+    async def post_json(
         self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
     ) -> dict[str, Any]:
         image = base64.b64decode(payload["messages"][0]["content"][0]["source"]["data"]).decode()
@@ -109,7 +109,7 @@ class _FirstFailsRestWaitHttp(FakeHttpClient):
         self._all_arrived = asyncio.Event()
         self.cancelled = 0
 
-    async def post_json_async(
+    async def post_json(
         self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
     ) -> dict[str, Any]:
         self._arrived += 1
@@ -139,7 +139,7 @@ async def test_generate_many_cancels_the_other_requests_when_one_fails(tmp_path:
 
 
 class _NeverAnswersHttp(FakeHttpClient):
-    async def post_json_async(
+    async def post_json(
         self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
     ) -> dict[str, Any]:
         await asyncio.Event().wait()

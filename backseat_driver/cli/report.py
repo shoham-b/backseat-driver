@@ -7,6 +7,7 @@ Usage::
     backseat_driver report          # every output/*.json -> output/report.html
 """
 
+import asyncio
 from pathlib import Path
 from typing import Annotated
 
@@ -40,8 +41,8 @@ def report(
     settings = get_settings()
     output = output or Path(settings.output_dir) / "report.html"
     results = results or ([] if job else _default_results())
-    count = _write_report(
-        results, output, job or [], api_url or settings.api_url, dataroot or settings.nuscenes_dataroot
+    count = asyncio.run(
+        _write_report(results, output, job or [], api_url or settings.api_url, dataroot or settings.nuscenes_dataroot)
     )
     logger.info("wrote report for {} description(s) to {}", count, output)
 
@@ -53,7 +54,8 @@ def _default_results() -> list[Path]:
     return found
 
 
-def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: str, dataroot: str) -> int:
+async def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: str, dataroot: str) -> int:
+    from backseat_driver.process.factory import build_http_client
     from backseat_driver.read.images.local_image_store import LocalImageStore
     from backseat_driver.show.api_source import ApiReportSource
     from backseat_driver.show.description_source import DescriptionSource
@@ -61,9 +63,13 @@ def _write_report(results: list[Path], output: Path, jobs: list[str], api_url: s
     from backseat_driver.show.report_service import ReportService
     from backseat_driver.show.result_file_source import ResultFileSource
 
+    http = build_http_client()
     sources: list[DescriptionSource] = [ResultFileSource(results, LocalImageStore(dataroot))]
     if jobs:
-        sources.append(ApiReportSource(api_url, job_ids=jobs))
-    rendered = ReportService(sources).render(embed_images=True)
+        sources.append(ApiReportSource(api_url, http, job_ids=jobs))
+    try:
+        rendered = await ReportService(sources).render(embed_images=True)
+    finally:
+        await http.aclose()
     save_html(rendered.html, output)
     return rendered.description_count

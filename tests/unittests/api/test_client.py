@@ -28,18 +28,18 @@ def _json(body: Any) -> HttpResponse:
     return HttpResponse(json.dumps(body).encode(), "application/json")
 
 
-def test_creating_a_job_posts_the_scene_limit_when_there_is_one() -> None:
+async def test_creating_a_job_posts_the_scene_limit_when_there_is_one() -> None:
     http = FakeHttpClient(response=_job(str(uuid4())))
 
-    ApiClient(API + "/", http).create_job(max_scenes=3)
+    await ApiClient(API + "/", http).create_job(max_scenes=3)
 
     assert [(post.url, post.payload) for post in http.posts] == [(f"{API}/jobs", {"max_scenes": 3})]
 
 
-def test_creating_a_job_without_a_limit_posts_an_empty_body() -> None:
+async def test_creating_a_job_without_a_limit_posts_an_empty_body() -> None:
     http = FakeHttpClient(response=_job(str(uuid4())))
 
-    ApiClient(API, http).create_job(max_scenes=None)
+    await ApiClient(API, http).create_job(max_scenes=None)
 
     assert [post.payload for post in http.posts] == [{}]
 
@@ -53,32 +53,32 @@ def test_creating_a_job_without_a_limit_posts_an_empty_body() -> None:
         (JobState.FAILED, 500, "?state=failed&limit=500"),
     ],
 )
-def test_listing_jobs_sends_only_the_filters_it_was_given(
+async def test_listing_jobs_sends_only_the_filters_it_was_given(
     state: JobState | None, limit: int | None, query: str
 ) -> None:
     job_id = str(uuid4())
     http = FakeHttpClient()
     http.responses_by_url[f"{API}/jobs{query}"] = _json([_job(job_id)])
 
-    jobs = ApiClient(API, http).list_jobs(state, limit)
+    jobs = await ApiClient(API, http).list_jobs(state, limit)
 
     assert [str(job.job_id) for job in jobs] == [job_id]
 
 
-def test_a_job_id_is_quoted_into_the_path() -> None:
+async def test_a_job_id_is_quoted_into_the_path() -> None:
     job_id = str(uuid4())
     http = FakeHttpClient()
     http.responses_by_url[f"{API}/jobs/a%2Fb"] = _json(_job(job_id))
 
-    job = ApiClient(API, http).get_job("a/b")
+    job = await ApiClient(API, http).get_job("a/b")
 
     assert str(job.job_id) == job_id
 
 
-def test_an_image_is_fetched_by_its_quoted_key() -> None:
+async def test_an_image_is_fetched_by_its_quoted_key() -> None:
     http = FakeHttpClient()
     http.responses_by_url[f"{API}/images/samples/CAM_FRONT/a%20b.jpg"] = HttpResponse(b"bytes", "image/jpeg")
 
-    image = ApiClient(API, http).image("samples/CAM_FRONT/a b.jpg")
+    image = await ApiClient(API, http).image("samples/CAM_FRONT/a b.jpg")
 
     assert (image.body, image.content_type) == (b"bytes", "image/jpeg")

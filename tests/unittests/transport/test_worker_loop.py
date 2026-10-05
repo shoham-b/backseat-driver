@@ -96,3 +96,52 @@ def test_closing_twice_is_harmless_and_a_closed_loop_is_replaced_on_next_use() -
 
     assert first.is_closed()
     assert second is not first
+
+
+def test_closers_run_on_the_loop_before_it_closes_and_only_once() -> None:
+    loop, seen = WorkerLoop(), []
+
+    async def release() -> None:
+        seen.append((asyncio.get_running_loop(), asyncio.get_running_loop().is_closed()))
+
+    loop.on_close(release)
+    running = loop.run(_running_loop())
+
+    loop.close()
+    loop.close()
+
+    assert seen == [(running, False)]
+    assert running.is_closed()
+
+
+def test_a_failing_closer_raises_and_the_loop_still_closes() -> None:
+    loop = WorkerLoop()
+
+    async def fail() -> None:
+        raise RuntimeError("boom")
+
+    loop.on_close(fail)
+    running = loop.run(_running_loop())
+
+    with pytest.raises(RuntimeError, match="boom"):
+        loop.close()
+
+    assert running.is_closed()
+
+
+def test_a_forked_process_does_not_run_the_closers_it_inherited() -> None:
+    pid, ran = 100, []
+    loop = WorkerLoop(current_pid=lambda: pid)
+
+    async def release() -> None:
+        ran.append("closed")
+
+    loop.on_close(release)
+    parents = loop.run(_running_loop())
+
+    pid = 200  # as in a forked child that inherited `loop` and the parent's clients
+    loop.run(_running_loop())
+    loop.close()
+
+    assert ran == []
+    parents.close()

@@ -76,7 +76,7 @@ class AnthropicBackend(CaptionBackend):
         payload = self._payload(image_path, model)  # reads and encodes one keyframe: quicker than a thread
         try:
             async with asyncio.timeout(self._timeout):
-                return await self._http.post_json_async(self._messages_url, payload, self._headers(), "Anthropic")
+                return await self._http.post_json(self._messages_url, payload, self._headers(), "Anthropic")
         except TimeoutError as exc:
             raise RuntimeError(f"Anthropic did not answer within {self._timeout:g} s") from exc
 
@@ -108,7 +108,7 @@ class AnthropicBackend(CaptionBackend):
         # Listing models is free and verifies both reachability and that the key is accepted.
         try:
             async with asyncio.timeout(_HEALTHCHECK_TIMEOUT):
-                return await self._http.is_reachable_async(f"{self._base_url}/v1/models?limit=1", self._headers())
+                return await self._http.is_reachable(f"{self._base_url}/v1/models?limit=1", self._headers())
         except TimeoutError:
             return False
 

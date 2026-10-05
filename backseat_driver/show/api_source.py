@@ -21,36 +21,36 @@ _MAX_JOBS = 500
 class ApiReportSource(DescriptionSource):
     """The API as a source: the given jobs, or with no `job_ids` every completed job."""
 
-    def __init__(self, api_url: str, http: HttpClient | None = None, job_ids: Sequence[str] | None = None) -> None:
+    def __init__(self, api_url: str, http: HttpClient, job_ids: Sequence[str] | None = None) -> None:
         self._api = ApiClient(api_url, http)
         self._job_ids = job_ids
 
-    def descriptions(self) -> list[SceneDescription]:
+    async def descriptions(self) -> list[SceneDescription]:
         if self._job_ids is None:
-            return self.all_descriptions()
-        return [d for job_id in self._job_ids for d in self.job_descriptions(job_id)]
+            return await self.all_descriptions()
+        return [d for job_id in self._job_ids for d in await self.job_descriptions(job_id)]
 
-    def job_descriptions(self, job_id: str) -> list[SceneDescription]:
+    async def job_descriptions(self, job_id: str) -> list[SceneDescription]:
         """The finished job's descriptions; a job still running is an error, not a partial report."""
-        job = self._api.get_job(job_id)
+        job = await self._api.get_job(job_id)
         if job.state is not JobState.COMPLETED:
             raise RuntimeError(
                 f"job {job_id} is {job.state.value} ({job.completed_scenes}/{job.expected_scenes} descriptions); "
                 "wait until it is completed"
             )
-        return self._api.descriptions(job_id)
+        return await self._api.descriptions(job_id)
 
-    def all_descriptions(self) -> list[SceneDescription]:
+    async def all_descriptions(self) -> list[SceneDescription]:
         """The descriptions of every completed job, the newest job winning where several ran the same model."""
         latest: dict[tuple[str, str, str], SceneDescription] = {}
-        for job in self._api.list_jobs(JobState.COMPLETED, _MAX_JOBS):
-            for description in self._api.descriptions(str(job.job_id)):
+        for job in await self._api.list_jobs(JobState.COMPLETED, _MAX_JOBS):
+            for description in await self._api.descriptions(str(job.job_id)):
                 identity = (description.model_name, description.scene_token, description.camera_channel)
                 latest.setdefault(identity, description)
         return list(latest.values())
 
-    def image(self, image_path: str) -> HttpResponse:
-        return self._api.image(image_path)
+    async def image(self, image_path: str) -> HttpResponse:
+        return await self._api.image(image_path)
 
     def image_link(self, image_path: str) -> str | None:
         return f"{IMAGES_PATH}{quote(image_path)}"

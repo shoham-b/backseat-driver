@@ -1,6 +1,5 @@
 """Descriptions from the JSON files `describe` writes; `image_path` is a dataset key the `ImageStore` resolves."""
 
-import asyncio
 import json
 import mimetypes
 from collections.abc import Sequence
@@ -22,18 +21,15 @@ class ResultFileSource(DescriptionSource):
         """Every `*.json` in `directory` as of now."""
         return cls(sorted(directory.glob("*.json")), images)
 
-    def descriptions(self) -> list[SceneDescription]:
+    async def descriptions(self) -> list[SceneDescription]:
         return [
             SceneDescription.model_validate(item)
             for path in self._paths
             for item in json.loads(path.read_text(encoding="utf-8"))
         ]
 
-    def image(self, image_path: str) -> HttpResponse:
+    async def image(self, image_path: str) -> HttpResponse:
         """Raises FileNotFoundError if the dataset no longer has the image."""
-        return asyncio.run(self._image(image_path))
-
-    async def _image(self, image_path: str) -> HttpResponse:
         async with self._images.local_copy(self._images.uri_for(image_path)) as path:
             return HttpResponse(path.read_bytes(), mimetypes.guess_type(path.name)[0] or "application/octet-stream")
 

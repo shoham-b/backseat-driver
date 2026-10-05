@@ -44,7 +44,7 @@ class _Clock:
     def __init__(self) -> None:
         self.now = 0.0
 
-    def sleep(self, seconds: float) -> None:
+    async def sleep(self, seconds: float) -> None:
         self.now += seconds
 
     def __call__(self) -> float:
@@ -56,25 +56,25 @@ def _client(http: FakeHttpClient, clock: _Clock | None = None) -> ApiJobClient:
     return ApiJobClient(API, http=http, sleep=clock.sleep, clock=clock)
 
 
-def test_a_job_that_is_already_completed_is_not_polled() -> None:
+async def test_a_job_that_is_already_completed_is_not_polled() -> None:
     http = FakeHttpClient(response=_job(JobState.COMPLETED, completed=2))
     http.responses_by_url[f"{API}/jobs/{JOB_ID}/descriptions"] = _json([_description(0), _description(1)])
 
-    descriptions = _client(http).describe(max_scenes=None, timeout_seconds=10)
+    descriptions = await _client(http).describe(max_scenes=None, timeout_seconds=10)
 
     assert [d.description for d in descriptions] == ["scene 0", "scene 1"]
     assert [probe.url for probe in http.gets] == [f"{API}/jobs/{JOB_ID}/descriptions"]
 
 
-def test_a_failed_job_raises_with_its_error_instead_of_polling_until_the_timeout() -> None:
+async def test_a_failed_job_raises_with_its_error_instead_of_polling_until_the_timeout() -> None:
     http = FakeHttpClient(response=_job(JobState.PENDING))
     http.responses_by_url[f"{API}/jobs/{JOB_ID}"] = _json({**_job(JobState.FAILED), "error": "caption failed: boom"})
 
     with pytest.raises(RuntimeError, match="failed: caption failed: boom"):
-        _client(http).describe(max_scenes=None, timeout_seconds=10)
+        await _client(http).describe(max_scenes=None, timeout_seconds=10)
 
 
-def test_a_running_job_is_polled_until_it_is_completed() -> None:
+async def test_a_running_job_is_polled_until_it_is_completed() -> None:
     http = FakeHttpClient(response=_job(JobState.PENDING))
     http.sequences_by_url[f"{API}/jobs/{JOB_ID}"] = [
         _json(_job(JobState.RUNNING, completed=0)),
@@ -84,7 +84,7 @@ def test_a_running_job_is_polled_until_it_is_completed() -> None:
     http.responses_by_url[f"{API}/jobs/{JOB_ID}/descriptions"] = _json([_description(0)])
     seen: list[tuple[JobState, int]] = []
 
-    descriptions = _client(http).describe(
+    descriptions = await _client(http).describe(
         max_scenes=None, timeout_seconds=10, on_progress=lambda j: seen.append((j.state, j.completed_scenes))
     )
 
@@ -92,18 +92,18 @@ def test_a_running_job_is_polled_until_it_is_completed() -> None:
     assert seen == [(JobState.RUNNING, 0), (JobState.RUNNING, 1), (JobState.COMPLETED, 2)]
 
 
-def test_max_scenes_is_sent_with_the_job() -> None:
+async def test_max_scenes_is_sent_with_the_job() -> None:
     http = FakeHttpClient(response=_job(JobState.COMPLETED))
     http.responses_by_url[f"{API}/jobs/{JOB_ID}/descriptions"] = _json([])
 
-    _client(http).describe(max_scenes=3, timeout_seconds=10)
+    await _client(http).describe(max_scenes=3, timeout_seconds=10)
 
     assert [(post.url, post.payload) for post in http.posts] == [(f"{API}/jobs", {"max_scenes": 3})]
 
 
-def test_a_job_that_never_finishes_fails_after_the_timeout() -> None:
+async def test_a_job_that_never_finishes_fails_after_the_timeout() -> None:
     http = FakeHttpClient(response=_job(JobState.PENDING))
     http.responses_by_url[f"{API}/jobs/{JOB_ID}"] = _json(_job(JobState.RUNNING, completed=1))
 
     with pytest.raises(RuntimeError, match="still running"):
-        _client(http).describe(max_scenes=None, timeout_seconds=5, poll_seconds=2)
+        await _client(http).describe(max_scenes=None, timeout_seconds=5, poll_seconds=2)

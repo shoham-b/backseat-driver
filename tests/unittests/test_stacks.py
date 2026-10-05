@@ -8,7 +8,7 @@ from backseat_driver.stacks import build_image_store, build_job_backend, machine
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
-from tests.fakes import FakeCaptioner, FakeImageStore, make_settings
+from tests.fakes import FakeCaptioner, FakeHttpClient, FakeImageStore, make_settings
 
 DISTRIBUTED = {"mode": RunMode.DISTRIBUTED, "dataset_bucket": "bucket"}
 
@@ -16,7 +16,7 @@ DISTRIBUTED = {"mode": RunMode.DISTRIBUTED, "dataset_bucket": "bucket"}
 def test_rung_1_builds_a_pipeline_without_a_queue_or_a_store() -> None:
     settings = make_settings()
 
-    built = pipeline(settings, dataroot="data", version="v1.0-mini", cameras=["CAM_FRONT"])
+    built = pipeline(settings, FakeHttpClient(), dataroot="data", version="v1.0-mini", cameras=["CAM_FRONT"])
 
     assert isinstance(built, ScenePipeline)
 
