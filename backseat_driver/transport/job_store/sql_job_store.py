@@ -20,8 +20,8 @@ class SqlJobStore(JobStore):
     async def ensure_schema(self) -> None:
         await self._storage.ensure_schema()
 
-    async def close(self) -> None:
-        await self._storage.close()
+    async def aclose(self) -> None:
+        await self._storage.aclose()
 
     async def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None

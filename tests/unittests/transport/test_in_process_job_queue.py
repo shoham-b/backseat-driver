@@ -25,7 +25,7 @@ async def _no_failure_handler(task: IngestTask | CaptionTask, error: Exception) 
 async def queue() -> AsyncIterator[InProcessJobQueue]:
     queue = InProcessJobQueue()
     yield queue
-    await queue.close()
+    await queue.aclose()
 
 
 async def test_tasks_run_in_order_on_one_consumer_task(queue: InProcessJobQueue) -> None:
@@ -146,6 +146,6 @@ async def test_closing_the_queue_stops_its_consumer() -> None:
     await asyncio.wait_for(ran.wait(), timeout=5)
     tasks_while_running = len(asyncio.all_tasks())
 
-    await queue.close()
+    await queue.aclose()
 
     assert len(asyncio.all_tasks()) == tasks_while_running - 1

@@ -237,8 +237,8 @@ async def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
     async with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
         assert path.read_bytes()
-    await queue.close()
-    await store.close()
+    await queue.aclose()
+    await store.aclose()
 
 
 def test_describe_distributed_rejects_options_that_only_apply_to_the_monolith(

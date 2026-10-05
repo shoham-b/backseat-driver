@@ -1,6 +1,7 @@
 """Database commands for the distributed mode."""
 
 import asyncio
+from contextlib import aclosing
 
 from backseat_driver.cli import db_app
 from backseat_driver.config import get_settings
@@ -19,11 +20,9 @@ def init() -> None:
     from backseat_driver.write.job_store.storage import JobStorage
 
     async def create_tables() -> None:
-        store = SqlJobStore(JobStorage(settings.database_url))
-        try:
+        # Its connections belong to this loop, which ends with the command, so close them before it does.
+        async with aclosing(SqlJobStore(JobStorage(settings.database_url))) as store:
             await store.ensure_schema()
-        finally:
-            await store.close()  # its connections belong to this loop, which ends with the command
 
     asyncio.run(create_tables())
     logger.info("database schema ready")

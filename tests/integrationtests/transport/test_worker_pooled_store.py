@@ -39,6 +39,6 @@ def test_tasks_run_one_after_another_over_the_same_pooled_store(tmp_path: Path) 
         ).model_dump(mode="json")
         registered.caption.apply(args=[payload]).get()
     job = worker_loop.run(store.get_job(job_id))
-    worker_loop.run(store.close())
+    worker_loop.run(store.aclose())
 
     assert (job.state, job.completed_scenes) == (JobState.COMPLETED, 3)

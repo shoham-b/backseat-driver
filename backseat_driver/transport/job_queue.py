@@ -21,5 +21,5 @@ class JobQueue(ABC):
     async def healthcheck(self) -> bool:
         """True if the broker is reachable."""
 
-    async def close(self) -> None:  # noqa: B027  # optional: most queues run nothing in the background
+    async def aclose(self) -> None:  # noqa: B027  # optional: most queues run nothing in the background
         """Stop what the queue runs in the background. The default runs nothing."""
