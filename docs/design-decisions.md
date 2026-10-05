@@ -107,7 +107,7 @@ The first design was a shared volume: both workers mounted the same `./data` (or
 | Image bytes inside the task | Rejected for the reason in question 9. |
 | Every worker downloads the whole dataset to local disk | Rejected. Every replica would pull the full dataset (a few GB for mini, far more for the full set) for the sake of one image per task. |
 
-The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (a key is a path below the dataroot, nothing is copied or deleted) and an S3-compatible adapter over boto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
+The `ImageStore` port (`read/`) keeps this swappable: `uri_for(key)` and `local_copy(uri)`, with `LocalImageStore` for the monolith (a key is a path below the dataroot, nothing is copied or deleted) and an S3-compatible adapter over aioboto3 for the distributed mode. Credentials come from boto3's standard `AWS_*` chain, not from `Settings`; the bucket has no default and the workers refuse to start without one.
 
 
 ### 11. What goes into the bucket, and when?

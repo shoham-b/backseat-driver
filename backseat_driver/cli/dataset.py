@@ -7,6 +7,7 @@ Usage::
     backseat-driver dataset upload --all-cameras --dataroot data/sets/nuscenes
 """
 
+import asyncio
 from typing import Annotated
 
 import typer
@@ -48,8 +49,10 @@ def upload(
         else [settings.camera_channel]
     )
 
-    result = DatasetUploader(build_dataset_store(settings)).upload(
-        dataroot or settings.nuscenes_dataroot, version or settings.nuscenes_version, cameras
+    result = asyncio.run(
+        DatasetUploader(build_dataset_store(settings)).upload(
+            dataroot or settings.nuscenes_dataroot, version or settings.nuscenes_version, cameras
+        )
     )
     typer.secho(
         f"Uploaded {result.uploaded} file(s), skipped {result.skipped} already in the bucket", fg=typer.colors.GREEN

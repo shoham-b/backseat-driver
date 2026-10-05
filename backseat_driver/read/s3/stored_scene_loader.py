@@ -6,7 +6,6 @@ dataset-relative key the devkit reads from the tables, the string the `DatasetSt
 nothing of the scratch directory is left in it.
 """
 
-import asyncio
 from collections.abc import Callable
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,5 +24,5 @@ class StoredSceneLoader(SceneLoader):
 
     async def load_keyframes(self) -> list[SceneKeyframe]:
         with TemporaryDirectory(prefix="backseat-driver-tables-") as directory:
-            await asyncio.to_thread(self._store.download_prefix, f"{self._version}/", Path(directory) / self._version)
+            await self._store.download_prefix(f"{self._version}/", Path(directory) / self._version)
             return await self._make_loader(directory).load_keyframes()

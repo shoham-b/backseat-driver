@@ -15,7 +15,7 @@ import backseat_driver
 ROOT = Path(backseat_driver.__file__).parent
 CORE = ["models", "read", "process", "write", "pipeline.py"]
 ADDED_LAYERS = ("backseat_driver.transport", "backseat_driver.read.s3", "backseat_driver.write.job_store")
-LAYER_SDKS = ("celery", "kombu", "boto3", "sqlalchemy", "psycopg")
+LAYER_SDKS = ("celery", "kombu", "boto3", "aioboto3", "aiobotocore", "sqlalchemy", "psycopg")
 
 
 def _core_files() -> list[Path]:

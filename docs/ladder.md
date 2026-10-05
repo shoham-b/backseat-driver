@@ -129,7 +129,7 @@ backseat_driver/
 └── cli/             describe, report, ui, worker, db, dataset
 ```
 
-The core never imports the added packages. `tests/unittests/test_layering.py` checks that on every run: `read`, `process`, `write`, `pipeline` and `models` may not import `transport`, `read/s3`, `write/job_store`, Celery, boto3 or SQLAlchemy.
+The core never imports the added packages. `tests/unittests/test_layering.py` checks that on every run: `read`, `process`, `write`, `pipeline` and `models` may not import `transport`, `read/s3`, `write/job_store`, Celery, aioboto3 or SQLAlchemy.
 
 ## The wiring in one file
 

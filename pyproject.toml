@@ -36,7 +36,7 @@ jobs = [
     "sqlalchemy>=2.0",
 ]
 # S3-compatible client for the images that travel from the ingest worker to the caption workers.
-object-storage = ["boto3>=1.35"]
+object-storage = ["aioboto3>=13"]
 # Stemming for the report metrics.
 report = ["snowballstemmer>=2.2"]
 # Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.

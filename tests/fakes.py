@@ -176,14 +176,14 @@ class FakeDatasetStore(FakeImageStore, DatasetStore):
         self.uploads: list[str] = []
         self.downloaded_prefixes: list[tuple[str, Path]] = []
 
-    def exists(self, key: str) -> bool:
+    async def exists(self, key: str) -> bool:
         return key in self.objects
 
-    def upload(self, key: str, path: Path) -> None:
+    async def upload(self, key: str, path: Path) -> None:
         self.objects[key] = path
         self.uploads.append(key)
 
-    def download_prefix(self, prefix: str, directory: Path) -> None:
+    async def download_prefix(self, prefix: str, directory: Path) -> None:
         self.downloaded_prefixes.append((prefix, directory))
 
 
@@ -392,28 +392,44 @@ class FakeCeleryApp:
 
 
 class DiskS3Client:
-    """Stands in for a boto3 S3 client with a directory as the 'bucket', so upload and download really move files."""
+    """Stands in for an aioboto3 S3 client (an async context manager) with a directory as the 'bucket', so upload and
+    download really move files."""
 
     def __init__(self, bucket_root: Path) -> None:
         self._root = bucket_root
 
-    def upload_file(self, filename: str, bucket: str, key: str) -> None:
-        target = self._root / bucket / key
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(Path(filename).read_bytes())
+    async def __aenter__(self) -> "DiskS3Client":
+        return self
 
-    def download_file(self, bucket: str, key: str, filename: str) -> None:
-        Path(filename).write_bytes((self._root / bucket / key).read_bytes())
+    async def __aexit__(self, *exc_info: object) -> None:
+        return None
 
-    def list_objects_v2(self, Bucket: str, Prefix: str, MaxKeys: int | None = None) -> dict[str, Any]:
-        base = self._root / Bucket
-        keys = sorted(p.relative_to(base).as_posix() for p in base.rglob("*") if p.is_file()) if base.is_dir() else []
-        matching = [{"Key": key} for key in keys if key.startswith(Prefix)]
-        return {"Contents": matching[:MaxKeys]} if matching else {}
+    async def upload_file(self, filename: str, bucket: str, key: str) -> None:
+        await asyncio.to_thread(self._upload_file, filename, bucket, key)
+
+    async def download_file(self, bucket: str, key: str, filename: str) -> None:
+        await asyncio.to_thread(self._download_file, bucket, key, filename)
+
+    async def list_objects_v2(self, Bucket: str, Prefix: str, MaxKeys: int | None = None) -> dict[str, Any]:
+        return await asyncio.to_thread(self._list_objects_v2, Bucket, Prefix, MaxKeys)
 
     def get_paginator(self, operation: str) -> "DiskS3Client":
         assert operation == "list_objects_v2"
         return self
 
-    def paginate(self, Bucket: str, Prefix: str) -> list[dict[str, Any]]:
-        return [self.list_objects_v2(Bucket, Prefix)]
+    async def paginate(self, Bucket: str, Prefix: str) -> AsyncIterator[dict[str, Any]]:
+        yield await self.list_objects_v2(Bucket, Prefix)
+
+    def _upload_file(self, filename: str, bucket: str, key: str) -> None:
+        target = self._root / bucket / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(Path(filename).read_bytes())
+
+    def _download_file(self, bucket: str, key: str, filename: str) -> None:
+        Path(filename).write_bytes((self._root / bucket / key).read_bytes())
+
+    def _list_objects_v2(self, Bucket: str, Prefix: str, MaxKeys: int | None) -> dict[str, Any]:
+        base = self._root / Bucket
+        keys = sorted(p.relative_to(base).as_posix() for p in base.rglob("*") if p.is_file()) if base.is_dir() else []
+        matching = [{"Key": key} for key in keys if key.startswith(Prefix)]
+        return {"Contents": matching[:MaxKeys]} if matching else {}

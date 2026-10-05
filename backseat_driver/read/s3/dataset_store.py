@@ -12,12 +12,12 @@ from backseat_driver.read.images.image_store import ImageStore
 
 class DatasetStore(ImageStore):
     @abstractmethod
-    def exists(self, key: str) -> bool: ...
+    async def exists(self, key: str) -> bool: ...
 
     @abstractmethod
-    def upload(self, key: str, path: Path) -> None:
+    async def upload(self, key: str, path: Path) -> None:
         """Store the file at `path` under `key`, replacing any object already there."""
 
     @abstractmethod
-    def download_prefix(self, prefix: str, directory: Path) -> None:
+    async def download_prefix(self, prefix: str, directory: Path) -> None:
         """Download every object under `prefix` into `directory`, keeping the paths below the prefix."""
