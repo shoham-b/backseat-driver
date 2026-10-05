@@ -6,15 +6,18 @@ sync edges start a loop per call), so constructing the store never connects.
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from backseat_driver.concurrency import gather_all
 from backseat_driver.read.s3.dataset_store import DatasetStore
 
 _SCHEME = "s3://"
+# Transfers in flight on one client: botocore's connection pool holds 10, so more would only queue behind it.
+_TRANSFERS_IN_FLIGHT = 10
 _MISSING = {"404", "NoSuchKey", "NotFound"}
 
 
@@ -40,12 +43,25 @@ class S3DatasetStore(DatasetStore):
 
     async def exists(self, key: str) -> bool:
         async with self._make_client(self._endpoint_url) as client:
-            listing = await client.list_objects_v2(Bucket=self._bucket, Prefix=key, MaxKeys=1)
-        return any(entry["Key"] == key for entry in listing.get("Contents", []))
+            return await self._exists(client, key)
 
     async def upload(self, key: str, path: Path) -> None:
         async with self._make_client(self._endpoint_url) as client:
             await client.upload_file(str(path), self._bucket, key)
+
+    async def upload_all(self, files: Mapping[str, Path], skip_existing: bool) -> int:
+        # One client for the whole set: opening one costs a session, a credentials lookup and a new connection pool,
+        # which for thousands of small images outweighs the transfers themselves.
+        async with self._make_client(self._endpoint_url) as client:
+
+            async def send(key: str, path: Path) -> bool:
+                if skip_existing and await self._exists(client, key):
+                    return False
+                await client.upload_file(str(path), self._bucket, key)
+                return True
+
+            sent = await gather_all((send(key, path) for key, path in files.items()), _TRANSFERS_IN_FLIGHT)
+        return sum(sent)
 
     async def download_prefix(self, prefix: str, directory: Path) -> None:
         async with self._make_client(self._endpoint_url) as client:
@@ -60,8 +76,9 @@ class S3DatasetStore(DatasetStore):
                 )
             targets = {key: directory / key.removeprefix(prefix) for key in keys}
             await asyncio.to_thread(_make_parents, targets.values())
-            await asyncio.gather(
-                *(client.download_file(self._bucket, key, str(target)) for key, target in targets.items())
+            await gather_all(
+                (client.download_file(self._bucket, key, str(target)) for key, target in targets.items()),
+                _TRANSFERS_IN_FLIGHT,
             )
 
     @asynccontextmanager
@@ -78,6 +95,10 @@ class S3DatasetStore(DatasetStore):
                     raise FileNotFoundError(f"No object at {uri}") from exc
                 raise
             yield target
+
+    async def _exists(self, client: Any, key: str) -> bool:
+        listing = await client.list_objects_v2(Bucket=self._bucket, Prefix=key, MaxKeys=1)
+        return any(entry["Key"] == key for entry in listing.get("Contents", []))
 
     @staticmethod
     def _parse(uri: str) -> tuple[str, str]:

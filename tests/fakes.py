@@ -2,7 +2,7 @@
 
 import asyncio
 import tempfile
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, asynccontextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -182,6 +182,15 @@ class FakeDatasetStore(FakeImageStore, DatasetStore):
     async def upload(self, key: str, path: Path) -> None:
         self.objects[key] = path
         self.uploads.append(key)
+
+    async def upload_all(self, files: Mapping[str, Path], skip_existing: bool) -> int:
+        sent = 0
+        for key, path in files.items():
+            if skip_existing and await self.exists(key):
+                continue
+            await self.upload(key, path)
+            sent += 1
+        return sent
 
     async def download_prefix(self, prefix: str, directory: Path) -> None:
         self.downloaded_prefixes.append((prefix, directory))

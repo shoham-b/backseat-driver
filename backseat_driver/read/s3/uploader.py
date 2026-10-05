@@ -9,10 +9,6 @@ from loguru import logger
 
 from backseat_driver.read.s3.dataset_store import DatasetStore
 
-# Requests in flight at once. The images are small and the wait is on the network, so a modest number is a large win
-# over one at a time while staying well inside what an S3 endpoint accepts.
-_CONCURRENCY = 16
-
 
 @dataclass(frozen=True)
 class UploadResult:
@@ -33,21 +29,9 @@ class DatasetUploader:
     async def upload(self, dataroot: str, version: str, cameras: Sequence[str]) -> UploadResult:
         root = Path(dataroot)
         tables, images = await asyncio.to_thread(_find_files, root, version, cameras)
-        limit = asyncio.Semaphore(_CONCURRENCY)
-
-        async def send(path: Path, skip_existing: bool) -> bool:
-            key = _key(root, path)
-            async with limit:
-                if skip_existing and await self._store.exists(key):
-                    return False
-                await self._store.upload(key, path)
-                return True
-
-        sent = await asyncio.gather(
-            *(send(path, skip_existing=False) for path in tables), *(send(path, skip_existing=True) for path in images)
-        )
-        uploaded = sum(sent)
-        skipped = len(sent) - uploaded
+        uploaded = await self._store.upload_all({_key(root, path): path for path in tables}, skip_existing=False)
+        uploaded += await self._store.upload_all({_key(root, path): path for path in images}, skip_existing=True)
+        skipped = len(tables) + len(images) - uploaded
         logger.bind(uploaded=uploaded, skipped=skipped).info("dataset uploaded")
         return UploadResult(uploaded, skipped)
 

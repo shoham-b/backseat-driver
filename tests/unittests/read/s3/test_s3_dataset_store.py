@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,61 @@ async def test_a_client_is_opened_for_each_operation_with_the_endpoint_and_never
     await store.upload("b.jpg", Path("b.jpg"))
 
     assert builder.endpoints == ["http://s3:9090", "http://s3:9090"]
+
+
+async def test_upload_all_sends_every_file_through_one_client() -> None:
+    builder = _ClientBuilder()
+    files = {f"samples/{n}.jpg": Path(f"/data/{n}.jpg") for n in range(25)}
+
+    sent = await S3DatasetStore("nuscenes", make_client=builder).upload_all(files, skip_existing=False)
+
+    assert sent == 25
+    assert len(builder.client.uploads) == 25
+    assert len(builder.endpoints) == 1
+
+
+async def test_upload_all_leaves_existing_keys_alone_when_asked_to_and_counts_only_what_it_sent() -> None:
+    builder = _ClientBuilder(_FakeS3Client(["samples/a.jpg"]))
+    files = {"samples/a.jpg": Path("/data/a.jpg"), "samples/b.jpg": Path("/data/b.jpg")}
+
+    sent = await S3DatasetStore("nuscenes", make_client=builder).upload_all(files, skip_existing=True)
+
+    assert sent == 1
+    assert [key for _, _, key in builder.client.uploads] == ["samples/b.jpg"]
+
+
+async def test_upload_all_replaces_existing_keys_by_default() -> None:
+    builder = _ClientBuilder(_FakeS3Client(["samples/a.jpg"]))
+
+    sent = await S3DatasetStore("nuscenes", make_client=builder).upload_all(
+        {"samples/a.jpg": Path("/data/a.jpg")}, skip_existing=False
+    )
+
+    assert sent == 1
+
+
+class _SlowS3Client(_FakeS3Client):
+    """Holds every transfer briefly and records how many were in flight at once."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.running = 0
+        self.peak = 0
+
+    async def upload_file(self, filename: str, bucket: str, key: str) -> None:
+        self.running += 1
+        self.peak = max(self.peak, self.running)
+        await asyncio.sleep(0.01)
+        self.running -= 1
+
+
+async def test_upload_all_keeps_a_bounded_number_of_transfers_in_flight() -> None:
+    client = _SlowS3Client()
+    files = {f"samples/{n}.jpg": Path(f"/data/{n}.jpg") for n in range(40)}
+
+    await S3DatasetStore("nuscenes", make_client=_ClientBuilder(client)).upload_all(files, skip_existing=False)
+
+    assert 1 < client.peak <= 10
 
 
 @pytest.mark.parametrize("uri", ["/data/a.jpg", "s3://nuscenes", "s3://nuscenes/", "s3:///a.jpg", "http://x/a.jpg"])
