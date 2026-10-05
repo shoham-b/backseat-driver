@@ -1,4 +1,5 @@
-import threading
+import asyncio
+from collections.abc import AsyncIterator
 from uuid import uuid4
 
 import pytest
@@ -16,94 +17,135 @@ def _caption_task() -> CaptionTask:
     return CaptionTask(job_id=uuid4(), transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1))
 
 
-def test_tasks_run_in_order_on_one_background_thread() -> None:
+async def _no_failure_handler(task: IngestTask | CaptionTask, error: Exception) -> None:
+    return None
+
+
+@pytest.fixture
+async def queue() -> AsyncIterator[InProcessJobQueue]:
     queue = InProcessJobQueue()
+    yield queue
+    await queue.close()
+
+
+async def test_tasks_run_in_order_on_one_consumer_task(queue: InProcessJobQueue) -> None:
     seen: list[tuple[str, str]] = []
-    done = threading.Event()
+    done = asyncio.Event()
 
-    def on_ingest(task: IngestTask) -> None:
-        seen.append(("ingest", threading.current_thread().name))
+    async def on_ingest(task: IngestTask) -> None:
+        seen.append(("ingest", _current_task_name()))
 
-    def on_caption(task: CaptionTask) -> None:
-        seen.append(("caption", threading.current_thread().name))
+    async def on_caption(task: CaptionTask) -> None:
+        seen.append(("caption", _current_task_name()))
         done.set()
 
-    queue.register(on_ingest, on_caption, on_failure=lambda task, error: None)
+    queue.register(on_ingest, on_caption, on_failure=_no_failure_handler)
 
-    queue.enqueue_ingest(_ingest_task())
-    queue.enqueue_caption(_caption_task())
+    await queue.enqueue_ingest(_ingest_task())
+    await queue.enqueue_caption(_caption_task())
 
-    assert done.wait(timeout=5)
+    await asyncio.wait_for(done.wait(), timeout=5)
     assert seen == [("ingest", "in-process-worker"), ("caption", "in-process-worker")]
 
 
-def test_a_failing_task_does_not_stop_later_tasks() -> None:
-    queue = InProcessJobQueue()
-    later_task_ran = threading.Event()
+def _current_task_name() -> str:
+    task = asyncio.current_task()
+    assert task is not None
+    return task.get_name()
 
-    def on_ingest(task: IngestTask) -> None:
+
+async def test_a_failing_task_does_not_stop_later_tasks(queue: InProcessJobQueue) -> None:
+    later_task_ran = asyncio.Event()
+
+    async def on_ingest(task: IngestTask) -> None:
         raise RuntimeError("boom")
 
-    queue.register(on_ingest, lambda task: later_task_ran.set(), on_failure=lambda task, error: None)
+    async def on_caption(task: CaptionTask) -> None:
+        later_task_ran.set()
 
-    queue.enqueue_ingest(_ingest_task())
-    queue.enqueue_caption(_caption_task())
+    queue.register(on_ingest, on_caption, on_failure=_no_failure_handler)
 
-    assert later_task_ran.wait(timeout=5)
+    await queue.enqueue_ingest(_ingest_task())
+    await queue.enqueue_caption(_caption_task())
+
+    await asyncio.wait_for(later_task_ran.wait(), timeout=5)
 
 
-def test_a_failing_task_is_reported_with_its_error() -> None:
-    queue = InProcessJobQueue()
+async def test_a_failing_task_is_reported_with_its_error(queue: InProcessJobQueue) -> None:
     reported: list[tuple[IngestTask | CaptionTask, Exception]] = []
-    reported_event = threading.Event()
+    reported_event = asyncio.Event()
 
-    def on_ingest(task: IngestTask) -> None:
+    async def on_ingest(task: IngestTask) -> None:
         raise RuntimeError("boom")
 
-    def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
+    async def on_caption(task: CaptionTask) -> None:
+        return None
+
+    async def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
         reported.append((task, error))
         reported_event.set()
 
-    queue.register(on_ingest, lambda task: None, on_failure=on_failure)
+    queue.register(on_ingest, on_caption, on_failure=on_failure)
     task = _ingest_task()
 
-    queue.enqueue_ingest(task)
+    await queue.enqueue_ingest(task)
 
-    assert reported_event.wait(timeout=5)
+    await asyncio.wait_for(reported_event.wait(), timeout=5)
     assert [(t, str(e)) for t, e in reported] == [(task, "boom")]
 
 
-def test_a_failure_that_cannot_be_recorded_does_not_stop_later_tasks() -> None:
-    queue = InProcessJobQueue()
-    later_task_ran = threading.Event()
+async def test_a_failure_that_cannot_be_recorded_does_not_stop_later_tasks(queue: InProcessJobQueue) -> None:
+    later_task_ran = asyncio.Event()
 
-    def on_ingest(task: IngestTask) -> None:
+    async def on_ingest(task: IngestTask) -> None:
         raise RuntimeError("boom")
 
-    def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
+    async def on_caption(task: CaptionTask) -> None:
+        later_task_ran.set()
+
+    async def on_failure(task: IngestTask | CaptionTask, error: Exception) -> None:
         raise ConnectionError("store down")
 
-    queue.register(on_ingest, lambda task: later_task_ran.set(), on_failure=on_failure)
+    queue.register(on_ingest, on_caption, on_failure=on_failure)
 
-    queue.enqueue_ingest(_ingest_task())
-    queue.enqueue_caption(_caption_task())
+    await queue.enqueue_ingest(_ingest_task())
+    await queue.enqueue_caption(_caption_task())
 
-    assert later_task_ran.wait(timeout=5)
+    await asyncio.wait_for(later_task_ran.wait(), timeout=5)
 
 
 @pytest.mark.parametrize("enqueue", ["enqueue_ingest", "enqueue_caption"])
-def test_enqueueing_before_register_fails_fast(enqueue: str) -> None:
-    queue = InProcessJobQueue()
+async def test_enqueueing_before_register_fails_fast(queue: InProcessJobQueue, enqueue: str) -> None:
     task = _ingest_task() if enqueue == "enqueue_ingest" else _caption_task()
 
     with pytest.raises(RuntimeError, match="register"):
-        getattr(queue, enqueue)(task)
+        await getattr(queue, enqueue)(task)
 
 
-def test_the_queue_is_healthy_and_starts_no_thread_until_used() -> None:
-    threads_before = threading.active_count()
+async def test_the_queue_is_healthy_and_starts_no_consumer_until_used() -> None:
+    tasks_before = len(asyncio.all_tasks())
 
     queue = InProcessJobQueue()
 
-    assert queue.healthcheck() is True
-    assert threading.active_count() == threads_before
+    assert await queue.healthcheck() is True
+    assert len(asyncio.all_tasks()) == tasks_before
+
+
+async def test_closing_the_queue_stops_its_consumer() -> None:
+    queue = InProcessJobQueue()
+    ran = asyncio.Event()
+
+    async def on_caption(task: CaptionTask) -> None:
+        ran.set()
+
+    async def on_ingest(task: IngestTask) -> None:
+        return None
+
+    queue.register(on_ingest, on_caption, on_failure=_no_failure_handler)
+    await queue.enqueue_caption(_caption_task())
+    await asyncio.wait_for(ran.wait(), timeout=5)
+    tasks_while_running = len(asyncio.all_tasks())
+
+    await queue.close()
+
+    assert len(asyncio.all_tasks()) == tasks_while_running - 1

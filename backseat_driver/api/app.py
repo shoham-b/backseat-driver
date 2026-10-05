@@ -36,12 +36,15 @@ def create_app(settings: Settings) -> FastAPI:
         image_store = build_image_store(settings)
         # In distributed mode neither client connects until first use, so startup never blocks on the broker
         # or database; /ready reports whether they are reachable.
-        job_queue, job_store = build_job_backend(settings, captioner, image_store)
+        job_queue, job_store = await build_job_backend(settings, captioner, image_store)
         app.state.services = AppState(settings, captioner, image_store, job_queue, job_store)
 
         logger.bind(api_url=settings.api_url, mode=settings.mode).info("startup complete")
         yield
 
+        # The queue first: its consumer uses the store.
+        await job_queue.close()
+        await job_store.close()
         logger.info("shutdown")
 
     app = FastAPI(title="Backseat Driver", lifespan=lifespan)

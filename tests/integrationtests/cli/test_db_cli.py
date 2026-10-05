@@ -11,7 +11,7 @@ runner = CliRunner()
 
 def test_db_init_creates_the_job_tables_and_is_idempotent(tmp_path: Path) -> None:
     url = f"sqlite:///{tmp_path / 'jobs.db'}"
-    env = {"BACKSEAT_DRIVER_DATABASE_URL": url}
+    env = {"BACKSEAT_DRIVER_DATABASE_URL": url.replace("sqlite:", "sqlite+aiosqlite:")}
 
     first = runner.invoke(app, ["db", "init"], env=env)
     second = runner.invoke(app, ["db", "init"], env=env)

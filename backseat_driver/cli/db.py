@@ -1,5 +1,7 @@
 """Database commands for the distributed mode."""
 
+import asyncio
+
 from backseat_driver.cli import db_app
 from backseat_driver.config import get_settings
 from backseat_driver.logger import LogFormat, setup_logging
@@ -16,5 +18,5 @@ def init() -> None:
     from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
     from backseat_driver.write.job_store.storage import JobStorage
 
-    SqlJobStore(JobStorage(settings.database_url)).ensure_schema()
+    asyncio.run(SqlJobStore(JobStorage(settings.database_url, pooled=False)).ensure_schema())
     logger.info("database schema ready")

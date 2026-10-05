@@ -13,7 +13,7 @@ Every other dependency (broker, database, bucket, model) is built on first use a
 import asyncio
 from collections.abc import Callable
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from celery import Celery, Task
 from celery.signals import setup_logging as celery_setup_logging
@@ -37,6 +37,11 @@ from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.transport.job_store.job_store import JobStore
 
 
+def worker_store(settings: Settings) -> JobStore:
+    """A task runs its own event loop, and a pooled connection would outlive it: connect per operation instead."""
+    return postgres_store(settings, pooled=False)
+
+
 class Workers:
     """Builds each worker (and the store they share) on first use and keeps it, so a process loads its model once."""
 
@@ -45,7 +50,7 @@ class Workers:
         settings: Settings,
         build_loader: Callable[[Settings, DatasetStore], SceneLoader] = stored_loader,
         build_queue: Callable[[Settings], JobQueue] = celery_queue,
-        build_store: Callable[[Settings], JobStore] = postgres_store,
+        build_store: Callable[[Settings], JobStore] = worker_store,
         build_captioner: Callable[[Settings], Captioner] = build_configured_captioner,
         build_dataset: Callable[[Settings], DatasetStore] = build_dataset_store,
     ) -> None:
@@ -103,29 +108,40 @@ def register_tasks(
             # Celery calls this only once retries are exhausted, so a transient error that a retry fixes never
             # marks a job failed.
             kind = "ingest" if self.name == INGEST_TASK else "caption"
-            job_store = store()
-            try:
-                reference = JobReference.model_validate(args[0])
-            except ValidationError:
-                # No job to mark failed, but the message is kept so it isn't lost without a trace.
-                logger.error("{} {} failed and its payload names no job: {}", self.name, task_id, exc)
-                payload = args[0] if isinstance(args[0], dict) else {"raw": repr(args[0])}
-                job_store.record_dead_letter(None, dead_letter_of(kind, payload, exc))
-                return
-            job_store.fail_job(reference.job_id, describe_failure(str(self.name), exc))
-            job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, args[0], exc))
+            asyncio.run(_give_up(store(), str(self.name), task_id, kind, args[0], exc))
 
     @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def ingest(self: Task, payload: dict[str, Any]) -> None:
         task = IngestTask.model_validate(payload)
-        ingest_worker().handle(task)
+        asyncio.run(ingest_worker().handle(task))
 
     @app.task(name=CAPTION_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def caption(self: Task, payload: dict[str, Any]) -> None:
         task = CaptionTask.model_validate(payload)
-        caption_worker().handle(task)
+        asyncio.run(caption_worker().handle(task))
 
     return Tasks(ingest, caption)
+
+
+async def _give_up(
+    job_store: JobStore,
+    task_name: str,
+    task_id: str,
+    kind: Literal["ingest", "caption"],
+    payload: Any,
+    error: Exception,
+) -> None:
+    """Record a task that ran out of retries: fail its job and keep the payload as a dead letter."""
+    try:
+        reference = JobReference.model_validate(payload)
+    except ValidationError:
+        # No job to mark failed, but the message is kept so it isn't lost without a trace.
+        logger.error("{} {} failed and its payload names no job: {}", task_name, task_id, error)
+        raw = payload if isinstance(payload, dict) else {"raw": repr(payload)}
+        await job_store.record_dead_letter(None, dead_letter_of(kind, raw, error))
+        return
+    await job_store.fail_job(reference.job_id, describe_failure(task_name, error))
+    await job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, payload, error))
 
 
 def configure_worker_logging(settings: Settings, setup: Callable[[LogFormat, str], None] = setup_logging) -> None:

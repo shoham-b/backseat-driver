@@ -63,16 +63,17 @@ def pipeline(
     )
 
 
-# Rung 2: the seam. The same steps as tasks, both ends of the queue in the API process on one thread.
+# Rung 2: the seam. The same steps as tasks, both ends of the queue in the API process on one event loop.
 
 
-def seam(
+async def seam(
     settings: Settings,
     captioner: Captioner,
     images: ImageStore,
     build_loader: Callable[[Settings], SceneLoader],
 ) -> tuple[JobQueue, JobStore]:
     queue, store = InProcessJobQueue(), _sqlite_store(settings)
+    await store.ensure_schema()
     queue.register(
         on_ingest=IngestWorker(loader=build_loader(settings), queue=queue, store=store, images=images).handle,
         on_caption=CaptionWorker(captioner=captioner, store=store, images=images).handle,
@@ -81,10 +82,10 @@ def seam(
     return queue, store
 
 
-def _give_up(store: JobStore, task: IngestTask | CaptionTask, error: Exception) -> None:
+async def _give_up(store: JobStore, task: IngestTask | CaptionTask, error: Exception) -> None:
     kind = "ingest" if isinstance(task, IngestTask) else "caption"
-    store.fail_job(task.job_id, describe_failure(kind, error))
-    store.record_dead_letter(task.job_id, dead_letter_of(kind, task.model_dump(mode="json"), error))
+    await store.fail_job(task.job_id, describe_failure(kind, error))
+    await store.record_dead_letter(task.job_id, dead_letter_of(kind, task.model_dump(mode="json"), error))
 
 
 def nuscenes_loader(settings: Settings) -> SceneLoader:
@@ -95,12 +96,10 @@ def nuscenes_loader(settings: Settings) -> SceneLoader:
     )
 
 
-def _sqlite_store(settings: Settings) -> JobStore:
+def _sqlite_store(settings: Settings) -> SqlJobStore:
     path = Path(settings.jobs_db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    store = SqlJobStore(JobStorage(f"sqlite:///{path.as_posix()}"))
-    store.ensure_schema()
-    return store
+    return SqlJobStore(JobStorage(f"sqlite+aiosqlite:///{path.as_posix()}"))
 
 
 # Rung 3: machines. The API only enqueues and reads; the workers (`tasks.Workers`) build their own ends from the
@@ -115,8 +114,9 @@ def celery_queue(settings: Settings) -> JobQueue:
     return CeleryJobQueue(settings.rabbitmq_url)
 
 
-def postgres_store(settings: Settings) -> JobStore:
-    return SqlJobStore(JobStorage(settings.database_url))
+def postgres_store(settings: Settings, pooled: bool = True) -> JobStore:
+    """`pooled=False` for a process that starts an event loop per call (a Celery task): see `JobStorage`."""
+    return SqlJobStore(JobStorage(settings.database_url, pooled=pooled))
 
 
 def stored_loader(settings: Settings, dataset: DatasetStore) -> SceneLoader:
@@ -142,7 +142,7 @@ def build_image_store(settings: Settings) -> ImageStore:
     return build_dataset_store(settings)
 
 
-def build_job_backend(
+async def build_job_backend(
     settings: Settings,
     captioner: Captioner,
     images: ImageStore,
@@ -151,4 +151,4 @@ def build_job_backend(
     """The queue and job store the API uses for `/jobs`: rung 2 in the monolith, rung 3 when distributed."""
     if settings.mode is RunMode.DISTRIBUTED:
         return machines(settings)
-    return seam(settings, captioner, images, build_loader)
+    return await seam(settings, captioner, images, build_loader)

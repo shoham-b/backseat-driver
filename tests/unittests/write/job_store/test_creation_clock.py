@@ -5,8 +5,7 @@ from uuid import uuid4
 
 from hypothesis import given
 from hypothesis import strategies as st
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.creation_clock import CreationClock
@@ -73,14 +72,15 @@ def test_threads_sharing_a_clock_never_get_the_same_value() -> None:
     assert len(set(values)) == 8 * 200
 
 
-def test_the_sql_store_lists_jobs_created_within_one_tick_newest_first() -> None:
-    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
-    storage = JobStorage("sqlite://", engine_factory=lambda *_, **__: engine, clock=_frozen())
-    storage.ensure_schema()
+async def test_the_sql_store_lists_jobs_created_within_one_tick_newest_first() -> None:
+    engine = create_async_engine("sqlite+aiosqlite://")
+    storage = JobStorage("sqlite+aiosqlite://", engine_factory=lambda *_, **__: engine, clock=_frozen())
+    await storage.ensure_schema()
     store, ids = SqlJobStore(storage), [uuid4() for _ in range(5)]
     for job_id in ids:
-        store.create_job(job_id, None, "tx")
+        await store.create_job(job_id, None, "tx")
 
-    listed = store.list_jobs()
+    listed = await store.list_jobs()
+    await engine.dispose()
 
     assert [job.job_id for job in listed] == ids[::-1]

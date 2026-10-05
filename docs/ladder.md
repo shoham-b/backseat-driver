@@ -34,7 +34,7 @@ Tests: [`test_pipeline.py`](https://github.com/shoham-b/backseat-driver/blob/mai
 
 ```mermaid
 flowchart LR
-    subgraph proc["still one process · one thread · the API monolith (just dev)"]
+    subgraph proc["still one process · one event loop · the API monolith (just dev)"]
         direction LR
         R["<b>read</b><br/>ingest worker"] --> Q(["<b>transport</b><br/>JobQueue<br/>in memory"]) --> P["<b>process</b><br/>caption worker"] --> W["<b>write</b><br/>JobStore<br/>results + job state<br/>SQLite file"]
     end

@@ -24,7 +24,7 @@ router = APIRouter(tags=["jobs"])
 
 
 @router.post("/jobs", status_code=HTTPStatus.ACCEPTED)
-def create_job(
+async def create_job(
     transaction_id: Annotated[str, Depends(get_transaction_id)],
     queue: Annotated[JobQueue, Depends(get_job_queue)],
     store: Annotated[JobStore, Depends(get_job_store)],
@@ -41,68 +41,68 @@ def create_job(
 ) -> Job:
     """Start a job that describes every scene in the dataset.
 
-    The routes here are plain `def`, so FastAPI runs them on worker threads: the store and queue clients block.
+    The routes here are `async def` and await the store and the queue.
     """
     max_scenes = body.max_scenes if body else None
     job_id = uuid4()
 
     if idempotency_key is not None:
-        existing = store.find_job_by_idempotency_key(idempotency_key)
+        existing = await store.find_job_by_idempotency_key(idempotency_key)
         if existing is not None:
             response.status_code = HTTPStatus.OK
             return existing
     try:
-        store.create_job(job_id, max_scenes, transaction_id, idempotency_key)
+        await store.create_job(job_id, max_scenes, transaction_id, idempotency_key)
     except IdempotencyKeyInUseError as exc:
         # A concurrent retry can pass the lookup above before the first request has created its job; the store's
         # unique key lets only one of them in, and this one answers with the job that won.
-        existing = store.find_job_by_idempotency_key(exc.key)
+        existing = await store.find_job_by_idempotency_key(exc.key)
         if existing is None:
             raise
         response.status_code = HTTPStatus.OK
         return existing
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
     try:
-        queue.enqueue_ingest(task)
+        await queue.enqueue_ingest(task)
     except Exception as exc:
         # Otherwise the row would sit `pending` forever, waiting for an ingest task that was never queued.
-        store.fail_job(job_id, describe_failure("enqueue", exc))
+        await store.fail_job(job_id, describe_failure("enqueue", exc))
         raise
-    return store.get_job(job_id)
+    return await store.get_job(job_id)
 
 
 @router.get("/jobs")
-def list_jobs(
+async def list_jobs(
     store: Annotated[JobStore, Depends(get_job_store)],
     state: JobState | None = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[Job]:
     """Jobs, newest first, optionally only those in one `state`."""
-    return store.list_jobs(state, limit)
+    return await store.list_jobs(state, limit)
 
 
 @router.get("/jobs/{job_id}", responses=NOT_FOUND_RESPONSE)
-def get_job(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> Job:
+async def get_job(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> Job:
     """Progress of a job: `pending` until ingest counts the scenes, then `running`, then `completed`."""
-    return store.get_job(job_id)
+    return await store.get_job(job_id)
 
 
 @router.get("/dead-letters")
-def list_recent_dead_letters(
+async def list_recent_dead_letters(
     store: Annotated[JobStore, Depends(get_job_store)],
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[JobDeadLetter]:
     """The most recent tasks that ran out of retries across all jobs, newest first, each naming its job."""
-    return store.list_recent_dead_letters(limit)
+    return await store.list_recent_dead_letters(limit)
 
 
 @router.get("/jobs/{job_id}/dead-letters", responses=NOT_FOUND_RESPONSE)
-def list_dead_letters(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[DeadLetter]:
+async def list_dead_letters(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[DeadLetter]:
     """The tasks of a job that ran out of retries, oldest first, each with its payload and the full error."""
-    return store.list_dead_letters(job_id)
+    return await store.list_dead_letters(job_id)
 
 
 @router.get("/jobs/{job_id}/descriptions", responses=NOT_FOUND_RESPONSE)
-def list_descriptions(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[SceneDescription]:
+async def list_descriptions(job_id: UUID, store: Annotated[JobStore, Depends(get_job_store)]) -> list[SceneDescription]:
     """Descriptions produced so far for a job (all of them once the job is `completed`)."""
-    return store.list_descriptions(job_id)
+    return await store.list_descriptions(job_id)

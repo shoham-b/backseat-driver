@@ -1,5 +1,6 @@
 """`worker ingest --once` over a real (in-memory) Celery broker: exactly one queued task is run and acked."""
 
+import asyncio
 from collections.abc import Iterator
 from uuid import UUID, uuid4
 
@@ -29,7 +30,7 @@ class _Failing(IngestWorker):
         super().__init__(FakeSceneLoader([]), FakeJobQueue(), FakeJobStore(), FakeImageStore())
         self.calls = 0
 
-    def handle(self, task: IngestTask) -> None:
+    async def handle(self, task: IngestTask) -> None:
         self.calls += 1
         raise ConnectionError("object store down")
 
@@ -58,7 +59,7 @@ def _waiting(app: Celery) -> int:
 
 def test_one_task_is_handled_and_the_rest_stay_queued() -> None:
     job_id, store, queue = uuid4(), FakeJobStore(), FakeJobQueue()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     app = _app_with(IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store, FakeImageStore()))
     _send(app, job_id)
     _send(app)
@@ -66,7 +67,7 @@ def test_one_task_is_handled_and_the_rest_stay_queued() -> None:
     handled = consume_one(app, INGEST_QUEUE)
 
     assert handled is True
-    assert store.get_job(job_id).expected_scenes == 2
+    assert asyncio.run(store.get_job(job_id)).expected_scenes == 2
     assert len(queue.caption_tasks) == 2
     assert _waiting(app) == 1
 
@@ -79,7 +80,7 @@ def test_an_empty_queue_is_not_an_error() -> None:
 
 def test_a_task_that_keeps_failing_is_retried_then_dropped_and_the_job_fails() -> None:
     worker, job_id, store = _Failing(), uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     app = _app_with(worker, store)
     _send(app, job_id)
 
@@ -88,12 +89,12 @@ def test_a_task_that_keeps_failing_is_retried_then_dropped_and_the_job_fails() -
 
     assert worker.calls == tasks.MAX_RETRIES + 1
     assert _waiting(app) == 0
-    job = store.get_job(job_id)
+    job = asyncio.run(store.get_job(job_id))
     assert (job.state, job.error) == (
         JobState.FAILED,
         "backseat_driver.ingest failed: ConnectionError: object store down",
     )
-    [letter] = store.list_dead_letters(job_id)
+    [letter] = asyncio.run(store.list_dead_letters(job_id))
     assert (letter.task, letter.payload["job_id"]) == ("ingest", str(job_id))
 
 

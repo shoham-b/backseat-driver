@@ -43,13 +43,13 @@ class FakeJobQueue(JobQueue):
         self.ingest_tasks: list[IngestTask] = []
         self.caption_tasks: list[CaptionTask] = []
 
-    def enqueue_ingest(self, task: IngestTask) -> None:
+    async def enqueue_ingest(self, task: IngestTask) -> None:
         self.ingest_tasks.append(task)
 
-    def enqueue_caption(self, task: CaptionTask) -> None:
+    async def enqueue_caption(self, task: CaptionTask) -> None:
         self.caption_tasks.append(task)
 
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         return self.healthy
 
 
@@ -63,20 +63,20 @@ class FakeJobStore(JobStore):
         self._dead_letters: dict[UUID, list[DeadLetter]] = {}
         self._recent: list[JobDeadLetter] = []
 
-    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
+    async def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
         if job_id is not None:
             self._get(job_id)
             self._dead_letters.setdefault(job_id, []).append(dead_letter)
         self._recent.append(JobDeadLetter(job_id=job_id, **dead_letter.model_dump()))
 
-    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+    async def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
         return self._recent[::-1][:limit]
 
-    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+    async def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
         self._get(job_id)
         return list(self._dead_letters.get(job_id, []))
 
-    def create_job(
+    async def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
     ) -> None:
         if idempotency_key is not None:
@@ -86,23 +86,23 @@ class FakeJobStore(JobStore):
         self._jobs[job_id] = (transaction_id, max_scenes, None, datetime.now(UTC))
         self._descriptions[job_id] = {}
 
-    def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
+    async def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         transaction_id, max_scenes, _, created_at = self._get(job_id)
         self._jobs[job_id] = (transaction_id, max_scenes, expected_scenes, created_at)
 
-    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+    async def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
         job_id = self._keys.get(idempotency_key)
-        return None if job_id is None else self.get_job(job_id)
+        return None if job_id is None else await self.get_job(job_id)
 
-    def fail_job(self, job_id: UUID, error: str) -> None:
+    async def fail_job(self, job_id: UUID, error: str) -> None:
         self._get(job_id)
         self._errors.setdefault(job_id, error)
 
-    def record_description(self, job_id: UUID, description: SceneDescription) -> None:
+    async def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         self._get(job_id)
         self._descriptions[job_id].setdefault((description.scene_token, description.camera_channel), description)
 
-    def get_job(self, job_id: UUID) -> Job:
+    async def get_job(self, job_id: UUID) -> Job:
         transaction_id, max_scenes, expected_scenes, created_at = self._get(job_id)
         completed = len(self._descriptions[job_id])
         return Job(
@@ -116,16 +116,16 @@ class FakeJobStore(JobStore):
             error=self._errors.get(job_id),
         )
 
-    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
-        jobs = [self.get_job(job_id) for job_id in reversed(self._jobs)]
+    async def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
+        jobs = [await self.get_job(job_id) for job_id in reversed(self._jobs)]
         newest_first = sorted(jobs, key=lambda job: job.created_at, reverse=True)
         return [job for job in newest_first if state is None or job.state is state][:limit]
 
-    def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
+    async def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self._get(job_id)
         return sorted(self._descriptions[job_id].values(), key=lambda d: (d.scene_name, d.camera_channel))
 
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         return self.healthy
 
     def _get(self, job_id: UUID) -> tuple[str, int | None, int | None, datetime]:

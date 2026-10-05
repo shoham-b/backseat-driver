@@ -6,6 +6,7 @@ work without importing the worker code (and therefore without torch or nuscenes-
 Celery is imported lazily, so unit tests and the batch CLI never need it.
 """
 
+import asyncio
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -62,13 +63,22 @@ class CeleryJobQueue(JobQueue):
         self._make_app = make_app
         self._app: Celery | None = None
 
-    def enqueue_ingest(self, task: IngestTask) -> None:
-        self._get_app().send_task(INGEST_TASK, args=[task.model_dump(mode="json")])
+    # Celery has no asynchronous producer: publishing connects, writes and waits for the broker's confirmation, so each
+    # call runs on a worker thread and leaves the event loop free.
 
-    def enqueue_caption(self, task: CaptionTask) -> None:
-        self._get_app().send_task(CAPTION_TASK, args=[task.model_dump(mode="json")])
+    async def enqueue_ingest(self, task: IngestTask) -> None:
+        await asyncio.to_thread(self._send, INGEST_TASK, task.model_dump(mode="json"))
 
-    def healthcheck(self) -> bool:
+    async def enqueue_caption(self, task: CaptionTask) -> None:
+        await asyncio.to_thread(self._send, CAPTION_TASK, task.model_dump(mode="json"))
+
+    async def healthcheck(self) -> bool:
+        return await asyncio.to_thread(self._healthcheck)
+
+    def _send(self, task_name: str, payload: dict[str, Any]) -> None:
+        self._get_app().send_task(task_name, args=[payload])
+
+    def _healthcheck(self) -> bool:
         from kombu.exceptions import KombuError
 
         try:
