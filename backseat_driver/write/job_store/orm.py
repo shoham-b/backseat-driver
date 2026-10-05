@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -26,6 +26,18 @@ class JobRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), default=lambda: datetime.now(UTC)
     )
+
+
+class DeadLetterRow(Base):
+    __tablename__ = "dead_letters"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # NULL for an orphan: a task whose payload named no job.
+    job_id: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True), ForeignKey("jobs.job_id"), index=True)
+    task: Mapped[str] = mapped_column(String)
+    payload: Mapped[dict] = mapped_column(JSON)
+    error: Mapped[str] = mapped_column(String)
+    failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class SceneDescriptionRow(Base):

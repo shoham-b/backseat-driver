@@ -8,7 +8,7 @@ import pytest
 
 from backseat_driver.config import RunMode, Settings
 from backseat_driver.errors import NotFoundError
-from backseat_driver.models import CaptionTask, IngestTask, JobState
+from backseat_driver.models import CaptionTask, IngestTask, JobState, SceneKeyframe
 from backseat_driver.pipeline import describe_keyframe
 from backseat_driver.stacks import build_job_backend
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
@@ -57,6 +57,31 @@ def test_monolith_job_runs_to_completion_without_a_broker() -> None:
         time.sleep(0.01)
 
     assert [d.scene_name for d in store.list_descriptions(job_id)] == ["scene-0001", "scene-0002"]
+
+
+class _BrokenLoader(FakeSceneLoader):
+    def load_keyframes(self) -> list[SceneKeyframe]:
+        raise OSError("dataset missing")
+
+
+def test_monolith_task_that_fails_is_kept_as_a_dead_letter() -> None:
+    queue, store = build_job_backend(
+        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""),
+        FakeCaptioner(),
+        FakeImageStore(),
+        build_loader=lambda settings: _BrokenLoader([]),
+    )
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx")
+
+    queue.enqueue_ingest(IngestTask(job_id=job_id, transaction_id="tx"))
+
+    deadline = time.monotonic() + 5
+    while not store.list_dead_letters(job_id) and time.monotonic() < deadline:
+        time.sleep(0.01)
+    [letter] = store.list_dead_letters(job_id)
+    assert (letter.task, letter.error, letter.payload["job_id"]) == ("ingest", "OSError: dataset missing", str(job_id))
+    assert store.get_job(job_id).state is JobState.FAILED
 
 
 def test_listing_jobs_returns_the_newest_first() -> None:

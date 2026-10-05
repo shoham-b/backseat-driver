@@ -17,7 +17,7 @@ from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
-from backseat_driver.write.job_store.orm import Base, JobRow, SceneDescriptionRow
+from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
 
 
 def description_insert(job_id: UUID, values: dict) -> Insert:
@@ -91,6 +91,20 @@ class JobStorage:
         )
         with self._session() as session, session.begin():
             return session.execute(statement).first() is not None
+
+    def insert_dead_letter(self, job_id: UUID | None, values: dict) -> None:
+        with self._session() as session, session.begin():
+            session.add(DeadLetterRow(job_id=job_id, **values))
+
+    def fetch_dead_letters(self, job_id: UUID) -> list[DeadLetterRow]:
+        statement = select(DeadLetterRow).where(DeadLetterRow.job_id == job_id).order_by(DeadLetterRow.id)
+        with self._session() as session:
+            return list(session.scalars(statement).all())
+
+    def fetch_recent_dead_letters(self, limit: int) -> list[DeadLetterRow]:
+        statement = select(DeadLetterRow).order_by(DeadLetterRow.id.desc()).limit(limit)
+        with self._session() as session:
+            return list(session.scalars(statement).all())
 
     def insert_description(self, job_id: UUID, values: dict) -> None:
         """Idempotent: a redelivered scene and camera is ignored."""
