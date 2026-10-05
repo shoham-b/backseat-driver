@@ -27,6 +27,8 @@ class IngestWorker:
         self._images = images
 
     def handle(self, task: IngestTask) -> None:
+        if task.max_scenes is not None and task.max_scenes < 1:
+            raise ValueError(f"max_scenes must be at least 1, got {task.max_scenes}")
         with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
             keyframes = first_scenes(self._loader.load_keyframes(), task.max_scenes)
 

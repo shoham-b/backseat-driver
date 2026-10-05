@@ -61,6 +61,8 @@ class ScenePipeline:
         self._images = images
 
     def run(self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None) -> list[SceneDescription]:
+        if max_scenes is not None and max_scenes < 1:
+            raise ValueError(f"max_scenes must be at least 1, got {max_scenes}")
         keyframes = first_scenes(self._loader.load_keyframes(), max_scenes)
 
         descriptions: list[SceneDescription] = []
