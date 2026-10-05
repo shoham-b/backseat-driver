@@ -19,3 +19,8 @@ def sqlite_storage() -> Iterator[JobStorage]:
     job_storage.ensure_schema()
     yield job_storage
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_settings(no_ambient_settings: None) -> None:
+    """Every test in this layer runs without the developer's `BACKSEAT_DRIVER_*` variables."""

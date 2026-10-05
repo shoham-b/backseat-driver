@@ -10,7 +10,7 @@ from collections.abc import Callable
 from uuid import UUID
 
 from loguru import logger
-from sqlalchemy import create_engine, func, select, update
+from sqlalchemy import create_engine, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine, make_url
@@ -40,8 +40,22 @@ class JobStorage:
         self._lock = threading.Lock()
 
     def ensure_schema(self) -> None:
-        """Create the tables if missing. Run once per deployment (`db init`), not per process."""
-        Base.metadata.create_all(self._get_engine())
+        """Create the tables if missing. Run once per deployment (`db init`), not per process.
+
+        Raises RuntimeError when a table that already exists lacks a column the code expects: `create_all` never alters
+        a table, so an old database would otherwise fail on the first query that touches the new column.
+        """
+        engine = self._get_engine()
+        Base.metadata.create_all(engine)
+        existing = inspect(engine)
+        for table in Base.metadata.sorted_tables:
+            missing = {column.name for column in table.columns} - {c["name"] for c in existing.get_columns(table.name)}
+            if missing:
+                raise RuntimeError(
+                    f"table {table.name!r} in {engine.url.render_as_string(hide_password=True)} predates the current "
+                    f"schema (missing columns: {', '.join(sorted(missing))}); there is no migration, so recreate the "
+                    "database (the monolith's output/jobs.db is only a job history and can be deleted)"
+                )
 
     def insert_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None

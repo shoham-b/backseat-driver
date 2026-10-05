@@ -4,6 +4,7 @@ The API and both workers are written against the port, and their tests use `Fake
 over the in-memory store, the SQL store and that fake keeps the fake honest.
 """
 
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -180,7 +181,9 @@ def test_jobs_without_a_key_never_collide(store: JobStore) -> None:
 
 
 def test_jobs_are_listed_newest_first_with_their_progress(store: JobStore) -> None:
-    first, second = _new_job(store), _new_job(store, expected_scenes=1)
+    first = _new_job(store)
+    time.sleep(0.05)  # the Windows clock ticks every ~16 ms, so back-to-back jobs would tie on `created_at`
+    second = _new_job(store, expected_scenes=1)
 
     jobs = store.list_jobs()
 
