@@ -10,7 +10,6 @@ from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
-from fastapi.concurrency import run_in_threadpool
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
 from backseat_driver.api.schemas import DescribeResponse
@@ -23,13 +22,16 @@ router = APIRouter(tags=["describe"])
 
 
 @router.post("/describe")
-async def describe(
+def describe(
     image: UploadFile,
     captioner: Annotated[Captioner, Depends(get_captioner)],
     upload_dir: Annotated[Path, Depends(get_upload_dir)],
 ) -> DescribeResponse:
-    """Caption a single uploaded image using the configured VLM."""
-    contents = await image.read()
+    """Caption a single uploaded image using the configured VLM.
+
+    A plain `def`, so FastAPI runs it on a worker thread: inference blocks and must not stall the event loop.
+    """
+    contents = image.file.read()
     if not contents:
         raise UnprocessableError("uploaded file is empty")
 
@@ -38,9 +40,8 @@ async def describe(
     suffix = PurePosixPath((image.filename or "").replace("\\", "/")).suffix.lower()
     tmp_path = upload_dir / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
     tmp_path.write_bytes(contents)
-    # Inference is synchronous/CPU-bound — off the event loop so one slow request doesn't stall every other request
-    # being served. A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is
-    # the service's own and stays a 500.
-    description = await run_in_threadpool(captioner.caption, str(tmp_path))
+    # A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is the service's own
+    # and stays a 500.
+    description = captioner.caption(str(tmp_path))
 
     return DescribeResponse(description=description, model_name=captioner.model_name)
