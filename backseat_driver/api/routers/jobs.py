@@ -11,10 +11,10 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Response
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_transaction_id
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
+from backseat_driver.api.schemas import CreateJobRequest
 from backseat_driver.errors import IdempotencyKeyInUseError
 from backseat_driver.models import DeadLetter, IngestTask, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_failure import describe_failure
@@ -22,10 +22,6 @@ from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.transport.job_store.job_store import JobStore
 
 router = APIRouter(tags=["jobs"])
-
-
-class CreateJobRequest(BaseModel):
-    max_scenes: int | None = Field(default=None, gt=0, description="Only process the first N scenes")
 
 
 @router.post("/jobs", status_code=HTTPStatus.ACCEPTED)

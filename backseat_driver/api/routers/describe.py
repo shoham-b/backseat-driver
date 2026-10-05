@@ -11,20 +11,15 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
+from backseat_driver.api.schemas import DescribeResponse
 from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.captioner import Captioner
 
 _PLAIN_SUFFIX = re.compile(r"\.[a-z0-9]{1,8}")
 
 router = APIRouter(tags=["describe"])
-
-
-class DescribeResponse(BaseModel):
-    description: str
-    model_name: str
 
 
 @router.post("/describe")
