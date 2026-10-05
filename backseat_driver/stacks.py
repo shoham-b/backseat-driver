@@ -11,6 +11,9 @@ else, and none connects to anything until it is used.
     process Captioner   BackendCaptioner        BackendCaptioner           BackendCaptioner
     write  JobStore     (write_json)            SqlJobStore, SQLite        SqlJobStore, Postgres
 
+The `JobStore` row is the write made incremental: it also holds the job record (expected count, error) that says when
+the write is complete, which is why it comes with the seam and not only with machines.
+
 The captioner is the same at every rung, so it is built by `process.factory.build_captioner` wherever it is needed.
 """
 

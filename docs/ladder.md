@@ -36,7 +36,7 @@ Tests: [`test_pipeline.py`](https://github.com/shoham-b/backseat-driver/blob/mai
 flowchart LR
     subgraph proc["still one process · one thread · the API monolith (just dev)"]
         direction LR
-        R["<b>read</b><br/>ingest worker"] --> Q(["<b>transport</b><br/>JobQueue<br/>in memory"]) --> P["<b>process</b><br/>caption worker"] --> W["<b>write</b><br/>JobStore<br/>SQLite file"]
+        R["<b>read</b><br/>ingest worker"] --> Q(["<b>transport</b><br/>JobQueue<br/>in memory"]) --> P["<b>process</b><br/>caption worker"] --> W["<b>write</b><br/>JobStore<br/>results + job state<br/>SQLite file"]
     end
 ```
 
@@ -44,7 +44,9 @@ flowchart LR
 just dev            # POST /jobs on :8080
 ```
 
-The API turns the run into tasks. **Ingest** is the read step turned into a producer: it reads once and enqueues one task per image. The **caption worker** is the process and write steps run once per task. Both still run on a background thread inside the API process, so nothing extra is needed. The queue (`transport/`) is the only new thing, and it is a seam: a place where read and process could be pulled apart.
+The API turns the run into tasks. **Ingest** is the read step turned into a producer: it reads once and enqueues one task per image. The **caption worker** is the process and write steps run once per task. Both still run on a background thread inside the API process, so nothing extra is needed. The queue (`transport/`) is the new thing, and it is a seam: a place where read and process could be pulled apart.
+
+The write changes with it. Tasks finish one at a time, in any order and possibly twice, and no process holds all the results, so the write becomes incremental: the caption worker records one row per description. The same store keeps the job record. Ingest splits the job, so it records how many descriptions to expect; the store collects them, and the job is complete when the count reaches that number. The state is derived on every read and never stored, so there is no "mark complete" step for concurrent workers to race. That is why the results and the job record are one store, and why `write/job_store/` appears here, at the seam, and not only across machines.
 
 **Code, in reading order**
 
@@ -72,12 +74,12 @@ flowchart LR
     end
 ```
 
-Once the queue crosses machines, two things stop working, and the two remaining additions replace them:
+Once the queue crosses machines, two things stop working, and each gets a replacement:
 
-| Without the seam | Across machines | Replaced by |
+| At the seam | Across machines | Replaced by |
 |---|---|---|
 | Images are read from the local disk | The caption pod cannot see the ingest pod's disk | **S3**: `read/s3/` holds the dataset in a bucket, and each task carries the image's URI |
-| Descriptions are collected and written to one file | No process holds all of them | **A shared job store**: `write/job_store/` records one row per description in Postgres |
+| The job store is a SQLite file inside the API process | The API and the caption pods share no file | **Postgres**: the same `SqlJobStore` (`write/job_store/`) over a database every service can reach |
 
 **Code, in reading order**
 
@@ -85,7 +87,7 @@ Once the queue crosses machines, two things stop working, and the two remaining 
 |---|---|
 | RabbitMQ as the queue | [`CeleryJobQueue`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/celery_job_queue.py), the tasks and worker entrypoints in [`tasks.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/tasks.py), `worker ingest --once` in [`consume_one.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/consume_one.py) |
 | The dataset in a bucket | [`read/s3/`](https://github.com/shoham-b/backseat-driver/tree/main/backseat_driver/read/s3): [`S3DatasetStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/s3_dataset_store.py), [`StoredSceneLoader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/stored_scene_loader.py), the one-time [`DatasetUploader`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/read/s3/uploader.py) |
-| Results in Postgres | [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over [`orm.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/orm.py) and [`storage.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/storage.py) |
+| The job store in Postgres | [`SqlJobStore`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/sql_job_store.py) over [`orm.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/orm.py) and [`storage.py`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/write/job_store/storage.py) |
 | Submitting from the CLI | [`ApiJobClient`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/transport/api_client.py) behind `describe --mode distributed` |
 | Wired in | [`stacks.machines`](https://github.com/shoham-b/backseat-driver/blob/main/backseat_driver/stacks.py), `celery_queue`, `postgres_store`, `stored_loader` |
 
@@ -103,7 +105,7 @@ The models (`SceneKeyframe` in, `SceneDescription` out), the three ports and `de
 | **Write** | Collect everything, then write one JSON file | One row per result (SQLite) | One row per result (Postgres) |
 | **Job state** | None; the run just ends | Derived from counts | Derived from counts and safe to redeliver |
 
-The real difference is in the write. At rung 1 it is a batch at the end. From rung 2 up, results arrive one at a time, in any order and possibly twice, so the write must be incremental and idempotent, and "is the job finished" is derived from counts instead of being a step someone performs.
+The real difference is in the write. At rung 1 it is a batch at the end. From rung 2 up, results arrive one at a time, in any order and possibly twice, so the write must be incremental and idempotent, and "is the job finished" is derived from counts instead of being a step someone performs. The job record (the expected count and any error) lives with the results for that reason: the state is a comparison of the two.
 
 ## Where each piece lives
 
@@ -115,10 +117,10 @@ backseat_driver/
 ├── write/           write_json                                │
 ├── pipeline.py      read -> process, run by `describe`        ┘
 │
-├── transport/       JobQueue, ingest + caption workers        ┐ rung 2: the seam
-│                    InProcessJobQueue, CeleryJobQueue         ┘ (Celery: rung 3)
-├── read/s3/         bucket-backed ImageStore and loader       ┐ rung 3: what crossing
-├── write/job_store/ JobStore, SQLite and Postgres             ┘ machines forces
+├── transport/       JobQueue, ingest + caption workers        ┐ rung 2: the seam and the
+│                    InProcessJobQueue, CeleryJobQueue         │ write it forces
+├── write/job_store/ JobStore: results + job record, SQLite    ┘ (Celery and Postgres: rung 3)
+├── read/s3/         bucket-backed ImageStore and loader       ─ rung 3: workers share no disk
 │
 ├── stacks.py        which adapter each rung plugs into each port   the wiring, in one place
 ├── show/            report and UI over what was written       separate role

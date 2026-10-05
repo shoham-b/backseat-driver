@@ -1,9 +1,15 @@
-"""The distributed write: one row per description, in a store every worker can reach.
+"""The distributed write, and the job record that says when it is complete.
 
-The monolith's write step collects every description and writes one JSON file at the end. When workers run apart,
-results arrive one at a time, in any order and possibly twice, so the write must be incremental and idempotent, and
-whether a job is finished is derived from the counts instead of being a step someone performs.
+The monolith's write step collects every description and writes one JSON file at the end. Once the work is split into
+tasks, results arrive one at a time, in any order and possibly twice, and no process holds all of them. So the write is
+incremental and idempotent: one row per description, in a store every worker and the API can reach.
 
-    CaptionWorker ──record_description──▶ JobStore ◀──── API ◀──── show/
-                                          (SQLite in the monolith, Postgres across machines)
+Knowing when that write is done takes a record of what to expect. Ingest splits the job and records how many
+descriptions it will produce; caption workers add them; the store aggregates, and a job is complete when the count
+reaches the expectation. That is derived on every read, never stored, so there is no "mark complete" step to race.
+The results and the job record are one store for that reason: the state is a comparison of the two.
+
+    IngestWorker  ──set_expected_scenes──▶ ┐
+    CaptionWorker ──record_description───▶ JobStore ◀──── API ◀──── show/
+                                           (SQLite with the seam, Postgres across machines)
 """

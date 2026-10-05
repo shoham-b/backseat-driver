@@ -195,6 +195,16 @@ Reading from the API still left two limits: the deployed UI mounted the dataset 
 
 **Consequence:** result files written by `describe` hold keys, not absolute paths, so they are portable but need the dataroot (or an API that has the dataset) to render a report. Files written by an earlier version hold absolute paths and have to be generated again.
 
+### 18. Why the results and the job record are one store
+
+Once work is split into tasks, something has to answer "is job X done?", and the queue cannot: it carries tasks, and Celery keeps no results (see question 9). The job store is that place. Ingest splits the job and records how many descriptions to expect (`set_expected_scenes`), caption workers add one row each (`record_description`), and a job is complete when the count reaches the expectation. `derive_state` computes that on every read, so there is no "mark complete" step for concurrent workers to race. This is a splitter and an aggregator whose completion is polled state instead of a message.
+
+**Options:** keep results and job record in one store and one port (chosen); two stores split by table, with `JobStore` a facade that combines them; a write-only port for workers, since they only ever report and never read; or move the package out of `write/` (to `transport/` or a new top-level package).
+
+**Decision: one store, one port, where it is.** The job record and the descriptions are one aggregate: the state is a comparison of the two, so splitting them separates the write from its own completion rule. A write-only worker port would narrow what workers may call, but that is a type refinement, not a different concept, and it can be added later without touching the adapters. Moving the package would put half of it in the wrong place, because the results are the write. What was wrong was the explanation. The store arrives with the seam (the monolith runs it on SQLite), and only the bucket and Postgres are specific to machines; the docs now say so. `SqlJobStore` already delegates persistence to `JobStorage`, so no second store is needed.
+
+**Revisit if:** the results live somewhere other than the job record (say, large payloads in an object store). `JobStore` would then become a facade over two stores, and `derive_state` would take the count from the results store. Or workers need to read job state, for example to honour a cancellation; the idea of a write-only worker port stops being valid then.
+
 ### Dead letters
 
 A task that runs out of retries marks its job `failed` (`Job.error`, first error kept, cut to 500 characters) and is also kept whole as a `dead_letters` row: the task (`ingest` or `caption`), its payload, the full error and the time. `GET /jobs/{id}/dead-letters` lists a job's, and `GET /dead-letters?limit=` the newest across all jobs (each naming its job), so a failed task can be inspected or re-enqueued by hand. The state still comes from `Job.error` alone; a dead letter adds detail and changes nothing. It is written at the same two places that call `fail_job`: the Celery `on_failure` hook (called only once retries are spent) and the in-process queue's failure callback. A malformed message is dead-lettered too. If its payload names no job it is an orphan: stored with a null `job_id`, so it shows up only in `GET /dead-letters`, and no job is marked failed.
