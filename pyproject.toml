@@ -20,10 +20,9 @@ dependencies = [
 [project.optional-dependencies]
 vlm = [
     "torch>=2.4",
-    # The HuggingFace backend uses the unconditional "image-to-text" pipeline task. An earlier note said
-    # transformers 5 folded it into the prompt-requiring "image-text-to-text" task; the range now allows 5.x
-    # (dependabot raised it) and uv.lock resolves 4.x, so check the task still exists before locking a 5.x.
-    "transformers>=4.44,<6",
+    # The HuggingFace backend uses the unconditional "image-to-text" pipeline task, which transformers 5 removed
+    # (it folded into the prompt-requiring "image-text-to-text" task), so stay on 4.x until the backend moves.
+    "transformers>=4.44,<5",
     "pillow>=10.4",
 ]
 # Broker + database clients shared by the API and the queue workers.

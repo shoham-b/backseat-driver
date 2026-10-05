@@ -6,7 +6,7 @@ What the project is built with and how it is run. For how the pieces fit togethe
 
 | Concern | Tech | Why |
 |---|---|---|
-| Language & packaging | Python 3.12, [uv](https://docs.astral.sh/uv/) | `uv` dependency groups (`core`, `vlm`, `nuscenes`, `jobs`, `object-storage`, `report`, one per service image, plus `dev`, `docs` and `systemtest`) let each image install only what it needs |
+| Language & packaging | Python 3.14, [uv](https://docs.astral.sh/uv/) | `uv` dependency groups (`core`, `vlm`, `nuscenes`, `jobs`, `object-storage`, `report`, one per service image, plus `dev`, `docs` and `systemtest`) let each image install only what it needs |
 | Task runner | [Justfile](https://github.com/shoham-b/backseat-driver/blob/main/Justfile) | `just describe`, `just dev`, `just test`, `just lint`, `just docs`, ... — one discoverable entry point per workflow |
 | CLI | [Typer](https://typer.tiangolo.com/) | The primary entry point (`backseat-driver describe`) |
 | HTTP API | [FastAPI](https://fastapi.tiangolo.com/) (`fastapi dev` / `fastapi run`) | Optional on-demand deployment shape; served by the FastAPI CLI (uvicorn) |
