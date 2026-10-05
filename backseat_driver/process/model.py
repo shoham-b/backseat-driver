@@ -12,9 +12,10 @@ from dataclasses import dataclass
 # judged on phrasing. The example is invented: a label from an evaluated scene would leak into the scores.
 SCENE_PROMPT = (
     "List the key elements of this driving scene from the vehicle's front camera as a short, "
-    "comma-separated list of keywords, like 'Wet road, cyclist crossing, bus ahead, stopped at traffic light'. "
-    "Cover the road, traffic or pedestrians, weather or lighting, and what the vehicle is doing. "
-    "Use no sentences and no more than eight items."
+    "comma-separated list of keywords, with no sentences and no more than eight items. "
+    "Mention the road, traffic or pedestrians, weather or lighting, and what the vehicle is doing. "
+    "Example answer: 'Dry road, cyclist crossing, bus ahead, stopped at traffic light'. "
+    "Reply with the keywords only."
 )
 
 

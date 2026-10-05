@@ -104,6 +104,12 @@
     main, header { padding-left: 16px; padding-right: 16px; }
     header { padding-top: 28px; }
     select, input[type=search], input[type=file] { min-width: 0; width: 100%; }
+    /* Without this the model name alone fills the card and the scores sit off-screen behind a sideways scroll. */
+    th, td { padding: 10px 3px; font-size: 12px; }
+    th { white-space: normal; font-size: 10px; letter-spacing: 0; }
+    .bar { display: none; }
+    td:first-child, td:nth-child(2) { white-space: normal; }
+    td:first-child { min-width: 80px; overflow-wrap: anywhere; }
     .filters > div { width: 100%; }
   }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
