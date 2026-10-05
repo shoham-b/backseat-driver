@@ -19,8 +19,6 @@ from backseat_driver.process.model import CaptionModel
 
 _API_VERSION = "2023-06-01"
 _HEALTHCHECK_TIMEOUT = 5.0
-# Requests in flight at once: a large batch otherwise trips the API's rate limit (HTTP 429) instead of finishing faster.
-_MAX_IN_FLIGHT = 8
 # A fixed map rather than `mimetypes`, whose table is OS-dependent (e.g. it doesn't know `.webp` on Windows).
 _MEDIA_TYPES_BY_SUFFIX = {
     ".jpg": "image/jpeg",
@@ -63,10 +61,11 @@ class AnthropicBackend(CaptionBackend):
         return _caption_of(await self._post(image_path, model))
 
     async def generate_many(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
-        """One request per image, up to `_MAX_IN_FLIGHT` at once: the wait is on the API, not on this process.
+        """One request per image, all in flight at once: the wait is on the API, not on this process. The caller's batch
+        size (`caption_batch_size`) is what bounds how many.
 
         The first failure cancels the other requests, so a batch that is going to fail stops billing."""
-        bodies = await gather_all((self._post(image_path, model) for image_path in image_paths), _MAX_IN_FLIGHT)
+        bodies = await gather_all(self._post(image_path, model) for image_path in image_paths)
         return [_caption_of(body) for body in bodies]
 
     async def _post(self, image_path: str, model: CaptionModel) -> dict[str, Any]:

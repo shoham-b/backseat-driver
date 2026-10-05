@@ -30,6 +30,21 @@ async def test_never_more_than_limit_run_at_once() -> None:
     assert peak == 3
 
 
+async def test_without_a_limit_everything_runs_at_once() -> None:
+    running = peak = 0
+
+    async def work() -> None:
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+
+    await gather_all(work() for _ in range(10))
+
+    assert peak == 10
+
+
 async def test_the_first_failure_is_raised_as_itself_and_cancels_the_rest() -> None:
     cancelled = asyncio.Event()
 
