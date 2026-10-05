@@ -19,7 +19,7 @@ from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_ima
 
 
 def test_mode_defaults_to_monolith() -> None:
-    assert Settings().mode is RunMode.MONOLITH
+    assert Settings(_env_file=None).mode is RunMode.MONOLITH
 
 
 def test_distributed_mode_builds_celery_and_postgres() -> None:

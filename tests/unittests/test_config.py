@@ -8,7 +8,7 @@ from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
 
 
 def test_defaults() -> None:
-    s = Settings()
+    s = Settings(_env_file=None)
     assert s.api_host == "127.0.0.1"
     assert s.api_port == 8080
     assert s.log_format == "colored"
@@ -45,37 +45,37 @@ def test_get_settings_is_cached() -> None:
 
 
 def test_api_url_property() -> None:
-    s = Settings(api_host="0.0.0.0", api_port=8000)
+    s = Settings(_env_file=None, api_host="0.0.0.0", api_port=8000)
     assert s.api_url == "http://0.0.0.0:8000"
 
 
 @given(port=st.integers(min_value=1, max_value=65535))
 def test_api_url_includes_port(port: int) -> None:
-    s = Settings(api_port=port)
+    s = Settings(_env_file=None, api_port=port)
     assert f":{port}" in s.api_url
 
 
 @given(host=st.from_regex(r"[a-z0-9][a-z0-9.-]*", fullmatch=True))
 def test_api_url_includes_host(host: str) -> None:
-    s = Settings(api_host=host)
+    s = Settings(_env_file=None, api_host=host)
     assert host in s.api_url
 
 
 def test_default_output_path_is_inferred_from_backend_and_configured_model() -> None:
-    s = Settings(vlm_model_name="Salesforce/blip-image-captioning-base")
+    s = Settings(_env_file=None, vlm_model_name="Salesforce/blip-image-captioning-base")
 
     assert s.output_path_for() == "output/huggingface__Salesforce-blip-image-captioning-base.json"
 
 
 def test_output_path_follows_selected_backend_and_model() -> None:
-    s = Settings(output_dir="results", anthropic_model_name="claude-haiku-4-5-20251001")
+    s = Settings(_env_file=None, output_dir="results", anthropic_model_name="claude-haiku-4-5-20251001")
 
     assert s.output_path_for(VlmBackend.OLLAMA, "llava:13b") == "results/ollama__llava-13b.json"
     assert s.output_path_for(VlmBackend.ANTHROPIC) == "results/anthropic__claude-haiku-4-5-20251001.json"
 
 
 def test_model_name_for_prefers_explicit_override() -> None:
-    s = Settings(ollama_model_name="llava")
+    s = Settings(_env_file=None, ollama_model_name="llava")
 
     assert s.model_name_for(VlmBackend.OLLAMA) == "llava"
     assert s.model_name_for(VlmBackend.OLLAMA, "bakllava") == "bakllava"
@@ -83,7 +83,7 @@ def test_model_name_for_prefers_explicit_override() -> None:
 
 @pytest.mark.parametrize("backend", list(VlmBackend))
 def test_model_name_for_fails_fast_when_no_model_is_chosen(backend: VlmBackend) -> None:
-    s = Settings(vlm_model_name=None, ollama_model_name=None, anthropic_model_name=None)
+    s = Settings(_env_file=None, vlm_model_name=None, ollama_model_name=None, anthropic_model_name=None)
 
     with pytest.raises(ValueError, match=f"No model chosen for the {backend.value} backend"):
         s.model_name_for(backend)
@@ -91,14 +91,14 @@ def test_model_name_for_fails_fast_when_no_model_is_chosen(backend: VlmBackend) 
 
 @given(model=st.text(min_size=1))
 def test_output_path_filename_is_always_safe(model: str) -> None:
-    path = Settings().output_path_for(VlmBackend.OLLAMA, model)
+    path = Settings(_env_file=None).output_path_for(VlmBackend.OLLAMA, model)
 
     assert path.startswith("output/ollama__")
     assert "/" not in path.removeprefix("output/")
 
 
 def test_ui_defaults_to_loopback_on_8081() -> None:
-    s = Settings()
+    s = Settings(_env_file=None)
 
     assert (s.ui_host, s.ui_port) == ("127.0.0.1", 8081)
 
@@ -110,19 +110,19 @@ def test_ui_bind_address_is_read_from_the_environment(tmp_path: Path) -> None:
 
 
 def test_allowed_origins_default_to_the_ui_page() -> None:
-    s = Settings()
+    s = Settings(_env_file=None)
 
     assert s.cors_origins == ["http://127.0.0.1:8081", "http://localhost:8081"]
 
 
 def test_allowed_origins_follow_the_ui_address() -> None:
-    s = Settings(ui_host="0.0.0.0", ui_port=9000)
+    s = Settings(_env_file=None, ui_host="0.0.0.0", ui_port=9000)
 
     assert s.cors_origins == ["http://127.0.0.1:9000", "http://localhost:9000", "http://0.0.0.0:9000"]
 
 
 def test_cors_origins_override_the_derived_origins() -> None:
-    s = Settings(cors_origins=["https://example.com"])
+    s = Settings(_env_file=None, cors_origins=["https://example.com"])
 
     assert s.cors_origins == ["https://example.com"]
 

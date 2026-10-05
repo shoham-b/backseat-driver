@@ -9,7 +9,7 @@ from backseat_driver.process.factory import build_backend, build_captioner
 
 
 def test_settings_backend_is_used_when_none_is_given() -> None:
-    settings = Settings(vlm_backend=VlmBackend.OLLAMA, ollama_model_name="llava")
+    settings = Settings(_env_file=None, vlm_backend=VlmBackend.OLLAMA, ollama_model_name="llava")
 
     captioner = build_captioner(settings)
 
@@ -17,7 +17,7 @@ def test_settings_backend_is_used_when_none_is_given() -> None:
 
 
 def test_huggingface_uses_configured_model_and_override() -> None:
-    settings = Settings(vlm_model_name="configured/model")
+    settings = Settings(_env_file=None, vlm_model_name="configured/model")
 
     configured = build_captioner(settings)
     overridden = build_captioner(settings, model_name="other/model")
@@ -26,7 +26,7 @@ def test_huggingface_uses_configured_model_and_override() -> None:
 
 
 def test_ollama_uses_configured_model_and_override() -> None:
-    settings = Settings(ollama_model_name="llama3.2-vision")
+    settings = Settings(_env_file=None, ollama_model_name="llama3.2-vision")
 
     configured = build_captioner(settings, backend=VlmBackend.OLLAMA)
     overridden = build_captioner(settings, backend=VlmBackend.OLLAMA, model_name="bakllava")
@@ -35,7 +35,7 @@ def test_ollama_uses_configured_model_and_override() -> None:
 
 
 def test_anthropic_uses_configured_model_and_override() -> None:
-    settings = Settings(anthropic_api_key=SecretStr("k"), anthropic_model_name="claude-a")
+    settings = Settings(_env_file=None, anthropic_api_key=SecretStr("k"), anthropic_model_name="claude-a")
 
     configured = build_captioner(settings, backend=VlmBackend.ANTHROPIC)
     overridden = build_captioner(settings, backend=VlmBackend.ANTHROPIC, model_name="claude-b")
@@ -44,7 +44,7 @@ def test_anthropic_uses_configured_model_and_override() -> None:
 
 
 def test_anthropic_requires_api_key() -> None:
-    settings = Settings(anthropic_api_key=None, anthropic_model_name="claude-a")
+    settings = Settings(_env_file=None, anthropic_api_key=None, anthropic_model_name="claude-a")
 
     with pytest.raises(ValueError, match="ANTHROPIC_API_KEY"):
         build_captioner(settings, backend=VlmBackend.ANTHROPIC)
@@ -59,18 +59,18 @@ def test_anthropic_requires_api_key() -> None:
     ],
 )
 def test_build_backend_selects_runtime_independent_of_model(backend: VlmBackend, expected: type) -> None:
-    settings = Settings(anthropic_api_key=SecretStr("k"))
+    settings = Settings(_env_file=None, anthropic_api_key=SecretStr("k"))
 
     assert isinstance(build_backend(settings, backend), expected)
 
 
 def test_unknown_backend_fails_fast() -> None:
     with pytest.raises(ValueError, match="Unknown captioner backend"):
-        build_captioner(Settings(), backend="bogus")  # ty: ignore[invalid-argument-type]
+        build_captioner(Settings(_env_file=None), backend="bogus")  # ty: ignore[invalid-argument-type]
 
 
 @pytest.mark.parametrize("backend", list(VlmBackend))
 def test_every_declared_backend_is_buildable(backend: VlmBackend) -> None:
-    settings = Settings(anthropic_api_key=SecretStr("k"))
+    settings = Settings(_env_file=None, anthropic_api_key=SecretStr("k"))
 
     assert build_captioner(settings, backend=backend, model_name="some-model").model_name == "some-model"
