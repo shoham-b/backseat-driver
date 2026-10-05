@@ -5,6 +5,18 @@ All notable changes to Backseat Driver will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3](https://github.com/shoham-b/backseat-driver/compare/v0.2.2...v0.2.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* declare the runtime dependencies in the wheel as dependencies and extras ([#135](https://github.com/shoham-b/backseat-driver/issues/135)) ([c38cdcb](https://github.com/shoham-b/backseat-driver/commit/c38cdcbb6260b57942afd9a8a55111288419cacf))
+
+
+### Documentation
+
+* state the scope in the README, trim AGENTS.md, drop file paths from comments ([#132](https://github.com/shoham-b/backseat-driver/issues/132)) ([d92e1b7](https://github.com/shoham-b/backseat-driver/commit/d92e1b75e76d4e14f3cb208355ee6c39471d57c0))
+
 ## [0.2.2](https://github.com/shoham-b/backseat-driver/compare/v0.2.1...v0.2.2) (2026-10-05)
 
 
