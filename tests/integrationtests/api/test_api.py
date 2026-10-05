@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from http import HTTPStatus
 
@@ -103,3 +104,30 @@ def test_readiness_unhealthy_queue_or_store(
     response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE
+
+
+class _LoopProbingCaptioner(FakeCaptioner):
+    """Records whether its health check ran on the event loop's thread (where a running loop is visible)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.ran_on_the_event_loop: bool | None = None
+
+    def healthcheck(self) -> bool:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            self.ran_on_the_event_loop = False
+        else:
+            self.ran_on_the_event_loop = True
+        return True
+
+
+def test_readiness_probes_the_captioner_off_the_event_loop(client_with: ClientFactory) -> None:
+    captioner = _LoopProbingCaptioner()
+    client = client_with({get_captioner: lambda: captioner})
+
+    response = client.get("/ready")
+
+    assert response.status_code == HTTPStatus.OK
+    assert captioner.ran_on_the_event_loop is False
