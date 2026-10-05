@@ -1,12 +1,13 @@
 """In-memory test doubles — no broker, no database, no model."""
 
+import tempfile
 from collections.abc import Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -30,6 +31,9 @@ from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.show.description_source import DescriptionSource
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
+
+# One directory for every `make_settings` job database, removed at exit.
+_JOBS_DB_DIR = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
 
 
 class FakeJobQueue(JobQueue):
@@ -241,8 +245,8 @@ def make_settings(**overrides: Any) -> Settings:
     A model is chosen for every backend, since building a captioner without one fails on purpose.
     """
     models: dict[str, Any] = {
-        # The monolith keeps jobs in memory, not in a SQLite file in the working directory.
-        "jobs_db_path": "",
+        # Not the default `output/jobs.db`: tests must not write into the working directory.
+        "jobs_db_path": str(Path(_JOBS_DB_DIR.name) / f"{uuid4()}.db"),
         "vlm_model_name": "fake-model",
         "ollama_model_name": "fake-model",
         "anthropic_model_name": "fake-model",

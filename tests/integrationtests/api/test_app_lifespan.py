@@ -11,7 +11,6 @@ from backseat_driver.process.backend_captioner import BackendCaptioner
 from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
-from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import make_settings
 
@@ -39,7 +38,7 @@ def test_the_monolith_is_the_default_and_needs_no_infrastructure() -> None:
         job = client.get(f"/jobs/{job_id}")
 
     assert isinstance(state.job_queue, InProcessJobQueue)
-    assert isinstance(state.job_store, InMemoryJobStore)
+    assert isinstance(state.job_store, SqlJobStore)
     assert job.status_code == HTTPStatus.OK
 
 

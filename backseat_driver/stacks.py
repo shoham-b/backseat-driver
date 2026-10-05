@@ -38,7 +38,6 @@ from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.transport.job_store.job_store import JobStore
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.storage import JobStorage
@@ -68,7 +67,7 @@ def seam(
     images: ImageStore,
     build_loader: Callable[[Settings], SceneLoader],
 ) -> tuple[JobQueue, JobStore]:
-    queue, store = InProcessJobQueue(), _sqlite_or_memory_store(settings)
+    queue, store = InProcessJobQueue(), _sqlite_store(settings)
     queue.register(
         on_ingest=IngestWorker(loader=build_loader(settings), queue=queue, store=store, images=images).handle,
         on_caption=CaptionWorker(captioner=captioner, store=store, images=images).handle,
@@ -91,9 +90,7 @@ def nuscenes_loader(settings: Settings) -> SceneLoader:
     )
 
 
-def _sqlite_or_memory_store(settings: Settings) -> JobStore:
-    if not settings.jobs_db_path:
-        return InMemoryJobStore()
+def _sqlite_store(settings: Settings) -> JobStore:
     path = Path(settings.jobs_db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     store = SqlJobStore(JobStorage(f"sqlite:///{path.as_posix()}"))

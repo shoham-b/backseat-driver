@@ -1,7 +1,7 @@
 """Behaviour every `JobStore` must have, run against each implementation.
 
 The API and both workers are written against the port, and their tests use `FakeJobStore`; running the same cases
-over the in-memory store, the SQL store and that fake keeps the fake honest.
+over the SQL store and that fake keeps the fake honest.
 """
 
 import time
@@ -14,17 +14,16 @@ import pytest
 
 from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import DeadLetter, JobState, SceneDescription
-from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.transport.job_store.job_store import JobStore
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeJobStore
 
 
-@pytest.fixture(params=["in_memory", "sql", "fake"])
+@pytest.fixture(params=["sql", "fake"])
 def store(request: pytest.FixtureRequest) -> JobStore:
     if request.param == "sql":
         return SqlJobStore(request.getfixturevalue("sqlite_storage"))
-    return InMemoryJobStore() if request.param == "in_memory" else FakeJobStore()
+    return FakeJobStore()
 
 
 def _description(n: int, text: str | None = None, camera_channel: str = "CAM_FRONT") -> SceneDescription:
