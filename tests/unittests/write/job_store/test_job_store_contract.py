@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import JobState, SceneDescription
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.job_store import JobStore
@@ -81,3 +82,20 @@ def test_descriptions_are_sorted_by_scene_name_then_camera(store: JobStore) -> N
         ("scene-0001", "CAM_FRONT"),
         ("scene-0002", "CAM_FRONT"),
     ]
+
+
+def test_a_second_job_cannot_claim_a_used_idempotency_key(store: JobStore) -> None:
+    first = _new_job(store, idempotency_key="key-1")
+
+    with pytest.raises(IdempotencyKeyInUseError, match="key-1") as raised:
+        _new_job(store, idempotency_key="key-1")
+
+    assert raised.value.key == "key-1"
+    assert [job.job_id for job in store.list_jobs()] == [first]
+
+
+def test_a_description_for_an_unknown_job_is_not_found(store: JobStore) -> None:
+    unknown = uuid4()
+
+    with pytest.raises(NotFoundError, match=str(unknown)):
+        store.record_description(unknown, _description(1))

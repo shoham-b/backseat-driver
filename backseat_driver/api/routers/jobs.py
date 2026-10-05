@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store, get_transaction_id
 from backseat_driver.api.errors import NOT_FOUND_RESPONSE
+from backseat_driver.errors import IdempotencyKeyInUseError
 from backseat_driver.models import DeadLetter, IngestTask, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
@@ -53,7 +54,16 @@ async def create_job(
         if existing is not None:
             response.status_code = HTTPStatus.OK
             return existing
-    await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id, idempotency_key)
+    try:
+        await run_in_threadpool(store.create_job, job_id, max_scenes, transaction_id, idempotency_key)
+    except IdempotencyKeyInUseError as exc:
+        # A concurrent retry can pass the lookup above before the first request has created its job; the store's
+        # unique key lets only one of them in, and this one answers with the job that won.
+        existing = await run_in_threadpool(store.find_job_by_idempotency_key, exc.key)
+        if existing is None:
+            raise
+        response.status_code = HTTPStatus.OK
+        return existing
     task = IngestTask(job_id=job_id, transaction_id=transaction_id, max_scenes=max_scenes)
     try:
         await run_in_threadpool(queue.enqueue_ingest, task)

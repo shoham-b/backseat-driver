@@ -19,7 +19,7 @@ class JobStore(ABC):
     def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
     ) -> None:
-        """Record a new job. The database rejects a second job under the same `idempotency_key`."""
+        """Record a new job. Raises `IdempotencyKeyInUseError` if another job already holds `idempotency_key`."""
 
     @abstractmethod
     def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
@@ -51,7 +51,8 @@ class JobStore(ABC):
 
     @abstractmethod
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        """Store a description. Idempotent per (job, scene, camera): a redelivered message is a no-op."""
+        """Store a description. Idempotent per (job, scene, camera): a redelivered message is a no-op.
+        Raises NotFoundError for an unknown job."""
 
     @abstractmethod
     def get_job(self, job_id: UUID) -> Job:
