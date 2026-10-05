@@ -59,3 +59,8 @@ def client_with() -> ClientFactory:
         return TestClient(service, raise_server_exceptions=raise_server_exceptions)
 
     return build
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_settings(no_ambient_settings: None) -> None:
+    """Every test in this layer runs without the developer's `BACKSEAT_DRIVER_*` variables."""

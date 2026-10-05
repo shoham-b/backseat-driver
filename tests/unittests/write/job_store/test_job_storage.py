@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import Engine
+from sqlalchemy.pool import StaticPool
 
 from backseat_driver.write.job_store.orm import SceneDescriptionRow
 from backseat_driver.write.job_store.storage import JobStorage, description_insert
@@ -180,6 +181,16 @@ def test_ensure_schema_is_idempotent(sqlite_storage: JobStorage) -> None:
     sqlite_storage.ensure_schema()
 
     assert sqlite_storage.fetch_job(job_id) is not None
+
+
+def test_ensure_schema_rejects_a_table_from_an_older_schema() -> None:
+    engine = create_engine("sqlite://", poolclass=StaticPool, connect_args={"check_same_thread": False})
+    with engine.begin() as conn:
+        conn.exec_driver_sql("CREATE TABLE jobs (job_id CHAR(32) PRIMARY KEY, transaction_id VARCHAR)")
+    storage = JobStorage("sqlite://", engine_factory=lambda *_, **__: engine)
+
+    with pytest.raises(RuntimeError, match=r"'jobs'.*missing columns: .*idempotency_key"):
+        storage.ensure_schema()
 
 
 def test_description_insert_compiles_to_postgres_on_conflict_do_nothing() -> None:

@@ -1,3 +1,4 @@
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
@@ -197,6 +198,7 @@ def test_ensure_schema_is_safe_to_repeat(store: SqlJobStore) -> None:
 def test_listing_jobs_returns_the_newest_first_with_their_progress(store: SqlJobStore) -> None:
     first, second = uuid4(), uuid4()
     store.create_job(first, None, "tx-1")
+    time.sleep(0.05)  # the Windows clock ticks every ~16 ms, so back-to-back jobs would tie on `created_at`
     store.create_job(second, None, "tx-2")
     store.set_expected_scenes(second, 1)
 
