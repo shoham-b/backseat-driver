@@ -15,6 +15,7 @@ nuscenes-devkit, transformers, or torch directly.
 import asyncio
 from collections.abc import Callable, Sequence
 from contextlib import AsyncExitStack
+from itertools import islice
 
 from backseat_driver.models import SceneDescription, SceneKeyframe
 from backseat_driver.process.captioner import Captioner
@@ -67,7 +68,7 @@ def first_scenes(keyframes: list[SceneKeyframe], max_scenes: int | None) -> list
     """
     if max_scenes is None:
         return keyframes
-    kept = set(list(dict.fromkeys(k.scene_token for k in keyframes))[:max_scenes])
+    kept = set(islice(dict.fromkeys(k.scene_token for k in keyframes), max_scenes))
     return [k for k in keyframes if k.scene_token in kept]
 
 

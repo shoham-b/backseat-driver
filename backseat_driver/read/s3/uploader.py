@@ -1,7 +1,7 @@
 """Copies a local nuScenes dataset into the `DatasetStore`: the one step that needs the dataset on a disk."""
 
 import asyncio
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -57,13 +57,13 @@ def _find_files(root: Path, version: str, cameras: Sequence[str]) -> tuple[list[
         raise FileNotFoundError(
             f"No {version!r} tables in {root}: nothing to upload (run `backseat-driver describe` once?)"
         )
-    tables = list(_files(root, f"{version}/"))
+    tables = _files(root, f"{version}/")
     images = [path for camera in cameras for path in _files(root, f"samples/{camera}/")]
     return tables, images
 
 
-def _files(root: Path, prefix: str) -> Iterator[Path]:
-    yield from sorted(path for path in (root / prefix).rglob("*") if path.is_file())
+def _files(root: Path, prefix: str) -> list[Path]:
+    return sorted(path for path in (root / prefix).rglob("*") if path.is_file())
 
 
 def _key(root: Path, path: Path) -> str:
