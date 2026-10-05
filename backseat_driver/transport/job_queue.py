@@ -12,11 +12,14 @@ class JobQueue(ABC):
     """Anything that can hand ingest and caption tasks to the workers."""
 
     @abstractmethod
-    def enqueue_ingest(self, task: IngestTask) -> None: ...
+    async def enqueue_ingest(self, task: IngestTask) -> None: ...
 
     @abstractmethod
-    def enqueue_caption(self, task: CaptionTask) -> None: ...
+    async def enqueue_caption(self, task: CaptionTask) -> None: ...
 
     @abstractmethod
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         """True if the broker is reachable."""
+
+    async def close(self) -> None:  # noqa: B027  # optional: most queues run nothing in the background
+        """Stop what the queue runs in the background. The default runs nothing."""

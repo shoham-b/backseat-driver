@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Callable
 from uuid import uuid4
 
@@ -31,7 +32,7 @@ class _FailingIngestWorker(IngestWorker):
         super().__init__(FakeSceneLoader([]), FakeJobQueue(), FakeJobStore(), FakeImageStore())
         self.calls = 0
 
-    def handle(self, task: IngestTask) -> None:
+    async def handle(self, task: IngestTask) -> None:
         self.calls += 1
         raise ConnectionError("database down")
 
@@ -41,7 +42,7 @@ class _FailingCaptionWorker(CaptionWorker):
         super().__init__(FakeCaptioner(), FakeJobStore(), FakeImageStore())
         self.calls = 0
 
-    def handle(self, task: CaptionTask) -> None:
+    async def handle(self, task: CaptionTask) -> None:
         self.calls += 1
         raise ConnectionError("database down")
 
@@ -52,7 +53,7 @@ class _FlakyCaptionWorker(CaptionWorker):
         self.calls = 0
         self._failures = failures
 
-    def handle(self, task: CaptionTask) -> None:
+    async def handle(self, task: CaptionTask) -> None:
         self.calls += 1
         if self.calls <= self._failures:
             raise ConnectionError("blip")
@@ -84,7 +85,7 @@ def _register(
 
 def test_caption_task_validates_the_payload_and_hands_it_to_the_worker() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx-1")
+    asyncio.run(store.create_job(job_id, None, "tx-1"))
     registered = _register(caption_worker=_WorkerProvider(CaptionWorker(FakeCaptioner(), store, FakeImageStore())))
     payload = CaptionTask(
         job_id=job_id, transaction_id="tx-1", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
@@ -92,7 +93,7 @@ def test_caption_task_validates_the_payload_and_hands_it_to_the_worker() -> None
 
     registered.caption.apply(args=[payload]).get()
 
-    assert store.get_job(job_id).completed_scenes == 1
+    assert asyncio.run(store.get_job(job_id)).completed_scenes == 1
 
 
 def test_a_malformed_payload_fails_the_task_with_a_validation_error() -> None:
@@ -108,14 +109,14 @@ def test_tasks_are_registered_under_the_names_the_api_publishes_to() -> None:
 
 def test_ingest_task_validates_the_payload_and_fans_out_through_the_worker() -> None:
     job_id, store, queue = uuid4(), FakeJobStore(), FakeJobQueue()
-    store.create_job(job_id, None, "tx-1")
+    asyncio.run(store.create_job(job_id, None, "tx-1"))
     worker = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store, FakeImageStore())
     registered = _register(ingest_worker=_WorkerProvider(worker))
     payload = IngestTask(job_id=job_id, transaction_id="tx-1").model_dump(mode="json")
 
     registered.ingest.apply(args=[payload]).get()
 
-    assert store.get_job(job_id).expected_scenes == 2
+    assert asyncio.run(store.get_job(job_id)).expected_scenes == 2
     assert len(queue.caption_tasks) == 2
 
 
@@ -138,7 +139,7 @@ def test_malformed_caption_payload_never_asks_for_the_worker() -> None:
 
 def test_transient_ingest_failures_are_retried_up_to_the_limit_then_surface() -> None:
     worker, job_id, store = _FailingIngestWorker(), uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
 
     result = _register(ingest_worker=_WorkerProvider(worker), store=store).ingest.apply(args=[payload])
@@ -149,7 +150,7 @@ def test_transient_ingest_failures_are_retried_up_to_the_limit_then_surface() ->
 
 def test_transient_caption_failures_are_retried_up_to_the_limit_then_surface() -> None:
     worker, job_id, store = _FailingCaptionWorker(), uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = CaptionTask(
         job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
     ).model_dump(mode="json")
@@ -162,54 +163,54 @@ def test_transient_caption_failures_are_retried_up_to_the_limit_then_surface() -
 
 def test_ingest_task_that_gives_up_marks_its_job_failed() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
 
     _register(store=store).ingest.apply(args=[payload])
 
-    job = store.get_job(job_id)
+    job = asyncio.run(store.get_job(job_id))
     assert job.state is JobState.FAILED
     assert job.error == "backseat_driver.ingest failed: ConnectionError: database down"
 
 
 def test_caption_task_that_gives_up_marks_its_job_failed() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = CaptionTask(
         job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
     ).model_dump(mode="json")
 
     _register(store=store).caption.apply(args=[payload])
 
-    assert store.get_job(job_id).state is JobState.FAILED
+    assert asyncio.run(store.get_job(job_id)).state is JobState.FAILED
 
 
 def test_a_task_that_gives_up_is_kept_whole_as_a_dead_letter() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = CaptionTask(
         job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
     ).model_dump(mode="json")
 
     _register(store=store).caption.apply(args=[payload])
 
-    [letter] = store.list_dead_letters(job_id)
+    [letter] = asyncio.run(store.list_dead_letters(job_id))
     assert (letter.task, letter.payload, letter.error) == ("caption", payload, "ConnectionError: database down")
 
 
 def test_an_ingest_task_that_gives_up_is_a_dead_letter_of_kind_ingest() -> None:
     job_id, store = uuid4(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = IngestTask(job_id=job_id, transaction_id="tx").model_dump(mode="json")
 
     _register(store=store).ingest.apply(args=[payload])
 
-    assert [letter.task for letter in store.list_dead_letters(job_id)] == ["ingest"]
+    assert [letter.task for letter in asyncio.run(store.list_dead_letters(job_id))] == ["ingest"]
 
 
 def test_a_failure_that_a_retry_fixes_leaves_no_dead_letter() -> None:
     job_id, store, worker = uuid4(), FakeJobStore(), _FlakyCaptionWorker(failures=1)
-    store.create_job(job_id, None, "tx")
+    asyncio.run(store.create_job(job_id, None, "tx"))
     payload = CaptionTask(
         job_id=job_id, transaction_id="tx", keyframe=make_keyframe(1), image_uri=make_image_uri(1)
     ).model_dump(mode="json")
@@ -217,8 +218,8 @@ def test_a_failure_that_a_retry_fixes_leaves_no_dead_letter() -> None:
     _register(caption_worker=_WorkerProvider(worker), store=store).caption.apply(args=[payload])
 
     assert worker.calls == 2
-    assert store.list_dead_letters(job_id) == []
-    assert store.get_job(job_id).state is not JobState.FAILED
+    assert asyncio.run(store.list_dead_letters(job_id)) == []
+    assert asyncio.run(store.get_job(job_id)).state is not JobState.FAILED
 
 
 def test_a_failed_task_whose_payload_names_no_job_is_kept_as_an_orphan_dead_letter() -> None:
@@ -227,10 +228,10 @@ def test_a_failed_task_whose_payload_names_no_job_is_kept_as_an_orphan_dead_lett
 
     _register(store=store).caption.apply(args=[payload])
 
-    [letter] = store.list_recent_dead_letters(limit=10)
+    [letter] = asyncio.run(store.list_recent_dead_letters(limit=10))
     assert (letter.job_id, letter.task, letter.payload) == (None, "caption", payload)
     assert letter.error.startswith("ValidationError")
-    assert store.list_jobs() == []
+    assert asyncio.run(store.list_jobs()) == []
 
 
 def test_tasks_declare_the_shared_retry_limit() -> None:

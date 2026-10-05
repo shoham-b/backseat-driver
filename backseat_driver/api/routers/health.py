@@ -1,4 +1,3 @@
-import asyncio
 from http import HTTPStatus
 from typing import Annotated
 
@@ -27,13 +26,13 @@ async def readiness(
 ) -> dict[str, str]:
     """Readiness probe — returns 200 only when all dependencies are reachable.
 
-    The captioner is awaited; the queue and the store are still blocking clients, so their probes run on worker threads.
+    Each probe is awaited; the Celery queue runs its own blocking probe on a worker thread.
     """
     if not await captioner.healthcheck():
         raise APIError("VLM captioner unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
-    if not await asyncio.to_thread(queue.healthcheck):
+    if not await queue.healthcheck():
         raise APIError("message queue unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
-    if not await asyncio.to_thread(store.healthcheck):
+    if not await store.healthcheck():
         raise APIError("job store unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
 
     return {"status": "ok"}

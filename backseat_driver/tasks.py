@@ -10,10 +10,9 @@ Importing this module reads the settings and builds the Celery app, which `celer
 Every other dependency (broker, database, bucket, model) is built on first use and cached.
 """
 
-import asyncio
 from collections.abc import Callable
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 from celery import Celery, Task
 from celery.signals import setup_logging as celery_setup_logging
@@ -35,6 +34,7 @@ from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.transport.job_store.job_store import JobStore
+from backseat_driver.transport.worker_loop import worker_loop
 
 
 class Workers:
@@ -76,7 +76,7 @@ class Workers:
     @cached_property
     def caption_worker(self) -> CaptionWorker:
         captioner = self._build_captioner(self._settings)
-        asyncio.run(captioner.load())
+        worker_loop.run(captioner.load())
         return CaptionWorker(captioner=captioner, store=self.store, images=self.dataset)
 
 
@@ -103,29 +103,40 @@ def register_tasks(
             # Celery calls this only once retries are exhausted, so a transient error that a retry fixes never
             # marks a job failed.
             kind = "ingest" if self.name == INGEST_TASK else "caption"
-            job_store = store()
-            try:
-                reference = JobReference.model_validate(args[0])
-            except ValidationError:
-                # No job to mark failed, but the message is kept so it isn't lost without a trace.
-                logger.error("{} {} failed and its payload names no job: {}", self.name, task_id, exc)
-                payload = args[0] if isinstance(args[0], dict) else {"raw": repr(args[0])}
-                job_store.record_dead_letter(None, dead_letter_of(kind, payload, exc))
-                return
-            job_store.fail_job(reference.job_id, describe_failure(str(self.name), exc))
-            job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, args[0], exc))
+            worker_loop.run(_give_up(store(), str(self.name), task_id, kind, args[0], exc))
 
     @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def ingest(self: Task, payload: dict[str, Any]) -> None:
         task = IngestTask.model_validate(payload)
-        ingest_worker().handle(task)
+        worker_loop.run(ingest_worker().handle(task))
 
     @app.task(name=CAPTION_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def caption(self: Task, payload: dict[str, Any]) -> None:
         task = CaptionTask.model_validate(payload)
-        caption_worker().handle(task)
+        worker_loop.run(caption_worker().handle(task))
 
     return Tasks(ingest, caption)
+
+
+async def _give_up(
+    job_store: JobStore,
+    task_name: str,
+    task_id: str,
+    kind: Literal["ingest", "caption"],
+    payload: Any,
+    error: Exception,
+) -> None:
+    """Record a task that ran out of retries: fail its job and keep the payload as a dead letter."""
+    try:
+        reference = JobReference.model_validate(payload)
+    except ValidationError:
+        # No job to mark failed, but the message is kept so it isn't lost without a trace.
+        logger.error("{} {} failed and its payload names no job: {}", task_name, task_id, error)
+        raw = payload if isinstance(payload, dict) else {"raw": repr(payload)}
+        await job_store.record_dead_letter(None, dead_letter_of(kind, raw, error))
+        return
+    await job_store.fail_job(reference.job_id, describe_failure(task_name, error))
+    await job_store.record_dead_letter(reference.job_id, dead_letter_of(kind, payload, error))
 
 
 def configure_worker_logging(settings: Settings, setup: Callable[[LogFormat, str], None] = setup_logging) -> None:

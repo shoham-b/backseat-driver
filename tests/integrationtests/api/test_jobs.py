@@ -1,5 +1,6 @@
 """`POST /jobs` and `GET /jobs/{id}[/descriptions]`; the listing is in `test_jobs_listing.py`."""
 
+import asyncio
 from http import HTTPStatus
 from uuid import UUID, uuid4
 
@@ -17,10 +18,10 @@ from tests.integrationtests.conftest import ClientFactory
 
 
 class _BrokenQueue(FakeJobQueue):
-    def enqueue_ingest(self, task: IngestTask) -> None:
+    async def enqueue_ingest(self, task: IngestTask) -> None:
         raise ConnectionError("broker down")
 
-    def enqueue_caption(self, task: CaptionTask) -> None:
+    async def enqueue_caption(self, task: CaptionTask) -> None:
         raise ConnectionError("broker down")
 
 
@@ -32,17 +33,17 @@ class _LookupMissesOnce(FakeJobStore):
         super().__init__()
         self._missed = False
 
-    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+    async def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
         if not self._missed:
             self._missed = True
             return None
-        return super().find_job_by_idempotency_key(idempotency_key)
+        return await super().find_job_by_idempotency_key(idempotency_key)
 
 
 class _KeyTakenByNoJob(FakeJobStore):
     """Claims every key is taken yet finds no job under it, which a real store never does."""
 
-    def create_job(
+    async def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
     ) -> None:
         raise IdempotencyKeyInUseError("order-1")
@@ -59,7 +60,7 @@ def test_create_job_returns_accepted_and_enqueues_ingest(
     assert body["transaction_id"] == "trace-7"
     [task] = job_queue.ingest_tasks
     assert (task.max_scenes, task.transaction_id) == (3, "trace-7")
-    assert job_store.get_job(task.job_id).max_scenes == 3
+    assert asyncio.run(job_store.get_job(task.job_id)).max_scenes == 3
 
 
 def test_create_job_response_describes_a_pending_job(client: TestClient, job_queue: FakeJobQueue) -> None:
@@ -94,7 +95,7 @@ def test_create_job_rejects_an_invalid_scene_limit(
 
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert job_queue.ingest_tasks == []
-    assert job_store.list_jobs() == []
+    assert asyncio.run(job_store.list_jobs()) == []
 
 
 def test_each_job_gets_its_own_id(client: TestClient) -> None:
@@ -136,7 +137,7 @@ def test_retrying_with_the_same_idempotency_key_returns_the_first_job(
     assert (first.status_code, second.status_code) == (HTTPStatus.ACCEPTED, HTTPStatus.OK)
     assert second.json()["job_id"] == first.json()["job_id"]
     assert len(job_queue.ingest_tasks) == 1
-    assert len(job_store.list_jobs()) == 1
+    assert len(asyncio.run(job_store.list_jobs())) == 1
 
 
 def test_different_idempotency_keys_start_different_jobs(client: TestClient, job_queue: FakeJobQueue) -> None:
@@ -157,7 +158,7 @@ def test_a_malformed_idempotency_key_is_rejected(client: TestClient, job_queue: 
 def test_a_retry_that_loses_the_race_for_its_key_gets_the_first_job_back(client_with: ClientFactory) -> None:
     queue, store = FakeJobQueue(), _LookupMissesOnce()
     first_job_id = uuid4()
-    store.create_job(first_job_id, None, "tx-first", "order-1")
+    asyncio.run(store.create_job(first_job_id, None, "tx-first", "order-1"))
     client = client_with({get_job_queue: lambda: queue, get_job_store: lambda: store})
 
     response = client.post("/jobs", headers={"Idempotency-Key": "order-1"})
@@ -192,7 +193,7 @@ def test_a_job_that_could_not_be_enqueued_is_recorded_as_failed(client_with: Cli
 
     client.post("/jobs")
 
-    (job,) = store.list_jobs()
+    (job,) = asyncio.run(store.list_jobs())
     assert job.state is JobState.FAILED
     assert job.error == "enqueue failed: ConnectionError: broker down"
 
@@ -248,9 +249,9 @@ def test_job_runs_to_completion_through_both_workers(
 
     job_id = client.post("/jobs").json()["job_id"]
     for ingest_task in job_queue.ingest_tasks:
-        ingest.handle(ingest_task)
+        asyncio.run(ingest.handle(ingest_task))
     for caption_task in job_queue.caption_tasks:
-        caption.handle(caption_task)
+        asyncio.run(caption.handle(caption_task))
     job = client.get(f"/jobs/{job_id}").json()
     descriptions = client.get(f"/jobs/{job_id}/descriptions").json()
 

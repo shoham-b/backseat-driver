@@ -32,8 +32,8 @@ same pipeline scaled out, kept optional and in separate layers so the core never
   CPU-only BLIP, or verbose prompt-driven descriptions from `llava` or Claude.
 - **Compare models.** Every run writes `output/<backend>__<model>.json`, so results never overwrite each
   other. `just ui` scores them against the nuScenes labels and shows them side by side.
-- **One pipeline, three scales.** The same read → process → write code runs in one process, as tasks on a
-  thread inside the API, or as separate services over RabbitMQ, S3 and Postgres.
+- **One pipeline, three scales.** The same read → process → write code runs in one process, as tasks on the
+  API's event loop, or as separate services over RabbitMQ, S3 and Postgres.
 - **Production-shaped.** Ports and adapters, typed, fail-fast, structured logs, a Dockerfile target per
   service, Kubernetes manifests with queue-depth autoscaling, and five layers of tests.
 
@@ -109,7 +109,7 @@ the diagrams and shows where each piece enters the code.
 | Rung | Command | What runs | Adds | Needs |
 |---|---|---|---|---|
 | **1. Pipeline** | `just describe` | read, process and write in one function call | nothing | dataset in `data/` |
-| **2. Seam** | `just dev` | the same steps as tasks on a thread inside the API (`POST /jobs`) | an in-process queue and a SQLite job store | dataset in `data/` |
+| **2. Seam** | `just dev` | the same steps as tasks on the API's event loop (`POST /jobs`) | an in-process queue and a SQLite job store | dataset in `data/` |
 | **3. Machines** | `just up`, `just k8s-apply` | ingest and caption workers as separate services | RabbitMQ, an S3 bucket and Postgres | Docker or a cluster |
 
 `describe --mode distributed` submits the pipeline as a job to a running API and writes the same JSON file

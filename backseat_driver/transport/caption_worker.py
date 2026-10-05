@@ -6,8 +6,6 @@ description is recorded, which is what lets the task be acked afterwards (at-lea
 delivery), and recording it twice is safe.
 """
 
-import asyncio
-
 from loguru import logger
 
 from backseat_driver.models import CaptionTask, SceneDescription
@@ -25,10 +23,10 @@ class CaptionWorker:
         self._store = store
         self._images = images
 
-    def handle(self, task: CaptionTask) -> None:
+    async def handle(self, task: CaptionTask) -> None:
         with logger.contextualize(job_id=str(task.job_id), transaction_id=task.transaction_id):
-            description = asyncio.run(self._describe(task))
-            self._store.record_description(task.job_id, description)
+            description = await self._describe(task)
+            await self._store.record_description(task.job_id, description)
             logger.debug("described {} ({})", task.keyframe.scene_name, task.keyframe.camera_channel)
 
     async def _describe(self, task: CaptionTask) -> SceneDescription:
