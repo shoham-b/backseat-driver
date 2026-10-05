@@ -1,3 +1,4 @@
+import base64
 from pathlib import Path
 
 import pytest
@@ -14,19 +15,31 @@ def image_path(tmp_path: Path) -> str:
     return str(path)
 
 
-def test_caption_posts_prompt_and_image_and_returns_stripped_response(image_path: str) -> None:
+def test_caption_posts_the_model_prompt_and_image_and_returns_the_stripped_response(image_path: str) -> None:
     http = FakeHttpClient(response={"response": "  a long, detailed description  "})
     backend = OllamaBackend(http, base_url="http://ollama:11434/")
 
-    description = backend.generate(image_path, CaptionModel("llava"))
+    description = backend.generate(image_path, CaptionModel("llava", prompt="list the road users"))
 
     assert description == "a long, detailed description"
     (posted,) = http.posts
     assert posted.url == "http://ollama:11434/api/generate"
     assert posted.service == "Ollama"
-    assert posted.payload["model"] == "llava"
-    assert posted.payload["stream"] is False
-    assert len(posted.payload["images"]) == 1
+    assert posted.payload == {
+        "model": "llava",
+        "prompt": "list the road users",
+        "images": [base64.b64encode(b"fake-image-bytes").decode()],
+        "stream": False,
+    }
+
+
+def test_caption_of_a_missing_file_fails_fast_without_calling_the_server(tmp_path: Path) -> None:
+    http = FakeHttpClient()
+
+    with pytest.raises(FileNotFoundError):
+        OllamaBackend(http).generate(str(tmp_path / "missing.png"), CaptionModel("llava"))
+
+    assert http.posts == []
 
 
 def test_caption_propagates_http_failures(image_path: str) -> None:

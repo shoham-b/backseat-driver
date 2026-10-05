@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from backseat_driver.models import SceneKeyframe
 from backseat_driver.pipeline import ScenePipeline
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader
@@ -92,3 +94,18 @@ def test_run_captions_a_local_copy_of_each_image_and_releases_it() -> None:
     expected = [f"fake://samples/CAM_FRONT/scene-{n}.jpg" for n in (1, 2)]
     assert images.opened == expected
     assert images.released == expected
+
+
+class _FailingCaptioner(FakeCaptioner):
+    def caption(self, image_path: str) -> str:
+        raise RuntimeError("model exploded")
+
+
+def test_run_propagates_a_captioning_failure_and_still_releases_the_local_copy() -> None:
+    images = FakeImageStore()
+    pipeline = ScenePipeline(loader=FakeSceneLoader([_keyframe(1)]), captioner=_FailingCaptioner(), images=images)
+
+    with pytest.raises(RuntimeError, match="model exploded"):
+        pipeline.run()
+
+    assert images.released == images.opened == ["fake://samples/CAM_FRONT/scene-1.jpg"]

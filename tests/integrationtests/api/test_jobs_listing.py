@@ -3,6 +3,7 @@
 from http import HTTPStatus
 from uuid import uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
@@ -56,18 +57,31 @@ def test_jobs_can_be_filtered_by_state(client_with: ClientFactory) -> None:
     assert [job["job_id"] for job in waiting] == [str(pending)]
 
 
-def test_the_listing_is_capped_by_limit(client_with: ClientFactory) -> None:
-    store = FakeJobStore()
-    for _ in range(3):
-        store.create_job(uuid4(), None, "tx")
+def test_the_listing_is_capped_by_limit_keeping_the_newest(client_with: ClientFactory) -> None:
+    store, ids = FakeJobStore(), [uuid4() for _ in range(3)]
+    for job_id in ids:
+        store.create_job(job_id, None, "tx")
 
     response = _client(client_with, store).get("/jobs", params={"limit": 2})
 
-    assert len(response.json()) == 2
+    assert [job["job_id"] for job in response.json()] == [str(ids[2]), str(ids[1])]
 
 
-def test_a_limit_outside_the_allowed_range_is_rejected(client_with: ClientFactory) -> None:
-    client = _client(client_with, FakeJobStore())
+@pytest.mark.parametrize("limit", [1, 500])
+def test_the_limits_boundaries_are_accepted(client_with: ClientFactory, limit: int) -> None:
+    response = _client(client_with, FakeJobStore()).get("/jobs", params={"limit": limit})
 
-    assert client.get("/jobs", params={"limit": 0}).status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert client.get("/jobs", params={"limit": 501}).status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+    assert response.status_code == HTTPStatus.OK
+
+
+@pytest.mark.parametrize("limit", [0, -1, 501])
+def test_a_limit_outside_the_allowed_range_is_rejected(client_with: ClientFactory, limit: int) -> None:
+    response = _client(client_with, FakeJobStore()).get("/jobs", params={"limit": limit})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
+
+
+def test_an_unknown_state_filter_is_rejected(client_with: ClientFactory) -> None:
+    response = _client(client_with, FakeJobStore()).get("/jobs", params={"state": "finished"})
+
+    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY

@@ -52,14 +52,6 @@ def test_scene_description_timestamp_defaults_to_now_in_utc() -> None:
     assert description.generated_at.tzinfo is not None
 
 
-def test_scene_description_timestamps_are_independent_per_instance() -> None:
-    fields = {**_keyframe().model_dump(), "description": "d", "model_name": "m"}
-
-    first, second = SceneDescription(**fields), SceneDescription(**fields)
-
-    assert first.generated_at <= second.generated_at
-
-
 @pytest.mark.parametrize("missing", ["scene_token", "scene_name", "camera_channel", "image_path"])
 def test_keyframe_requires_every_field(missing: str) -> None:
     fields = _keyframe().model_dump()

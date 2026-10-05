@@ -1,22 +1,12 @@
-from collections.abc import Iterator
 from pathlib import Path
 
-import pytest
 from sqlalchemy import create_engine, inspect
 from typer.testing import CliRunner
 
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
-from backseat_driver.config import get_settings
 
 runner = CliRunner()
-
-
-@pytest.fixture(autouse=True)
-def _fresh_settings() -> Iterator[None]:
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 def test_db_init_creates_the_job_tables_and_is_idempotent(tmp_path: Path) -> None:

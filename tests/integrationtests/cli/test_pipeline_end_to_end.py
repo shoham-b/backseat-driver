@@ -6,10 +6,7 @@ is routed to the right collaborators; the command functions themselves hold no l
 import json
 import re
 import shutil
-import threading
-import time
-from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
@@ -18,7 +15,6 @@ from typer.testing import CliRunner
 
 from backseat_driver.cli import __main__ as _main  # noqa: F401 - registers every subcommand
 from backseat_driver.cli import app
-from backseat_driver.config import get_settings
 from backseat_driver.models import IngestTask, JobState
 from backseat_driver.read.dataset.nuscenes_scene_loader import NuScenesSceneLoader, open_nuscenes_tables
 from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
@@ -35,6 +31,8 @@ from tests.nuscenes_dataset import (
     build_nuscenes_dataset,
     middle_image,
 )
+from tests.stub_server import Responder, StubServer, json_reply
+from tests.waiting import wait_until
 
 pytest.importorskip("nuscenes.nuscenes", reason="nuscenes-devkit (and its OpenCV libraries) is not installed")
 
@@ -42,34 +40,9 @@ runner = CliRunner()
 CAPTION = "a parked truck near construction"
 
 
-class _OllamaStub(BaseHTTPRequestHandler):
-    def do_POST(self) -> None:
-        self.rfile.read(int(self.headers["Content-Length"]))
-        body = json.dumps({"response": CAPTION}).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args: object) -> None:
-        pass
-
-
-@pytest.fixture(autouse=True)
-def _fresh_settings() -> Iterator[None]:
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
 @pytest.fixture
-def ollama_url() -> Iterator[str]:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _OllamaStub)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{server.server_port}"
-    server.shutdown()
-    server.server_close()
+def ollama_url(stub_server: Callable[[Responder], StubServer]) -> str:
+    return stub_server(lambda received: json_reply({"response": CAPTION})).url
 
 
 @pytest.fixture
@@ -88,7 +61,7 @@ def cli_env(tmp_path: Path, ollama_url: str) -> dict[str, str]:
 
 def _plain(output: str) -> str:
     """CLI output without terminal styling, which CI sets (FORCE_COLOR) and which splits option names."""
-    return re.sub(r"[[0-9;]*m", "", output)
+    return re.sub(r"\x1b\[[0-9;]*m", "", output)
 
 
 def test_describe_fetches_the_dataset_and_describes_every_scene_with_its_reference_label(
@@ -121,9 +94,9 @@ def test_describe_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) ->
 def test_describe_then_report_scores_the_descriptions_against_the_labels(
     cli_env: dict[str, str], tmp_path: Path
 ) -> None:
-    runner.invoke(
-        app, ["describe", "--camera", "front"], env=cli_env
-    )  # default output: <output dir>/<backend>__<model>.json
+    # No --output: the file lands in <output dir>/<backend>__<model>.json, where `report` looks.
+    described = runner.invoke(app, ["describe", "--camera", "front"], env=cli_env)
+    assert described.exit_code == 0, described.output
 
     result = runner.invoke(app, ["report"], env=cli_env)
     html = (tmp_path / "output" / "report.html").read_text()
@@ -137,7 +110,8 @@ def test_describe_then_report_scores_the_descriptions_against_the_labels(
 def test_report_reads_the_images_from_the_dataroot_given_to_describe(cli_env: dict[str, str], tmp_path: Path) -> None:
     dataroot = str(tmp_path / "elsewhere")
     env = {k: v for k, v in cli_env.items() if k != "BACKSEAT_DRIVER_NUSCENES_DATAROOT"}
-    runner.invoke(app, ["describe", "--camera", "front", "--dataroot", dataroot], env=env)
+    described = runner.invoke(app, ["describe", "--camera", "front", "--dataroot", dataroot], env=env)
+    assert described.exit_code == 0, described.output
 
     result = runner.invoke(app, ["report", "--dataroot", dataroot], env=env)
     html = (tmp_path / "output" / "report.html").read_text()
@@ -244,9 +218,7 @@ def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: 
     store.create_job(job_id, None, "txn-1")
 
     queue.enqueue_ingest(IngestTask(job_id=job_id, transaction_id="txn-1"))
-    deadline = time.monotonic() + 10
-    while store.get_job(job_id).state is not JobState.COMPLETED and time.monotonic() < deadline:
-        time.sleep(0.02)
+    wait_until(lambda: store.get_job(job_id).state is JobState.COMPLETED, "the job to complete")
     descriptions = store.list_descriptions(job_id)
 
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]

@@ -76,16 +76,20 @@ def test_a_failed_job_raises_with_its_error_instead_of_polling_until_the_timeout
 
 def test_a_running_job_is_polled_until_it_is_completed() -> None:
     http = FakeHttpClient(response=_job(JobState.PENDING))
-    http.responses_by_url[f"{API}/jobs/{JOB_ID}"] = _json(_job(JobState.COMPLETED, completed=2))
+    http.sequences_by_url[f"{API}/jobs/{JOB_ID}"] = [
+        _json(_job(JobState.RUNNING, completed=0)),
+        _json(_job(JobState.RUNNING, completed=1)),
+        _json(_job(JobState.COMPLETED, completed=2)),
+    ]
     http.responses_by_url[f"{API}/jobs/{JOB_ID}/descriptions"] = _json([_description(0)])
-    seen: list[JobState] = []
+    seen: list[tuple[JobState, int]] = []
 
     descriptions = _client(http).describe(
-        max_scenes=None, timeout_seconds=10, on_progress=lambda j: seen.append(j.state)
+        max_scenes=None, timeout_seconds=10, on_progress=lambda j: seen.append((j.state, j.completed_scenes))
     )
 
     assert len(descriptions) == 1
-    assert seen == [JobState.COMPLETED]
+    assert seen == [(JobState.RUNNING, 0), (JobState.RUNNING, 1), (JobState.COMPLETED, 2)]
 
 
 def test_max_scenes_is_sent_with_the_job() -> None:

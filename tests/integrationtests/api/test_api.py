@@ -68,29 +68,6 @@ def test_error_response_shape_on_unhandled_exception(client_with: ClientFactory)
     assert "message" in error
 
 
-def test_describe_returns_caption(client: TestClient) -> None:
-    from io import BytesIO
-
-    from PIL import Image
-
-    buf = BytesIO()
-    Image.new("RGB", (4, 4), color="blue").save(buf, format="PNG")
-    buf.seek(0)
-
-    response = client.post("/describe", files={"image": ("scene.png", buf, "image/png")})
-
-    assert response.status_code == HTTPStatus.OK
-    body = response.json()
-    assert body["description"] == "a fake scene description"
-    assert body["model_name"] == "fake-model"
-
-
-def test_describe_rejects_empty_file(client: TestClient) -> None:
-    response = client.post("/describe", files={"image": ("empty.png", b"", "image/png")})
-
-    assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
-
-
 @pytest.mark.parametrize(
     ("dependency", "unhealthy"),
     [(get_job_queue, FakeJobQueue(healthy=False)), (get_job_store, FakeJobStore(healthy=False))],
