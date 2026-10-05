@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from collections.abc import Callable
 from http import HTTPStatus
 
@@ -95,18 +96,39 @@ class _LoopProbingCaptioner(FakeCaptioner):
         return True
 
 
-def test_readiness_probes_the_captioner_off_the_servers_event_loop(client_with: ClientFactory) -> None:
-    captioner = _LoopProbingCaptioner()
-    server_loops: list[int] = []
+class _ThreadProbingQueue(FakeJobQueue):
+    """Records which thread its (blocking) health check ran on."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.thread_id: int | None = None
+
+    def healthcheck(self) -> bool:
+        self.thread_id = threading.get_ident()
+        return True
+
+
+def test_readiness_awaits_the_captioner_and_probes_the_blocking_clients_off_the_event_loop(
+    client_with: ClientFactory,
+) -> None:
+    captioner, queue = _LoopProbingCaptioner(), _ThreadProbingQueue()
+    server: dict[str, int] = {}
 
     async def store_on_the_servers_loop() -> FakeJobStore:
-        server_loops.append(id(asyncio.get_running_loop()))
+        server["loop"], server["thread"] = id(asyncio.get_running_loop()), threading.get_ident()
         return FakeJobStore()
 
-    client = client_with({get_captioner: lambda: captioner, get_job_store: store_on_the_servers_loop})
+    client = client_with(
+        {
+            get_captioner: lambda: captioner,
+            get_job_queue: lambda: queue,
+            get_job_store: store_on_the_servers_loop,
+        }
+    )
 
     response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.OK
-    assert captioner.loop_id is not None
-    assert captioner.loop_id != server_loops[0]
+    assert captioner.loop_id == server["loop"]
+    assert queue.thread_id is not None
+    assert queue.thread_id != server["thread"]

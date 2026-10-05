@@ -16,15 +16,12 @@ class ImageService:
     def __init__(self, store: ImageStore) -> None:
         self._store = store
 
-    def read(self, key: str) -> bytes:
+    async def read(self, key: str) -> bytes:
         """The image's bytes. Raises `UnprocessableError` for a key that is not a keyframe image, `NotFoundError` for
         one that names nothing."""
         validate_image_key(key)
         try:
-            return asyncio.run(self._read(key))
+            async with self._store.local_copy(self._store.uri_for(key)) as path:
+                return await asyncio.to_thread(path.read_bytes)
         except FileNotFoundError as exc:
             raise NotFoundError(f"image {key!r} not found") from exc
-
-    async def _read(self, key: str) -> bytes:
-        async with self._store.local_copy(self._store.uri_for(key)) as path:
-            return path.read_bytes()

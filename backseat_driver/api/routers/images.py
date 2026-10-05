@@ -26,13 +26,13 @@ _CACHE_CONTROL = "public, max-age=86400, immutable"
     "/images/{key:path}",
     responses={HTTPStatus.NOT_MODIFIED: {"description": "The client's copy is current"}, **NOT_FOUND_RESPONSE},
 )
-def get_image(
+async def get_image(
     key: str,
     images: Annotated[ImageService, Depends(get_image_service)],
     if_none_match: Annotated[str | None, Header()] = None,
 ) -> Response:
     """A keyframe image by its dataset-relative key. Answers `304` to a matching `If-None-Match`."""
-    data = images.read(key)
+    data = await images.read(key)
     etag = f'"{hashlib.sha256(data).hexdigest()[:32]}"'
     headers = {"ETag": etag, "Cache-Control": _CACHE_CONTROL}
     if if_none_match == etag:
