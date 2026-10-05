@@ -13,6 +13,7 @@ them one by one.
 """
 
 import asyncio
+import threading
 from collections.abc import Callable, Sequence
 from typing import Any
 
@@ -51,6 +52,7 @@ class HuggingFaceBackend(CaptionBackend):
     def __init__(self, pipeline_factory: PipelineFactory = transformers_pipeline) -> None:
         self._pipeline_factory = pipeline_factory
         self._pipelines: dict[str, Callable[..., Any]] = {}
+        self._model_lock = threading.RLock()
 
     # Loading and inference block (disk, CPU or GPU), so each runs on a worker thread and leaves the event loop free.
 
@@ -64,22 +66,31 @@ class HuggingFaceBackend(CaptionBackend):
         """One forward pass over the whole batch: on CPU about twice the throughput of captioning one by one."""
         return await asyncio.to_thread(self._generate_batch, image_paths, model)
 
+    # One thread at a time inside the model: every caller (a /describe request, the queue's consumer) gets its own
+    # worker thread, and a transformers pipeline is not safe to call concurrently, nor is building two of the same
+    # model. Reentrant because the generate methods load first.
+
     def _load(self, model: CaptionModel) -> None:
-        if model.name in self._pipelines:
-            return
-        self._pipelines[model.name] = self._pipeline_factory(model.name)
+        with self._model_lock:
+            if model.name in self._pipelines:
+                return
+            self._pipelines[model.name] = self._pipeline_factory(model.name)
 
     def _generate_one(self, image_path: str, model: CaptionModel) -> str:
-        self._load(model)
-        result = self._pipelines[model.name](_open_rgb(image_path))
-        return result[0]["generated_text"].strip()
+        with self._model_lock:
+            self._load(model)
+            result = self._pipelines[model.name](_open_rgb(image_path))
+            return result[0]["generated_text"].strip()
 
     def _generate_batch(self, image_paths: Sequence[str], model: CaptionModel) -> list[str]:
         if not image_paths:
             return []
-        self._load(model)
-        results = self._pipelines[model.name]([_open_rgb(path) for path in image_paths], batch_size=len(image_paths))
-        return [result[0]["generated_text"].strip() for result in results]
+        with self._model_lock:
+            self._load(model)
+            results = self._pipelines[model.name](
+                [_open_rgb(path) for path in image_paths], batch_size=len(image_paths)
+            )
+            return [result[0]["generated_text"].strip() for result in results]
 
     async def healthcheck(self) -> bool:
         # Always True: models load lazily on first use, and /ready must
