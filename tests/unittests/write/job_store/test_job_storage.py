@@ -198,4 +198,4 @@ def test_description_insert_compiles_to_postgres_on_conflict_do_nothing() -> Non
     statement = description_insert(uuid4(), _values(1))
 
     sql = str(statement.compile(dialect=postgresql.dialect()))
-    assert "ON CONFLICT (job_id, scene_token) DO NOTHING" in sql
+    assert "ON CONFLICT (job_id, scene_token, camera_channel) DO NOTHING" in sql

@@ -47,7 +47,7 @@ class ApiJobClient:
             if self._clock() >= deadline:
                 raise RuntimeError(
                     f"job {job.job_id} is still {job.state.value} "
-                    f"({job.completed_scenes}/{job.expected_scenes} scenes) after {timeout_seconds:g}s"
+                    f"({job.completed_scenes}/{job.expected_scenes} descriptions) after {timeout_seconds:g}s"
                 )
             self._sleep(poll_seconds)
             job = Job.model_validate_json(self._get(f"/jobs/{quote(str(job.job_id))}"))

@@ -40,6 +40,18 @@ def describe_keyframe(keyframe: SceneKeyframe, captioner: Captioner, local_path:
     )
 
 
+def first_scenes(keyframes: list[SceneKeyframe], max_scenes: int | None) -> list[SceneKeyframe]:
+    """The keyframes of the first `max_scenes` scenes, in their original order; all of them when `max_scenes` is None.
+
+    Counts scenes, not keyframes: a multi-camera run has several keyframes per scene. Shared by the batch pipeline and
+    the ingest worker, so `max_scenes` means the same in both.
+    """
+    if max_scenes is None:
+        return keyframes
+    kept = set(list(dict.fromkeys(k.scene_token for k in keyframes))[:max_scenes])
+    return [k for k in keyframes if k.scene_token in kept]
+
+
 class ScenePipeline:
     """Runs the loader → captioner pipeline over every scene in the dataset."""
 
@@ -49,11 +61,7 @@ class ScenePipeline:
         self._images = images
 
     def run(self, max_scenes: int | None = None, on_progress: ProgressCallback | None = None) -> list[SceneDescription]:
-        keyframes = self._loader.load_keyframes()
-        if max_scenes is not None:
-            # Count scenes, not keyframes: a multi-camera run has several keyframes per scene.
-            kept = set(list(dict.fromkeys(k.scene_token for k in keyframes))[:max_scenes])
-            keyframes = [k for k in keyframes if k.scene_token in kept]
+        keyframes = first_scenes(self._loader.load_keyframes(), max_scenes)
 
         descriptions: list[SceneDescription] = []
         for index, keyframe in enumerate(keyframes, start=1):

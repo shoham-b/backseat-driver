@@ -3,9 +3,9 @@ from backseat_driver.models.scene import SceneKeyframe
 
 
 class IngestTask(JobReference):
-    """Queue message: load the dataset and fan out one CaptionTask per scene."""
+    """Queue message: load the dataset and fan out one CaptionTask per keyframe (scene and camera)."""
 
-    max_scenes: int | None = None
+    max_scenes: int | None = None  # counts scenes, not keyframes
 
 
 class CaptionTask(JobReference):
