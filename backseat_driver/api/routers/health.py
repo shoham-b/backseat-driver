@@ -20,20 +20,20 @@ async def liveness() -> dict[str, str]:
 
 
 @router.get("/ready", responses=UNAVAILABLE_RESPONSE)
-def readiness(
+async def readiness(
     captioner: Annotated[Captioner, Depends(get_captioner)],
     queue: Annotated[JobQueue, Depends(get_job_queue)],
     store: Annotated[JobStore, Depends(get_job_store)],
 ) -> dict[str, str]:
     """Readiness probe — returns 200 only when all dependencies are reachable.
 
-    A plain `def` (run on a worker thread): the probes do blocking network I/O.
+    The captioner is awaited; the queue and the store are still blocking clients, so their probes run on worker threads.
     """
-    if not asyncio.run(captioner.healthcheck()):
+    if not await captioner.healthcheck():
         raise APIError("VLM captioner unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
-    if not queue.healthcheck():
+    if not await asyncio.to_thread(queue.healthcheck):
         raise APIError("message queue unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
-    if not store.healthcheck():
+    if not await asyncio.to_thread(store.healthcheck):
         raise APIError("job store unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
 
     return {"status": "ok"}

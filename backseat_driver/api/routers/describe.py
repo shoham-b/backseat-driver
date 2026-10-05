@@ -5,11 +5,11 @@ pipeline as a small inference service, instead of (or alongside) running the
 CLI as a scheduled batch job.
 """
 
-import asyncio
 import re
 from pathlib import Path, PurePosixPath
 from typing import Annotated
 
+import anyio
 from fastapi import APIRouter, Depends, UploadFile
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
@@ -23,16 +23,17 @@ router = APIRouter(tags=["describe"])
 
 
 @router.post("/describe")
-def describe(
+async def describe(
     image: UploadFile,
     captioner: Annotated[Captioner, Depends(get_captioner)],
     upload_dir: Annotated[Path, Depends(get_upload_dir)],
 ) -> DescribeResponse:
     """Caption a single uploaded image using the configured VLM.
 
-    A plain `def`, so FastAPI runs it on a worker thread: inference blocks and must not stall the event loop.
+    An `async def`: reading the upload, writing it and captioning it are all awaited, so none of them stalls the event
+    loop (a local model runs on a worker thread inside the captioner).
     """
-    contents = image.file.read()
+    contents = await image.read()
     if not contents:
         raise UnprocessableError("uploaded file is empty")
 
@@ -40,9 +41,9 @@ def describe(
     # because the captioners sniff the image type from it.
     suffix = PurePosixPath((image.filename or "").replace("\\", "/")).suffix.lower()
     tmp_path = upload_dir / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
-    tmp_path.write_bytes(contents)
+    await anyio.Path(tmp_path).write_bytes(contents)
     # A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is the service's own
     # and stays a 500.
-    description = asyncio.run(captioner.caption(str(tmp_path)))
+    description = await captioner.caption(str(tmp_path))
 
     return DescribeResponse(description=description, model_name=captioner.model_name)

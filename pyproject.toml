@@ -12,6 +12,8 @@ dependencies = [
     "rich>=13",
     "loguru>=0.7",
     "pydantic-settings>=2.9",
+    # Async file reads and writes (anyio.Path); httpx and Starlette already require it.
+    "anyio>=4",
     # The Anthropic backend sends a batch of captions concurrently, on any image that can run it.
     "httpx>=0.28",
 ]
