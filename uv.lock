@@ -198,6 +198,7 @@ docs = [
 ]
 systemtest = [
     { name = "httpx" },
+    { name = "hypothesis" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
 ]
@@ -250,6 +251,7 @@ docs = [
 ]
 systemtest = [
     { name = "httpx", specifier = ">=0.28" },
+    { name = "hypothesis", specifier = ">=6" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.25" },
 ]
