@@ -222,6 +222,42 @@ def test_a_store_without_jobs_lists_none(store: JobStore) -> None:
     assert store.list_jobs() == []
 
 
+def _a_job_in_every_state(store: JobStore) -> dict[JobState, UUID]:
+    jobs = {JobState.PENDING: _new_job(store), JobState.RUNNING: _new_job(store, expected_scenes=2)}
+    jobs[JobState.COMPLETED] = _new_job(store, expected_scenes=1)
+    store.record_description(jobs[JobState.COMPLETED], _description(1))
+    jobs[JobState.FAILED] = _new_job(store)
+    store.fail_job(jobs[JobState.FAILED], "boom")
+    return jobs
+
+
+@pytest.mark.parametrize("state", list(JobState))
+def test_listing_by_state_returns_exactly_the_jobs_in_that_state(store: JobStore, state: JobState) -> None:
+    jobs = _a_job_in_every_state(store)
+
+    listed = store.list_jobs(state=state)
+
+    assert [(job.job_id, job.state) for job in listed] == [(jobs[state], state)]
+
+
+def test_the_limit_is_applied_after_the_state_filter(store: JobStore) -> None:
+    pending = {_new_job(store) for _ in range(3)}
+    other = _new_job(store, expected_scenes=1)
+
+    listed = store.list_jobs(state=JobState.PENDING, limit=2)
+
+    assert len(listed) == 2
+    assert {job.job_id for job in listed} <= pending
+    assert other not in {job.job_id for job in listed}
+
+
+def test_a_limit_alone_caps_the_listing(store: JobStore) -> None:
+    for _ in range(3):
+        _new_job(store)
+
+    assert len(store.list_jobs(limit=2)) == 2
+
+
 def _dead_letter(task: Literal["ingest", "caption"] = "caption") -> DeadLetter:
     return DeadLetter(
         task=task,

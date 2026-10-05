@@ -8,7 +8,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 
-from backseat_driver.models import SceneDescription
+from backseat_driver.models import JobState, SceneDescription
 from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.storage import JobStorage
 from tests.fakes import make_keyframe
@@ -68,3 +68,27 @@ def test_a_constraint_other_than_the_job_is_not_reported_as_not_found(store: Sql
 
     with pytest.raises(IntegrityError):
         store.record_description(job_id, without_camera)
+
+
+def _described(n: int) -> SceneDescription:
+    return SceneDescription(**make_keyframe(n).model_dump(), description="a road", model_name="m")
+
+
+def test_the_database_state_filter_agrees_with_derive_state_for_every_combination(store: SqlJobStore) -> None:
+    # expected: unknown or 0-2 scenes, completed: 0-2 descriptions, failed or not.
+    for expected in (None, 0, 1, 2):
+        for completed in range(3):
+            for error in (None, "boom"):
+                job_id = uuid4()
+                store.create_job(job_id, None, "tx")
+                if expected is not None:
+                    store.set_expected_scenes(job_id, expected)
+                for n in range(completed):
+                    store.record_description(job_id, _described(n))
+                if error:
+                    store.fail_job(job_id, error)
+
+    for state in JobState:
+        assert {job.job_id for job in store.list_jobs(state=state)} == {
+            job.job_id for job in store.list_jobs() if job.state is state
+        }

@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy.exc import IntegrityError
 
 from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
-from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
+from backseat_driver.models import DeadLetter, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.orm import JobRow
 from backseat_driver.write.job_store.storage import JobStorage
@@ -89,8 +89,8 @@ class SqlJobStore(JobStore):
 
         return _to_job(*found)
 
-    def list_jobs(self) -> list[Job]:
-        return [_to_job(row, completed) for row, completed in self._storage.fetch_jobs()]
+    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
+        return [_to_job(row, completed) for row, completed in self._storage.fetch_jobs(state, limit)]
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self.get_job(job_id)  # raises NotFoundError, so an unknown job isn't reported as "no descriptions"
