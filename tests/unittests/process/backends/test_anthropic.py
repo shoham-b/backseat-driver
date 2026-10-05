@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.anthropic import AnthropicBackend
 from backseat_driver.process.model import CaptionModel
 from tests.fakes import FakeHttpClient
@@ -76,7 +77,7 @@ def test_caption_rejects_unsupported_image_type(tmp_path: Path) -> None:
     path.write_bytes(b"x")
     http = FakeHttpClient()
 
-    with pytest.raises(ValueError, match="Unsupported image type"):
+    with pytest.raises(UnprocessableError, match="Unsupported image type"):
         AnthropicBackend(http, api_key="test-key").generate(str(path), _MODEL)
 
     assert http.posts == []

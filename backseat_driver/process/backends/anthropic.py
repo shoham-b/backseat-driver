@@ -8,6 +8,7 @@ key and network access at runtime, and each caption is a billed request.
 import base64
 from pathlib import Path
 
+from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.backend import CaptionBackend
 from backseat_driver.process.http_client import HttpClient
 from backseat_driver.process.model import CaptionModel
@@ -54,7 +55,7 @@ class AnthropicBackend(CaptionBackend):
     def generate(self, image_path: str, model: CaptionModel) -> str:
         media_type = _MEDIA_TYPES_BY_SUFFIX.get(Path(image_path).suffix.lower())
         if media_type is None:
-            raise ValueError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
+            raise UnprocessableError(f"Unsupported image type for {image_path!r}; expected jpeg/png/gif/webp")
         image_b64 = base64.b64encode(Path(image_path).read_bytes()).decode("ascii")
         payload = {
             "model": model.name,
