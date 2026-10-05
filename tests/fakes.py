@@ -8,6 +8,8 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from uuid import UUID
 
+from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+
 from backseat_driver.config import Settings
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import (
@@ -208,8 +210,25 @@ class FakeCaptioner(Captioner):
         return True
 
 
+class _KeywordSettings(Settings):
+    """`Settings` whose only source is its keyword arguments, so neither an environment variable nor a `.env` file can
+    change a field. `_env_file=None` alone leaves the variables `just` exports, and a module that builds its app at
+    import time runs before any fixture could hide them."""
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings,)
+
+
 def make_settings(**overrides: Any) -> Settings:
-    """Settings straight from keyword arguments, ignoring any .env file, so tests never touch the environment.
+    """Settings straight from keyword arguments, ignoring the environment and any .env file.
 
     A model is chosen for every backend, since building a captioner without one fails on purpose.
     """
@@ -220,7 +239,7 @@ def make_settings(**overrides: Any) -> Settings:
         "ollama_model_name": "fake-model",
         "anthropic_model_name": "fake-model",
     }
-    return Settings(_env_file=None, **{**models, **overrides})
+    return _KeywordSettings(**{**models, **overrides})
 
 
 def make_image_uri(n: int) -> str:
