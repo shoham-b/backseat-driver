@@ -175,4 +175,5 @@ def multi_camera_url(multi_camera_result_files: list[Path]) -> Iterator[str]:
 def multi_camera_page(_driver: "WebDriver", multi_camera_url: str) -> "WebDriver":
     _driver.set_window_size(*DESKTOP)
     _driver.get(multi_camera_url)
+    _driver.get_log("browser")
     return _driver
