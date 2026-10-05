@@ -19,6 +19,7 @@ move it out of this folder.
 | Kubernetes base on kind with KEDA: probes, workers, autoscaling up and down | `kind` job |
 | Pods start non-root with all capabilities dropped; the API with a read-only root filesystem | `kind` job (the manifests' `securityContext`) and `test_deployment.py` |
 | Manifests and compose file validate against their schemas | `deploy-config` job |
+| Docs build strictly: no broken links, nav entries or unrenderable docstrings | `docs` job |
 | Benchmarks on synthetic data | `codspeed` workflow |
 
 ## What stays manual, and why
@@ -26,6 +27,7 @@ move it out of this folder.
 | Check | Why CI cannot do it | Guide |
 |---|---|---|
 | Real nuScenes data and caption quality | The dataset needs a licence acceptance and cannot be redistributed; CI uses a synthetic dataset and a stub or small model, and no test can judge whether a caption is *good* | [real-run.md](real-run.md) |
+| Documentation is true and followable | CI builds the site `--strict` (links, nav, docstrings) but cannot judge accuracy or whether a newcomer can follow it | [docs.md](docs.md) |
 | Report appearance | Selenium checks behaviour, not whether the page looks right | [report-ui.md](report-ui.md) |
 | Production overlay on a real cluster | Needs managed Postgres, RabbitMQ, a real S3 bucket, secrets, an ingress controller and a CNI that enforces NetworkPolicy | [production-cluster.md](production-cluster.md) |
 | Throughput on real data and hardware | CI runners are shared and have no GPU, and the real dataset is not available there | [performance.md](performance.md) |
@@ -37,6 +39,7 @@ move it out of this folder.
 | Before tagging a release | everything, in the order of the table above |
 | Changed the loader, the nuScenes reader or the image path | [real-run.md](real-run.md) |
 | Changed the captioning backends, batching or prompts | [real-run.md](real-run.md) and [performance.md](performance.md) |
+| Changed a command, option, setting or anything the docs describe | [docs.md](docs.md) |
 | Changed `report_template.html` or the report metrics | [report-ui.md](report-ui.md) |
 | Changed `deploy/production` or the Dockerfile | [production-cluster.md](production-cluster.md) |
 

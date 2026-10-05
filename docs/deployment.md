@@ -153,7 +153,7 @@ KEDA reads queue depth from the management API.
 
 Every step a release used to be checked by hand for runs in CI: lint, types and the unit and integration tests (on Linux
 and Windows), the report UI in headless Chrome, the built wheel installed into an empty environment, the Compose stack
-end to end (`just test-system`), the Kubernetes base on a kind cluster with autoscaling, the schemas of every manifest,
+end to end (`just test-system`), the Kubernetes base on a kind cluster with autoscaling, the schemas of every manifest, a strict build of these docs,
 and that the pods start as non-root with every capability dropped (the API with a read-only root filesystem). What CI cannot do (the real dataset, the quality of
 the captions, how the report looks, a production cluster, real-data performance) is in the repository's
 `manual-testing/` folder, which is not part of these docs.

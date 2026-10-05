@@ -20,6 +20,7 @@ jobs:
     outputs:
       code: ${{ steps.filter.outputs.code }}
       deployment: ${{ steps.filter.outputs.deployment }}
+      docs: ${{ steps.filter.outputs.docs }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,6 +39,12 @@ jobs:
               - docker/**
               - deploy/**
               - .python-version
+            docs:
+              - docs/**
+              # The API reference is generated from the docstrings.
+              - backseat_driver/**
+              - pyproject.toml
+              - uv.lock
 
   lint:
     runs-on: ubuntu-latest
@@ -117,6 +124,22 @@ jobs:
           for extra in cli api ingest-worker caption-worker; do
             uv pip install --dry-run --python "$RUNNER_TEMP/clean/bin/python" "${wheel}[${extra}]"
           done
+
+  # The Docs workflow only builds on push to main, so a broken link, a page missing from the nav or a docstring that
+  # mkdocstrings cannot render would otherwise surface after the merge.
+  docs:
+    needs: changes
+    if: ${{ github.event_name == 'push' || needs.changes.outputs.docs == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --group docs
+      - run: uv run mkdocs build --strict -f docs/mkdocs.yml
 
   # CI is otherwise Linux only; the recipes and the developer machines are partly Windows.
   test-windows:
