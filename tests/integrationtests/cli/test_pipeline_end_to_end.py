@@ -195,7 +195,7 @@ def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     client = DiskS3Client(tmp_path / "buckets")
     dataset = S3DatasetStore("nuscenes", make_client=lambda _endpoint: client)
-    DatasetUploader(dataset).upload(str(dataroot), VERSION, ["CAM_FRONT"])
+    asyncio.run(DatasetUploader(dataset).upload(str(dataroot), VERSION, ["CAM_FRONT"]))
     shutil.rmtree(dataroot)  # from here on no worker has the dataset on a disk
     queue, store = FakeJobQueue(), FakeJobStore()
 
