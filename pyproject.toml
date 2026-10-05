@@ -56,7 +56,7 @@ object-storage = [
     "boto3>=1.35",
 ]
 
-# Stemming for the report metrics (`reporting/metrics.py`).
+# Stemming for the report metrics.
 report = [
     "snowballstemmer>=2.2",
 ]
@@ -78,7 +78,7 @@ caption-worker = [
 
 # Everything the batch CLI pipeline needs at runtime.
 cli = [
-    # The report UI is a FastAPI app run with `fastapi run` (see show/ui_server.py).
+    # The report UI is a FastAPI app run with `fastapi run`.
     "fastapi[standard]>=0.115",
     { include-group = "core" },
     { include-group = "report" },

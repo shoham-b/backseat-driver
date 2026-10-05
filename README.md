@@ -21,6 +21,11 @@ where the name comes from. It gives the pipeline realistic camera frames and a h
 score against; nothing in the design is specific to it. Built for the "Scene Description via VLM"
 take-home assignment (see [home_assignment_vlm.pdf](docs/home_assignment_vlm.pdf)).
 
+**Where to start.** The deliverable is `describe`: one command that reads the scenes, captions each image and
+writes a JSON file (rung 1 below). Everything after that, the API, queue, workers and Kubernetes manifests, is the
+same pipeline scaled out, kept optional and in separate layers so the core never depends on it.
+[Design decisions](docs/design-decisions.md) explains why each step up exists.
+
 ## Highlights
 
 - **Pick your model.** `--backend huggingface|ollama|anthropic` and `--model <name>`: terse captions from a

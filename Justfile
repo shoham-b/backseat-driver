@@ -141,7 +141,7 @@ k8s-validate:
     kubectl kustomize deploy/k8s > /tmp/backseat-driver-k8s.yaml
     uvx kubernetes-validate /tmp/backseat-driver-k8s.yaml
 
-# Deploy to the current kubectl context (see docs/deployment.md first: dataset volume, credentials)
+# Deploy to the current kubectl context; the dataset volume and credentials must exist first
 k8s-apply:
     kubectl apply -k deploy/k8s
 
