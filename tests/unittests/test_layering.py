@@ -1,7 +1,8 @@
 """The read-process-write core must be complete on its own: it never imports the layers added to scale it out.
 
-`transport/` (the queue and its workers), `read/s3/` (the bucket) and `write/job_store/` (the database) exist only
-because the process step can run on another machine. The core, and the platform SDKs those layers wrap, stay out.
+`transport/` (the queue, its workers and the job store), `read/s3/` (the bucket) and `write/job_store/` (the database
+tables and queries) exist only because the process step runs as tasks and can run on another machine. The core, and
+the platform SDKs those layers wrap, stay out.
 """
 
 import ast

@@ -32,7 +32,7 @@ from backseat_driver.transport.celery_job_queue import CAPTION_TASK, INGEST_TASK
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 
 
 class Workers:

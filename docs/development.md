@@ -84,8 +84,9 @@ tests/unittests/  (and tests/integrationtests/)
 │   └── s3/             bucket store, stored loader          ← backseat_driver/read/s3/
 ├── process/            captioners and their backends        ← backseat_driver/process/
 ├── write/              JSON writer                          ← backseat_driver/write/
-│   └── job_store/      job stores                           ← backseat_driver/write/job_store/
+│   └── job_store/      job database: tables, queries        ← backseat_driver/write/job_store/
 ├── transport/          queues, workers, the API job client  ← backseat_driver/transport/
+│   └── job_store/      job store: results + job state       ← backseat_driver/transport/job_store/
 ├── show/               report, metrics, report UI           ← backseat_driver/show/
 ├── api/                routes, dependencies, handlers       ← backseat_driver/api/
 ├── cli/                commands                             ← backseat_driver/cli/
@@ -179,8 +180,9 @@ backseat_driver/
 │   └── s3/         #    (added) the dataset in a bucket: needed once workers run on other machines
 ├── process/        # 2. process: Captioner port, CaptionBackend (HuggingFace/Ollama/Anthropic) + CaptionModel
 ├── write/          # 3. write: JSON writer
-│   └── job_store/  #    (added) JobStore port, SQLite/Postgres stores: results from many workers
+│   └── job_store/  #    (added) the job database's tables and queries: what actually writes
 ├── transport/      # (added) the seam between read and process: JobQueue, in-process + Celery queues, ingest/caption workers
+│   └── job_store/  #    JobStore port and its SQL/in-memory adapters: results from many workers and the job record that says when they are all in
 ├── show/           # separate role: report and UI over what was written
 ├── errors.py       # BackseatDriverError hierarchy
 ├── cli/            # Typer CLI — describe, report, worker, db, dataset, test smoke

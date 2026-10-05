@@ -1,9 +1,10 @@
-"""Port for job state and results.
+"""Port for a job's record and the descriptions produced for it: the write, made incremental.
 The SQL implementation (Postgres when distributed, SQLite for the monolith) lives next to it in `sql_job_store.py`.
 
 A job's state is derived from how many scenes it expects versus how many
 descriptions have been recorded (and whether an error was recorded), never stored. That removes the race a separate
-"mark complete" step would have between concurrent caption workers.
+"mark complete" step would have between concurrent caption workers. The record and the descriptions share one port
+because that count is what the state is derived from.
 """
 
 from abc import ABC, abstractmethod

@@ -1,6 +1,6 @@
 # Distributed mode
 
-This is rung 3 of [From pipeline to cluster](ladder.md). The batch CLI is the primary deliverable: one process, one flow, read → process → write. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The ingest worker is the read step turned into a producer, and the caption worker runs the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs. Across machines two more pieces appear because nothing is shared any more: the dataset moves to a bucket (`read/s3/`) and the results to a database (`write/job_store/`).
+This is rung 3 of [From pipeline to cluster](ladder.md). The batch CLI is the primary deliverable: one process, one flow, read → process → write. Distributed mode is an **optional layer around that same flow**, not a rewrite of it. The ingest worker is the read step turned into a producer, and the caption worker runs the same `describe_keyframe()` step the CLI pipeline uses, so what a scene's description *is* lives in one place; the queue only decides *where* each step runs. Across machines two things change because nothing is shared any more: the dataset moves to a bucket (`read/s3/`), and the job store (results and job state), which the seam already needed as a SQLite file, moves to a shared Postgres database (`transport/job_store/`).
 
 ```mermaid
 flowchart TD

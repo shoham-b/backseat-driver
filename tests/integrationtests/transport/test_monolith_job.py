@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from backseat_driver.models import IngestTask, JobState, SceneKeyframe
 from backseat_driver.stacks import build_job_backend
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_keyframe, make_settings
 from tests.waiting import wait_until
 

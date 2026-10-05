@@ -1,9 +1,5 @@
-"""The distributed write: one row per description, in a store every worker can reach.
+"""The database behind the job store: `orm.py` (the tables) and `storage.py` (the engine, sessions and queries).
 
-The monolith's write step collects every description and writes one JSON file at the end. When workers run apart,
-results arrive one at a time, in any order and possibly twice, so the write must be incremental and idempotent, and
-whether a job is finished is derived from the counts instead of being a step someone performs.
-
-    CaptionWorker ──record_description──▶ JobStore ◀──── API ◀──── show/
-                                          (SQLite in the monolith, Postgres across machines)
+This is the part that actually writes. The port and its adapters, which map these rows to domain models and say when a
+job is complete, live with the seam in `transport/job_store/`.
 """
