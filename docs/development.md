@@ -182,7 +182,7 @@ backseat_driver/
 ├── write/          # 3. write: JSON writer
 │   └── job_store/  #    (added) the job database's tables and queries: what actually writes
 ├── transport/      # (added) the seam between read and process: JobQueue, in-process + Celery queues, ingest/caption workers
-│   └── job_store/  #    JobStore port and its SQL/in-memory adapters: results from many workers and the job record that says when they are all in
+│   └── job_store/  #    JobStore port and its SQL adapter: results from many workers and the job record that says when they are all in
 ├── show/           # separate role: report and UI over what was written
 ├── errors.py       # BackseatDriverError hierarchy
 ├── cli/            # Typer CLI — describe, report, worker, db, dataset, test smoke

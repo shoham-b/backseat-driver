@@ -14,7 +14,7 @@ The program is read → process → write, and there are three ways to run it: e
 
 | Mode | What runs where | Commands |
 |---|---|---|
-| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with an in-memory store and the dataset read from `data/`, so the broker (RabbitMQ), the object store (S3), the database and the separate workers are all dropped. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just describe` |
+| **1. Dev: local** | Everything on your machine, no Docker. The API runs as a **monolith** (`BACKSEAT_DRIVER_MODE=monolith`, the default): `/jobs` is processed on a thread inside the API with a SQLite file as its store and the dataset read from `data/`, so the broker (RabbitMQ), the object store (S3), the database and the separate workers are all dropped. To debug against real infrastructure instead, `just dev-distributed` runs the host API in distributed mode with RabbitMQ + Postgres in Docker. | `just dev`, `just dev-distributed`, `just describe` |
 | **2. Prod-like: Docker Compose** | The same images production uses, the whole stack on one machine. | `just up` (`just up-dev` hot-reloads the API) |
 | **3. Prod: one container per service** | Each service runs from its own image. In Kubernetes, RabbitMQ and Postgres come from the cluster (or managed services), so nothing here starts infra. | `just k8s-apply` (see [Deployment](deployment.md)); `just k8s-up` for a local kind cluster with autoscaling; `just serve` is the API's command outside a container |
 
