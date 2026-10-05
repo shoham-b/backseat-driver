@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 
 from backseat_driver.config import RunMode, Settings, VlmBackend, get_settings
@@ -56,8 +56,6 @@ def test_api_url_property() -> None:
     assert s.api_url == "http://0.0.0.0:8000"
 
 
-# Building Settings per example can exceed Hypothesis' 200ms default deadline when the machine is loaded.
-@settings(deadline=None)
 @given(port=st.integers(min_value=1, max_value=65535))
 def test_api_url_includes_port(port: int) -> None:
     s = make_settings(api_port=port)
@@ -65,7 +63,6 @@ def test_api_url_includes_port(port: int) -> None:
     assert f":{port}" in s.api_url
 
 
-@settings(deadline=None)
 @given(host=st.from_regex(r"[a-z0-9][a-z0-9.-]*", fullmatch=True))
 def test_api_url_includes_host(host: str) -> None:
     s = make_settings(api_host=host)
@@ -101,7 +98,6 @@ def test_model_name_for_fails_fast_when_no_model_is_chosen(backend: VlmBackend) 
         s.model_name_for(backend)
 
 
-@settings(deadline=None)
 @given(model=st.text(min_size=1))
 def test_output_path_filename_is_always_safe(model: str) -> None:
     path = make_settings().output_path_for(VlmBackend.OLLAMA, model)

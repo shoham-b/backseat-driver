@@ -11,31 +11,20 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 import pytest
-from sqlalchemy.exc import IntegrityError
 
-from backseat_driver.errors import NotFoundError
+from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import DeadLetter, JobState, SceneDescription
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.job_store import JobStore
 from backseat_driver.write.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeJobStore
 
-# What each store raises when a second job claims an idempotency key. They differ today: the SQL store lets the
-# database's unique constraint speak, the other two check first. The API never reaches this path (it looks the key up
-# before creating), so the difference is pinned here rather than hidden.
-DUPLICATE_KEY_ERRORS = {"in_memory": ValueError, "fake": ValueError, "sql": IntegrityError}
-
 
 @pytest.fixture(params=["in_memory", "sql", "fake"])
-def store_kind(request: pytest.FixtureRequest) -> str:
-    return request.param
-
-
-@pytest.fixture
-def store(store_kind: str, request: pytest.FixtureRequest) -> JobStore:
-    if store_kind == "sql":
+def store(request: pytest.FixtureRequest) -> JobStore:
+    if request.param == "sql":
         return SqlJobStore(request.getfixturevalue("sqlite_storage"))
-    return InMemoryJobStore() if store_kind == "in_memory" else FakeJobStore()
+    return InMemoryJobStore() if request.param == "in_memory" else FakeJobStore()
 
 
 def _description(n: int, text: str | None = None, camera_channel: str = "CAM_FRONT") -> SceneDescription:
@@ -202,11 +191,14 @@ def test_an_unknown_idempotency_key_finds_nothing(store: JobStore) -> None:
     assert store.find_job_by_idempotency_key("other") is None
 
 
-def test_a_second_job_cannot_claim_a_used_idempotency_key(store: JobStore, store_kind: str) -> None:
-    _new_job(store, idempotency_key="key-1")
+def test_a_second_job_cannot_claim_a_used_idempotency_key(store: JobStore) -> None:
+    first = _new_job(store, idempotency_key="key-1")
 
-    with pytest.raises(DUPLICATE_KEY_ERRORS[store_kind]):
+    with pytest.raises(IdempotencyKeyInUseError, match="key-1") as raised:
         _new_job(store, idempotency_key="key-1")
+
+    assert raised.value.key == "key-1"
+    assert [job.job_id for job in store.list_jobs()] == [first]
 
 
 def test_jobs_without_a_key_never_collide(store: JobStore) -> None:
@@ -305,11 +297,7 @@ def test_a_dead_letter_does_not_change_the_job_state_by_itself(store: JobStore) 
         "list_dead_letters",
     ],
 )
-def test_an_unknown_job_is_not_found(
-    store: JobStore, store_kind: str, request: pytest.FixtureRequest, operation: Callable[[JobStore, UUID], object]
-) -> None:
-    if store_kind == "sql" and "record_description" in request.node.callspec.id:
-        pytest.skip("SQLite does not enforce the foreign key; Postgres rejects the row with an IntegrityError")
+def test_an_unknown_job_is_not_found(store: JobStore, operation: Callable[[JobStore, UUID], object]) -> None:
     unknown = uuid4()
 
     with pytest.raises(NotFoundError, match=str(unknown)):

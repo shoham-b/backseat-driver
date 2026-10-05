@@ -2,6 +2,12 @@ import os
 from collections.abc import Iterator
 
 import pytest
+from hypothesis import settings
+
+# Hypothesis' 200ms per-example deadline measures the machine, not the code: a loaded laptop or CI runner fails
+# property tests of pure functions. What the properties assert does not depend on speed.
+settings.register_profile("tests", deadline=None)
+settings.load_profile("tests")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

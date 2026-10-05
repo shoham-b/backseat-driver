@@ -9,7 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from backseat_driver.config import Settings
-from backseat_driver.errors import NotFoundError
+from backseat_driver.errors import IdempotencyKeyInUseError, NotFoundError
 from backseat_driver.models import (
     CaptionTask,
     DeadLetter,
@@ -73,7 +73,7 @@ class FakeJobStore(JobStore):
     ) -> None:
         if idempotency_key is not None:
             if idempotency_key in self._keys:
-                raise ValueError(f"idempotency key {idempotency_key!r} is already used")
+                raise IdempotencyKeyInUseError(idempotency_key)
             self._keys[idempotency_key] = job_id
         self._jobs[job_id] = (transaction_id, max_scenes, None, datetime.now(UTC))
         self._descriptions[job_id] = {}
