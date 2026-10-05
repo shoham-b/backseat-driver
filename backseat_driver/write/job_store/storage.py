@@ -10,12 +10,14 @@ from collections.abc import Callable
 from uuid import UUID
 
 from loguru import logger
-from sqlalchemy import create_engine, func, inspect, select, update
+from sqlalchemy import create_engine, event, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine, make_url
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry
 
 from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
 
@@ -27,6 +29,13 @@ def description_insert(job_id: UUID, values: dict) -> Insert:
         .values(job_id=job_id, **values)
         .on_conflict_do_nothing(index_elements=["job_id", "scene_token", "camera_channel"])
     )
+
+
+def _enforce_foreign_keys(dbapi_connection: DBAPIConnection, _record: ConnectionPoolEntry) -> None:
+    """SQLite ignores foreign keys unless each connection asks for them; Postgres always enforces them."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
 
 
 class JobStorage:
@@ -168,7 +177,10 @@ class JobStorage:
         if self._engine is None:
             is_sqlite = make_url(self._database_url).get_backend_name() == "sqlite"
             connect_args = {"timeout": 10, "check_same_thread": False} if is_sqlite else {"connect_timeout": 10}
-            self._engine = self._engine_factory(
+            engine = self._engine_factory(
                 self._database_url, pool_size=4, max_overflow=0, pool_pre_ping=True, connect_args=connect_args
             )
+            if engine.dialect.name == "sqlite":
+                event.listen(engine, "connect", _enforce_foreign_keys)
+            self._engine = engine
         return self._engine

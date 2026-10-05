@@ -17,6 +17,14 @@ class UnprocessableError(BackseatDriverError):
     """Input is syntactically valid but violates domain rules."""
 
 
+class IdempotencyKeyInUseError(BackseatDriverError):
+    """A job was already created under this idempotency key."""
+
+    def __init__(self, key: str) -> None:
+        super().__init__(f"idempotency key {key!r} is already used")
+        self.key = key
+
+
 class HttpStatusError(RuntimeError):
     """An HTTP call we made was answered with an error status.
 

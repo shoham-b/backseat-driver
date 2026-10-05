@@ -1,7 +1,7 @@
 import time
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Literal, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -138,11 +138,20 @@ def test_a_job_is_found_by_its_idempotency_key(store: SqlJobStore) -> None:
     assert store.find_job_by_idempotency_key("other") is None
 
 
-def test_the_database_rejects_a_second_job_under_the_same_key(store: SqlJobStore) -> None:
-    store.create_job(uuid4(), None, "tx", idempotency_key="key-1")
+def test_a_constraint_other_than_the_key_is_not_reported_as_a_taken_key(store: SqlJobStore) -> None:
+    missing_transaction_id = cast(str, None)
 
     with pytest.raises(IntegrityError):
-        store.create_job(uuid4(), None, "tx", idempotency_key="key-1")
+        store.create_job(uuid4(), None, missing_transaction_id, idempotency_key="key-1")
+
+
+def test_a_constraint_other_than_the_job_is_not_reported_as_not_found(store: SqlJobStore) -> None:
+    job_id = uuid4()
+    store.create_job(job_id, None, "tx")
+    without_camera = _description(1).model_copy(update={"camera_channel": None})  # copying skips validation
+
+    with pytest.raises(IntegrityError):
+        store.record_description(job_id, without_camera)
 
 
 def test_jobs_without_a_key_never_collide(store: SqlJobStore) -> None:

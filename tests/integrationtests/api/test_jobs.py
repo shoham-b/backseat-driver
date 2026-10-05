@@ -1,16 +1,41 @@
 from datetime import UTC, datetime
 from http import HTTPStatus
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from fastapi.testclient import TestClient
 
 from backseat_driver.api.dependencies import get_job_queue, get_job_store
 from backseat_driver.api.middleware import REQUEST_ID_HEADER
-from backseat_driver.models import DeadLetter, JobState
+from backseat_driver.errors import IdempotencyKeyInUseError
+from backseat_driver.models import DeadLetter, Job, JobState
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
 from tests.integrationtests.conftest import ClientFactory
+
+
+class _LookupMissesOnce(FakeJobStore):
+    """The idempotency lookup misses the first time, as it does for a request that runs before the winner has
+    created its job."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._missed = False
+
+    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+        if not self._missed:
+            self._missed = True
+            return None
+        return super().find_job_by_idempotency_key(idempotency_key)
+
+
+class _KeyTakenByNoJob(FakeJobStore):
+    """Claims every key is taken yet finds no job under it, which a real store never does."""
+
+    def create_job(
+        self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
+    ) -> None:
+        raise IdempotencyKeyInUseError("order-1")
 
 
 def test_create_job_returns_accepted_and_enqueues_ingest(
@@ -128,3 +153,26 @@ def test_job_runs_to_completion_through_both_workers(client_with: ClientFactory)
     assert job["state"] == JobState.COMPLETED
     assert (job["expected_scenes"], job["completed_scenes"]) == (2, 2)
     assert [d["scene_name"] for d in descriptions] == ["scene-0001", "scene-0002"]
+
+
+def test_a_retry_that_loses_the_race_for_its_key_gets_the_first_job_back(client_with: ClientFactory) -> None:
+    queue, store = FakeJobQueue(), _LookupMissesOnce()
+    first_job_id = uuid4()
+    store.create_job(first_job_id, None, "tx-first", "order-1")
+    client = client_with({get_job_queue: lambda: queue, get_job_store: lambda: store})
+
+    response = client.post("/jobs", headers={"Idempotency-Key": "order-1"})
+
+    assert response.status_code == HTTPStatus.OK
+    assert UUID(response.json()["job_id"]) == first_job_id
+    assert queue.ingest_tasks == []
+
+
+def test_a_taken_key_without_a_job_is_a_conflict_not_a_server_error(client_with: ClientFactory) -> None:
+    queue = FakeJobQueue()
+    client = client_with({get_job_queue: lambda: queue, get_job_store: _KeyTakenByNoJob})
+
+    response = client.post("/jobs", headers={"Idempotency-Key": "order-1"})
+
+    assert response.status_code == HTTPStatus.CONFLICT
+    assert queue.ingest_tasks == []

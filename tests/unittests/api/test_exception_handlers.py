@@ -10,7 +10,7 @@ from backseat_driver.api.exception_handlers import (
     backseat_driver_error_handler,
     unhandled_exception_handler,
 )
-from backseat_driver.errors import BackseatDriverError, NotFoundError, UnprocessableError
+from backseat_driver.errors import BackseatDriverError, IdempotencyKeyInUseError, NotFoundError, UnprocessableError
 
 _REQUEST = Request({"type": "http"})
 
@@ -24,6 +24,7 @@ class _UnmappedBackseatDriverError(BackseatDriverError):
     [
         (NotFoundError("gone"), HTTPStatus.NOT_FOUND),
         (UnprocessableError("bad"), HTTPStatus.UNPROCESSABLE_ENTITY),
+        (IdempotencyKeyInUseError("key-1"), HTTPStatus.CONFLICT),
         (BackseatDriverError("generic"), HTTPStatus.BAD_REQUEST),
         (_UnmappedBackseatDriverError("new kind"), HTTPStatus.BAD_REQUEST),
     ],
