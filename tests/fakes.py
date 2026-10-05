@@ -227,8 +227,14 @@ class _KeywordSettings(Settings):
         return (init_settings,)
 
 
+def keyword_settings(**values: Any) -> Settings:
+    """Settings with exactly the given values, ignoring the environment and any .env file; every other field keeps
+    its default in the code, which is what a test of those defaults needs."""
+    return _KeywordSettings(**values)
+
+
 def make_settings(**overrides: Any) -> Settings:
-    """Settings straight from keyword arguments, ignoring the environment and any .env file.
+    """`keyword_settings` plus what a test of the running service needs.
 
     A model is chosen for every backend, since building a captioner without one fails on purpose.
     """
@@ -239,7 +245,7 @@ def make_settings(**overrides: Any) -> Settings:
         "ollama_model_name": "fake-model",
         "anthropic_model_name": "fake-model",
     }
-    return _KeywordSettings(**{**models, **overrides})
+    return keyword_settings(**{**models, **overrides})
 
 
 def make_image_uri(n: int) -> str:

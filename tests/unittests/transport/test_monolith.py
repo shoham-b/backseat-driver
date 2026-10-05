@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from backseat_driver.config import RunMode, Settings
+from backseat_driver.config import RunMode
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import CaptionTask, IngestTask, JobState, SceneKeyframe
 from backseat_driver.pipeline import describe_keyframe
@@ -15,15 +15,15 @@ from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
 from backseat_driver.write.job_store.sql_job_store import SqlJobStore
-from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_image_uri, make_keyframe
+from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, keyword_settings, make_image_uri, make_keyframe
 
 
 def test_mode_defaults_to_monolith() -> None:
-    assert Settings(_env_file=None).mode is RunMode.MONOLITH
+    assert keyword_settings().mode is RunMode.MONOLITH
 
 
 def test_distributed_mode_builds_celery_and_postgres() -> None:
-    settings = Settings(_env_file=None, mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes")
+    settings = keyword_settings(mode=RunMode.DISTRIBUTED, dataset_bucket="nuscenes")
 
     queue, store = build_job_backend(settings, FakeCaptioner(), FakeImageStore())
 
@@ -33,7 +33,7 @@ def test_distributed_mode_builds_celery_and_postgres() -> None:
 
 def test_monolith_keeps_jobs_in_memory_when_no_database_file_is_configured() -> None:
     _, store = build_job_backend(
-        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""), FakeCaptioner(), FakeImageStore()
+        keyword_settings(mode=RunMode.MONOLITH, jobs_db_path=""), FakeCaptioner(), FakeImageStore()
     )
 
     assert isinstance(store, InMemoryJobStore)
@@ -42,7 +42,7 @@ def test_monolith_keeps_jobs_in_memory_when_no_database_file_is_configured() -> 
 def test_monolith_job_runs_to_completion_without_a_broker() -> None:
     keyframes = [make_keyframe(1), make_keyframe(2)]
     queue, store = build_job_backend(
-        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""),
+        keyword_settings(mode=RunMode.MONOLITH, jobs_db_path=""),
         FakeCaptioner(),
         FakeImageStore(),
         build_loader=lambda settings: FakeSceneLoader(keyframes),
@@ -66,7 +66,7 @@ class _BrokenLoader(FakeSceneLoader):
 
 def test_monolith_task_that_fails_is_kept_as_a_dead_letter() -> None:
     queue, store = build_job_backend(
-        Settings(_env_file=None, mode=RunMode.MONOLITH, jobs_db_path=""),
+        keyword_settings(mode=RunMode.MONOLITH, jobs_db_path=""),
         FakeCaptioner(),
         FakeImageStore(),
         build_loader=lambda settings: _BrokenLoader([]),
