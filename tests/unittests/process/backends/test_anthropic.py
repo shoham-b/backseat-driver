@@ -99,6 +99,73 @@ async def test_generate_many_fails_when_one_request_fails(tmp_path: Path) -> Non
         await backend.generate_many([str(path)], _MODEL)
 
 
+class _CountingHttp(FakeHttpClient):
+    """Holds each request briefly and records how many were in flight at once."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.running = 0
+        self.peak = 0
+
+    async def post_json_async(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        self.running += 1
+        self.peak = max(self.peak, self.running)
+        await asyncio.sleep(0.01)
+        self.running -= 1
+        return _text_response("ok")
+
+
+async def test_generate_many_keeps_a_bounded_number_of_requests_in_flight(tmp_path: Path) -> None:
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"a")
+    http = _CountingHttp()
+
+    await AnthropicBackend(http, api_key="k").generate_many([str(path)] * 20, _MODEL)
+
+    assert 1 < http.peak <= 8
+
+
+class _FirstFailsRestWaitHttp(FakeHttpClient):
+    """The first request fails once all of them are in flight; the others never answer, so only a cancel ends them."""
+
+    def __init__(self, parties: int) -> None:
+        super().__init__()
+        self._parties = parties
+        self._arrived = 0
+        self._all_arrived = asyncio.Event()
+        self.cancelled = 0
+
+    async def post_json_async(
+        self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
+    ) -> dict[str, Any]:
+        self._arrived += 1
+        first = self._arrived == 1
+        if self._arrived == self._parties:
+            self._all_arrived.set()
+        await self._all_arrived.wait()
+        if first:
+            raise RuntimeError("Anthropic returned HTTP 400: bad image")
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled += 1
+            raise
+        raise AssertionError("unreachable")
+
+
+async def test_generate_many_cancels_the_other_requests_when_one_fails(tmp_path: Path) -> None:
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"a")
+    http = _FirstFailsRestWaitHttp(parties=4)
+
+    with pytest.raises(RuntimeError, match="HTTP 400"):
+        await AnthropicBackend(http, api_key="k").generate_many([str(path)] * 4, _MODEL)
+
+    assert http.cancelled == 3
+
+
 class _NeverAnswersHttp(FakeHttpClient):
     async def post_json_async(
         self, url: str, payload: dict[str, Any], headers: dict[str, str], service: str
