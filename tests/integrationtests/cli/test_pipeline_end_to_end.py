@@ -8,7 +8,7 @@ import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from typer.testing import CliRunner
@@ -23,6 +23,7 @@ from backseat_driver.read.s3.uploader import DatasetUploader
 from backseat_driver.stacks import build_image_store, build_job_backend
 from backseat_driver.transport.caption_worker import CaptionWorker
 from backseat_driver.transport.ingest_worker import IngestWorker
+from backseat_driver.transport.job_store.job_store import JobStore
 from tests.ansi import plain
 from tests.fakes import DiskS3Client, FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, make_settings
 from tests.nuscenes_dataset import (
@@ -33,7 +34,7 @@ from tests.nuscenes_dataset import (
     middle_image,
 )
 from tests.stub_server import Responder, StubServer, json_reply
-from tests.waiting import wait_until
+from tests.waiting import wait_until_async
 
 runner = CliRunner()
 CAPTION = "a parked truck near construction"
@@ -168,19 +169,19 @@ def test_describe_rejects_all_cameras_together_with_camera(cli_env: dict[str, st
     assert result.exit_code == 2
 
 
-def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_path: Path) -> None:
+async def test_distributed_workers_over_the_real_loader_keep_the_reference_label(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     queue, store, captioner, images = FakeJobQueue(), FakeJobStore(), FakeCaptioner("a truck"), FakeImageStore()
     loader = NuScenesSceneLoader(dataroot=str(dataroot), version=VERSION)
     job_id = uuid4()
-    store.create_job(job_id, None, "txn-1")
+    await store.create_job(job_id, None, "txn-1")
 
-    IngestWorker(loader, queue, store, images).handle(IngestTask(job_id=job_id, transaction_id="txn-1"))
+    await IngestWorker(loader, queue, store, images).handle(IngestTask(job_id=job_id, transaction_id="txn-1"))
     for task in queue.caption_tasks:
-        CaptionWorker(captioner, store, images).handle(task)
-    descriptions = store.list_descriptions(job_id)
+        await CaptionWorker(captioner, store, images).handle(task)
+    descriptions = await store.list_descriptions(job_id)
 
-    assert store.get_job(job_id).expected_scenes == len(SCENE_LABELS)
+    assert (await store.get_job(job_id)).expected_scenes == len(SCENE_LABELS)
     assert [d.reference_description for d in descriptions] == SCENE_LABELS
 
 
@@ -191,11 +192,11 @@ class _ByteCountingCaptioner(FakeCaptioner):
         return f"{len(await asyncio.to_thread(Path(image_path).read_bytes))} bytes"
 
 
-def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path: Path) -> None:
+async def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     client = DiskS3Client(tmp_path / "buckets")
     dataset = S3DatasetStore("nuscenes", make_client=lambda _endpoint: client)
-    asyncio.run(DatasetUploader(dataset).upload(str(dataroot), VERSION, ["CAM_FRONT"]))
+    await DatasetUploader(dataset).upload(str(dataroot), VERSION, ["CAM_FRONT"])
     shutil.rmtree(dataroot)  # from here on no worker has the dataset on a disk
     queue, store = FakeJobQueue(), FakeJobStore()
 
@@ -204,34 +205,40 @@ def test_a_job_runs_from_the_bucket_alone_once_the_dataset_is_uploaded(tmp_path:
 
     loader = StoredSceneLoader(dataset, VERSION, make_loader)
     job_id = uuid4()
-    store.create_job(job_id, None, "txn-1")
+    await store.create_job(job_id, None, "txn-1")
 
-    IngestWorker(loader, queue, store, dataset).handle(IngestTask(job_id=job_id, transaction_id="txn-1"))
+    await IngestWorker(loader, queue, store, dataset).handle(IngestTask(job_id=job_id, transaction_id="txn-1"))
     for task in queue.caption_tasks:
-        CaptionWorker(_ByteCountingCaptioner(), store, dataset).handle(task)
-    descriptions = store.list_descriptions(job_id)
+        await CaptionWorker(_ByteCountingCaptioner(), store, dataset).handle(task)
+    descriptions = await store.list_descriptions(job_id)
 
-    assert store.get_job(job_id).completed_scenes == len(SCENE_LABELS)
+    assert (await store.get_job(job_id)).completed_scenes == len(SCENE_LABELS)
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
     assert all(d.description.endswith(" bytes") for d in descriptions)
     assert [d.reference_description for d in descriptions] == SCENE_LABELS
+
+
+async def _is_completed(store: JobStore, job_id: UUID) -> bool:
+    return (await store.get_job(job_id)).state is JobState.COMPLETED
 
 
 async def test_the_monolith_reports_images_by_key_and_the_store_serves_them(tmp_path: Path) -> None:
     dataroot = build_nuscenes_dataset(tmp_path / "nuscenes")
     settings = make_settings(nuscenes_dataroot=str(dataroot), nuscenes_version=VERSION)
     images = build_image_store(settings)
-    queue, store = build_job_backend(settings, _ByteCountingCaptioner(), images)
+    queue, store = await build_job_backend(settings, _ByteCountingCaptioner(), images)
     job_id = uuid4()
-    store.create_job(job_id, None, "txn-1")
+    await store.create_job(job_id, None, "txn-1")
 
-    queue.enqueue_ingest(IngestTask(job_id=job_id, transaction_id="txn-1"))
-    wait_until(lambda: store.get_job(job_id).state is JobState.COMPLETED, "the job to complete")
-    descriptions = store.list_descriptions(job_id)
+    await queue.enqueue_ingest(IngestTask(job_id=job_id, transaction_id="txn-1"))
+    await wait_until_async(lambda: _is_completed(store, job_id), "the job to complete")
+    descriptions = await store.list_descriptions(job_id)
 
     assert [d.image_path for d in descriptions] == [middle_image(i) for i in range(len(SCENE_LABELS))]
     async with images.local_copy(images.uri_for(descriptions[0].image_path)) as path:
         assert path.read_bytes()
+    await queue.close()
+    await store.close()
 
 
 def test_describe_distributed_rejects_options_that_only_apply_to_the_monolith(

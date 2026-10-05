@@ -1,5 +1,4 @@
 import asyncio
-import threading
 from collections.abc import Callable
 from http import HTTPStatus
 
@@ -96,39 +95,32 @@ class _LoopProbingCaptioner(FakeCaptioner):
         return True
 
 
-class _ThreadProbingQueue(FakeJobQueue):
-    """Records which thread its (blocking) health check ran on."""
-
+class _LoopProbingQueue(FakeJobQueue):
     def __init__(self) -> None:
         super().__init__()
-        self.thread_id: int | None = None
+        self.loop_id: int | None = None
 
-    def healthcheck(self) -> bool:
-        self.thread_id = threading.get_ident()
+    async def healthcheck(self) -> bool:
+        self.loop_id = id(asyncio.get_running_loop())
         return True
 
 
-def test_readiness_awaits_the_captioner_and_probes_the_blocking_clients_off_the_event_loop(
-    client_with: ClientFactory,
-) -> None:
-    captioner, queue = _LoopProbingCaptioner(), _ThreadProbingQueue()
-    server: dict[str, int] = {}
+class _LoopProbingStore(FakeJobStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.loop_id: int | None = None
 
-    async def store_on_the_servers_loop() -> FakeJobStore:
-        server["loop"], server["thread"] = id(asyncio.get_running_loop()), threading.get_ident()
-        return FakeJobStore()
+    async def healthcheck(self) -> bool:
+        self.loop_id = id(asyncio.get_running_loop())
+        return True
 
-    client = client_with(
-        {
-            get_captioner: lambda: captioner,
-            get_job_queue: lambda: queue,
-            get_job_store: store_on_the_servers_loop,
-        }
-    )
+
+def test_readiness_awaits_every_probe_on_the_servers_event_loop(client_with: ClientFactory) -> None:
+    captioner, queue, store = _LoopProbingCaptioner(), _LoopProbingQueue(), _LoopProbingStore()
+    client = client_with({get_captioner: lambda: captioner, get_job_queue: lambda: queue, get_job_store: lambda: store})
 
     response = client.get("/ready")
 
     assert response.status_code == HTTPStatus.OK
-    assert captioner.loop_id == server["loop"]
-    assert queue.thread_id is not None
-    assert queue.thread_id != server["thread"]
+    assert captioner.loop_id is not None
+    assert captioner.loop_id == queue.loop_id == store.loop_id

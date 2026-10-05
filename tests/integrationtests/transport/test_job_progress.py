@@ -8,18 +8,18 @@ from backseat_driver.transport.ingest_worker import IngestWorker
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeJobQueue, FakeJobStore, FakeSceneLoader, make_keyframe
 
 
-def test_a_job_moves_from_pending_through_running_to_completed() -> None:
+async def test_a_job_moves_from_pending_through_running_to_completed() -> None:
     job_id, queue, store = uuid4(), FakeJobQueue(), FakeJobStore()
-    store.create_job(job_id, None, "tx")
+    await store.create_job(job_id, None, "tx")
     ingest = IngestWorker(FakeSceneLoader([make_keyframe(1), make_keyframe(2)]), queue, store, FakeImageStore())
     caption = CaptionWorker(FakeCaptioner(), store, FakeImageStore())
-    states = [store.get_job(job_id).state]
+    states = [(await store.get_job(job_id)).state]
 
-    ingest.handle(IngestTask(job_id=job_id, transaction_id="tx"))
-    states.append(store.get_job(job_id).state)
-    caption.handle(queue.caption_tasks[0])
-    states.append(store.get_job(job_id).state)
-    caption.handle(queue.caption_tasks[1])
-    states.append(store.get_job(job_id).state)
+    await ingest.handle(IngestTask(job_id=job_id, transaction_id="tx"))
+    states.append((await store.get_job(job_id)).state)
+    await caption.handle(queue.caption_tasks[0])
+    states.append((await store.get_job(job_id)).state)
+    await caption.handle(queue.caption_tasks[1])
+    states.append((await store.get_job(job_id)).state)
 
     assert states == [JobState.PENDING, JobState.RUNNING, JobState.RUNNING, JobState.COMPLETED]

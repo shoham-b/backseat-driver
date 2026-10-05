@@ -24,7 +24,7 @@ This repository is a monorepo of microservices (`api`, `ingest-worker`, `caption
 
 | Mode | Queue / store | Used by |
 |---|---|---|
-| `monolith` (default) | `InProcessJobQueue` / `SqlJobStore` over SQLite / `LocalImageStore` — the same `IngestWorker` and `CaptionWorker` handlers run on one background thread inside the API process, sharing its captioner. No RabbitMQ, no Postgres, no S3 | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`) so they survive a restart |
+| `monolith` (default) | `InProcessJobQueue` / `SqlJobStore` over SQLite / `LocalImageStore` — the same `IngestWorker` and `CaptionWorker` handlers run one at a time as a task on the API process's event loop, sharing its captioner. No RabbitMQ, no Postgres, no S3 | `just dev`, `just serve`: nothing but the API (and the dataset in `./data`) is needed. Jobs are kept in a SQLite file (`BACKSEAT_DRIVER_JOBS_DB_PATH`) so they survive a restart |
 | `distributed` | `CeleryJobQueue` (RabbitMQ) / `SqlJobStore` / S3 dataset bucket | `docker compose` and Kubernetes, which set the mode and run every service below; and `just dev-distributed` to debug the host-run API against local infrastructure |
 
 To debug the distributed path locally, run `just dev-distributed` (starts RabbitMQ + Postgres + the dev S3 store in Docker and the API on the host with `BACKSEAT_DRIVER_MODE=distributed`), then `just worker-ingest` and `just worker-caption` in other terminals.

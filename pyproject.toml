@@ -31,7 +31,9 @@ jobs = [
     "celery>=5.6.3",
     "kombu>=5.6.2",
     "psycopg[binary]>=3.2",
-    "sqlalchemy>=2.0",
+    "sqlalchemy[asyncio]>=2.0",
+    # The monolith's SQLite job store; Postgres uses psycopg's own async mode.
+    "aiosqlite>=0.20",
 ]
 # S3-compatible client for the images that travel from the ingest worker to the caption workers.
 object-storage = ["aioboto3>=13"]

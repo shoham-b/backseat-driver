@@ -10,44 +10,46 @@ from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeCaptioner, FakeImageStore, make_keyframe, make_settings
 
 
-def _monolith_store(db_path: Path) -> SqlJobStore:
+async def _monolith_store(db_path: Path) -> SqlJobStore:
     settings = make_settings(mode=RunMode.MONOLITH, jobs_db_path=str(db_path))
-    _, store = build_job_backend(settings, FakeCaptioner(), FakeImageStore())
+    _, store = await build_job_backend(settings, FakeCaptioner(), FakeImageStore())
     assert isinstance(store, SqlJobStore)
     return store
 
 
-def test_jobs_and_descriptions_survive_a_restart(tmp_path: Path) -> None:
+async def test_jobs_and_descriptions_survive_a_restart(tmp_path: Path) -> None:
     database = tmp_path / "state" / "jobs.db"
-    job_id, before = uuid4(), _monolith_store(database)
-    before.create_job(job_id, 2, "tx-1")
-    before.set_expected_scenes(job_id, 1)
+    job_id, before = uuid4(), await _monolith_store(database)
+    await before.create_job(job_id, 2, "tx-1")
+    await before.set_expected_scenes(job_id, 1)
     description = _describe(1)
-    before.record_description(job_id, description)
+    await before.record_description(job_id, description)
+    await before.close()
 
-    after = _monolith_store(database)  # a new process would build exactly this
+    after = await _monolith_store(database)  # a new process would build exactly this
 
-    job = after.get_job(job_id)
+    job = await after.get_job(job_id)
     assert (job.state, job.completed_scenes, job.max_scenes) == (JobState.COMPLETED, 1, 2)
-    assert [d.scene_name for d in after.list_descriptions(job_id)] == [description.scene_name]
-    assert [j.job_id for j in after.list_jobs()] == [job_id]
+    assert [d.scene_name for d in await after.list_descriptions(job_id)] == [description.scene_name]
+    assert [j.job_id for j in await after.list_jobs()] == [job_id]
+    await after.close()
 
 
-def test_the_database_folder_is_created_when_missing(tmp_path: Path) -> None:
+async def test_the_database_folder_is_created_when_missing(tmp_path: Path) -> None:
     database = tmp_path / "does" / "not" / "exist" / "jobs.db"
 
-    _monolith_store(database)
+    await (await _monolith_store(database)).close()
 
     assert database.is_file()
 
 
-def test_jobs_created_in_the_same_second_still_list_newest_first(tmp_path: Path) -> None:
-    store = _monolith_store(tmp_path / "jobs.db")
+async def test_jobs_created_in_the_same_second_still_list_newest_first(tmp_path: Path) -> None:
+    store = await _monolith_store(tmp_path / "jobs.db")
     ids = [uuid4() for _ in range(5)]
     for job_id in ids:
-        store.create_job(job_id, None, "tx")
+        await store.create_job(job_id, None, "tx")
 
-    assert [job.job_id for job in store.list_jobs()] == ids[::-1]
+    assert [job.job_id for job in await store.list_jobs()] == ids[::-1]
 
 
 def _describe(n: int) -> SceneDescription:

@@ -17,59 +17,62 @@ class JobStore(ABC):
     """Anything that can track jobs and the scene descriptions produced for them."""
 
     @abstractmethod
-    def create_job(
+    async def create_job(
         self, job_id: UUID, max_scenes: int | None, transaction_id: str, idempotency_key: str | None = None
     ) -> None:
         """Record a new job. Raises `IdempotencyKeyInUseError` if another job already holds `idempotency_key`."""
 
     @abstractmethod
-    def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
+    async def find_job_by_idempotency_key(self, idempotency_key: str) -> Job | None:
         """The job created under this key, or None."""
 
     @abstractmethod
-    def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
+    async def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
         """Record how many descriptions the job will produce: one per scene and camera, which is what completion is
         counted against. Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def fail_job(self, job_id: UUID, error: str) -> None:
+    async def fail_job(self, job_id: UUID, error: str) -> None:
         """Mark the job failed. The first error is kept, so a later one can't hide the root cause.
         Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
+    async def record_dead_letter(self, job_id: UUID | None, dead_letter: DeadLetter) -> None:
         """Keep a task that ran out of retries, with its payload. Does not change the job's state: `fail_job` does.
         `job_id` is None for a task whose payload named no job: it appears only in the cross-job listing.
         Raises NotFoundError for a job id that is unknown."""
 
     @abstractmethod
-    def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
+    async def list_dead_letters(self, job_id: UUID) -> list[DeadLetter]:
         """Oldest first. Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
+    async def list_recent_dead_letters(self, limit: int) -> list[JobDeadLetter]:
         """The newest `limit` dead letters across all jobs, newest first."""
 
     @abstractmethod
-    def record_description(self, job_id: UUID, description: SceneDescription) -> None:
+    async def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         """Store a description. Idempotent per (job, scene, camera): a redelivered message is a no-op.
         Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def get_job(self, job_id: UUID) -> Job:
+    async def get_job(self, job_id: UUID) -> Job:
         """Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
+    async def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
         """Jobs, newest first: only those in `state` when given, at most `limit` when given."""
 
     @abstractmethod
-    def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
+    async def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         """Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def healthcheck(self) -> bool:
+    async def healthcheck(self) -> bool:
         """True if the database is reachable."""
+
+    async def close(self) -> None:  # noqa: B027  # optional: only a pooled store holds anything open
+        """Release what the store holds open (pooled connections). The default holds nothing."""
 
 
 def derive_state(expected_scenes: int | None, completed_scenes: int, error: str | None) -> JobState:

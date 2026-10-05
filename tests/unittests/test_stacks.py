@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import pytest
-
 from backseat_driver.config import RunMode
 from backseat_driver.pipeline import ScenePipeline
 from backseat_driver.read.images.local_image_store import LocalImageStore
@@ -31,18 +29,24 @@ def test_distributed_reads_images_from_the_bucket() -> None:
     assert isinstance(build_image_store(make_settings(**DISTRIBUTED)), S3DatasetStore)
 
 
-def test_rung_2_hands_off_in_process_and_keeps_jobs_in_a_sqlite_file(tmp_path: Path) -> None:
+async def test_rung_2_hands_off_in_process_and_keeps_jobs_in_a_sqlite_file(tmp_path: Path) -> None:
     settings = make_settings(jobs_db_path=str(tmp_path / "jobs.db"))
 
-    queue, store = build_job_backend(settings, FakeCaptioner(), FakeImageStore())
+    queue, store = await build_job_backend(settings, FakeCaptioner(), FakeImageStore())
 
     assert isinstance(queue, InProcessJobQueue)
     assert isinstance(store, SqlJobStore)
 
 
-@pytest.mark.parametrize("build", [machines, lambda s: build_job_backend(s, FakeCaptioner(), FakeImageStore())])
-def test_rung_3_hands_off_over_rabbitmq_into_the_shared_database(build) -> None:
-    queue, store = build(make_settings(**DISTRIBUTED))
+async def test_rung_3_hands_off_over_rabbitmq_into_the_shared_database() -> None:
+    queue, store = machines(make_settings(**DISTRIBUTED))
+
+    assert isinstance(queue, CeleryJobQueue)
+    assert isinstance(store, SqlJobStore)
+
+
+async def test_build_job_backend_picks_rung_3_when_distributed() -> None:
+    queue, store = await build_job_backend(make_settings(**DISTRIBUTED), FakeCaptioner(), FakeImageStore())
 
     assert isinstance(queue, CeleryJobQueue)
     assert isinstance(store, SqlJobStore)

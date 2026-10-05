@@ -1,5 +1,6 @@
 """`GET /jobs`: what the report UI uses to find the jobs worth showing."""
 
+import asyncio
 from http import HTTPStatus
 from uuid import uuid4
 
@@ -27,8 +28,8 @@ def _client(client_with: ClientFactory, store: FakeJobStore) -> TestClient:
 
 def test_jobs_are_listed_newest_first(client_with: ClientFactory) -> None:
     store, first, second = FakeJobStore(), uuid4(), uuid4()
-    store.create_job(first, None, "tx-1")
-    store.create_job(second, None, "tx-2")
+    asyncio.run(store.create_job(first, None, "tx-1"))
+    asyncio.run(store.create_job(second, None, "tx-2"))
 
     response = _client(client_with, store).get("/jobs")
 
@@ -42,12 +43,14 @@ def test_an_empty_store_lists_no_jobs(client_with: ClientFactory) -> None:
 
 def test_jobs_can_be_filtered_by_state(client_with: ClientFactory) -> None:
     store, queue, pending, done = FakeJobStore(), FakeJobQueue(), uuid4(), uuid4()
-    store.create_job(pending, None, "tx-1")
-    store.create_job(done, None, "tx-2")
-    IngestWorker(FakeSceneLoader([make_keyframe(1)]), queue, store, FakeImageStore()).handle(
-        IngestTask(job_id=done, transaction_id="tx")
+    asyncio.run(store.create_job(pending, None, "tx-1"))
+    asyncio.run(store.create_job(done, None, "tx-2"))
+    asyncio.run(
+        IngestWorker(FakeSceneLoader([make_keyframe(1)]), queue, store, FakeImageStore()).handle(
+            IngestTask(job_id=done, transaction_id="tx")
+        )
     )
-    CaptionWorker(FakeCaptioner(), store, FakeImageStore()).handle(queue.caption_tasks[0])
+    asyncio.run(CaptionWorker(FakeCaptioner(), store, FakeImageStore()).handle(queue.caption_tasks[0]))
     client = _client(client_with, store)
 
     completed = client.get("/jobs", params={"state": JobState.COMPLETED.value}).json()
@@ -60,7 +63,7 @@ def test_jobs_can_be_filtered_by_state(client_with: ClientFactory) -> None:
 def test_the_listing_is_capped_by_limit_keeping_the_newest(client_with: ClientFactory) -> None:
     store, ids = FakeJobStore(), [uuid4() for _ in range(3)]
     for job_id in ids:
-        store.create_job(job_id, None, "tx")
+        asyncio.run(store.create_job(job_id, None, "tx"))
 
     response = _client(client_with, store).get("/jobs", params={"limit": 2})
 
