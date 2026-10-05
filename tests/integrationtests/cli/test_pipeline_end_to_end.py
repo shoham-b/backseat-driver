@@ -86,6 +86,22 @@ def test_describe_honours_max_scenes(cli_env: dict[str, str], tmp_path: Path) ->
     assert len(json.loads(output.read_text())) == 1
 
 
+@pytest.mark.parametrize("max_scenes", ["0", "-1"])
+def test_describe_rejects_a_max_scenes_below_one_before_doing_any_work(
+    cli_env: dict[str, str], tmp_path: Path, max_scenes: str
+) -> None:
+    output = tmp_path / "result.json"
+
+    result = runner.invoke(
+        app, ["describe", "--camera", "front", "--max-scenes", max_scenes, "--output", str(output)], env=cli_env
+    )
+
+    assert result.exit_code == 2
+    assert "--max-scenes" in plain(result.output)
+    assert not output.exists()
+    assert not (tmp_path / "cache").exists()  # usage error comes before the dataset download
+
+
 def test_describe_then_report_scores_the_descriptions_against_the_labels(
     cli_env: dict[str, str], tmp_path: Path
 ) -> None:

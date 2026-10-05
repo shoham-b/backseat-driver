@@ -194,3 +194,16 @@ def test_ingest_counts_max_scenes_in_scenes_not_cameras() -> None:
 
     assert [t.keyframe for t in queue.caption_tasks] == keyframes[:2]
     assert store.get_job(job_id).expected_scenes == 2
+
+
+@pytest.mark.parametrize("max_scenes", [0, -1])
+def test_ingest_rejects_a_max_scenes_below_one_instead_of_slicing(max_scenes: int) -> None:
+    queue, store = FakeJobQueue(), FakeJobStore()
+    job_id = _new_job(store, max_scenes=max_scenes)
+    keyframes = [make_keyframe(n) for n in (1, 2, 3)]
+
+    with pytest.raises(ValueError, match="max_scenes must be at least 1"):
+        _worker(keyframes, queue, store).handle(_ingest_task(job_id, max_scenes=max_scenes))
+
+    assert store.get_job(job_id).expected_scenes is None
+    assert queue.caption_tasks == []

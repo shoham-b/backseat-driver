@@ -39,6 +39,18 @@ def test_run_respects_max_scenes() -> None:
     assert [d.scene_name for d in descriptions] == ["scene-1", "scene-2"]
 
 
+@pytest.mark.parametrize("max_scenes", [0, -1])
+def test_run_rejects_a_max_scenes_below_one_instead_of_slicing(max_scenes: int) -> None:
+    keyframes = [_keyframe(1), _keyframe(2), _keyframe(3)]
+    captioner = FakeCaptioner()
+    pipeline = ScenePipeline(loader=FakeSceneLoader(keyframes), captioner=captioner, images=FakeImageStore())
+
+    with pytest.raises(ValueError, match="max_scenes must be at least 1"):
+        pipeline.run(max_scenes=max_scenes)
+
+    assert captioner.seen_paths == []
+
+
 def test_run_on_empty_dataset_returns_empty_list() -> None:
     pipeline = ScenePipeline(loader=FakeSceneLoader([]), captioner=FakeCaptioner(), images=FakeImageStore())
 
