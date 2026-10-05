@@ -7,7 +7,6 @@ Never connects until first used.
 
 from collections.abc import Callable
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from loguru import logger
@@ -18,7 +17,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import ConnectionPoolEntry, NullPool
+from sqlalchemy.pool import ConnectionPoolEntry
 from sqlalchemy.sql.selectable import ScalarSelect
 
 from backseat_driver.models import JobState
@@ -66,9 +65,9 @@ class JobStorage:
     """`database_url` names the psycopg 3 driver for Postgres (`postgresql+psycopg://...`) or the aiosqlite driver for a
     SQLite file (`sqlite+aiosqlite:///path`).
 
-    A connection belongs to the event loop that opened it. The API has one loop for its whole life and keeps a pool; a
-    caller that starts a loop per call (a Celery task) passes `pooled=False`, so every operation opens, and closes, a
-    connection of its own and nothing outlives the loop it ran on.
+    A connection belongs to the event loop that opened it, so a storage must be used from one loop for its whole
+    life: the API's, or a worker process's (`worker_loop`). Use a command's own `asyncio.run` only with a storage built
+    for that call, and `close()` it before the loop ends.
     """
 
     def __init__(
@@ -76,12 +75,10 @@ class JobStorage:
         database_url: str,
         engine_factory: Callable[..., AsyncEngine] = create_async_engine,
         clock: Callable[[], datetime] | None = None,
-        pooled: bool = True,
     ) -> None:
         self._database_url = database_url
         self._clock = clock or CreationClock()
         self._engine_factory = engine_factory
-        self._pooled = pooled
         self._engine: AsyncEngine | None = None
         self._sessions: async_sessionmaker[AsyncSession] | None = None
 
@@ -212,10 +209,9 @@ class JobStorage:
         if self._engine is None:
             is_sqlite = make_url(self._database_url).get_backend_name() == "sqlite"
             connect_args = {"timeout": 10} if is_sqlite else {"connect_timeout": 10}
-            pool_options: dict[str, Any] = (
-                {"pool_size": 4, "max_overflow": 0, "pool_pre_ping": True} if self._pooled else {"poolclass": NullPool}
+            engine = self._engine_factory(
+                self._database_url, pool_size=4, max_overflow=0, pool_pre_ping=True, connect_args=connect_args
             )
-            engine = self._engine_factory(self._database_url, connect_args=connect_args, **pool_options)
             if engine.dialect.name == "sqlite":
                 event.listen(engine.sync_engine, "connect", _enforce_foreign_keys)
             self._engine = engine

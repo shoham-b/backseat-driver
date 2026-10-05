@@ -6,7 +6,6 @@ from uuid import uuid4
 import pytest
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-from sqlalchemy.pool import NullPool
 
 from backseat_driver.write.job_store.orm import SceneDescriptionRow
 from backseat_driver.write.job_store.storage import JobStorage, description_insert
@@ -66,16 +65,6 @@ async def test_engine_is_created_once_with_bounded_pool_and_fast_connect_timeout
             {"pool_size": 4, "max_overflow": 0, "pool_pre_ping": True, "connect_args": {"connect_timeout": 10}},
         )
     ]
-
-
-async def test_an_unpooled_engine_opens_a_connection_per_operation() -> None:
-    engines = _EngineFactory()
-    job_storage = JobStorage("postgresql+psycopg://host/db", engine_factory=engines, pooled=False)
-
-    await job_storage.ping()
-
-    [(_, kwargs)] = engines.calls
-    assert kwargs == {"poolclass": NullPool, "connect_args": {"connect_timeout": 10}}
 
 
 async def test_ping_is_false_and_does_not_raise_when_database_is_unreachable() -> None:

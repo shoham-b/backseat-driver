@@ -18,5 +18,12 @@ def init() -> None:
     from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
     from backseat_driver.write.job_store.storage import JobStorage
 
-    asyncio.run(SqlJobStore(JobStorage(settings.database_url, pooled=False)).ensure_schema())
+    async def create_tables() -> None:
+        store = SqlJobStore(JobStorage(settings.database_url))
+        try:
+            await store.ensure_schema()
+        finally:
+            await store.close()  # its connections belong to this loop, which ends with the command
+
+    asyncio.run(create_tables())
     logger.info("database schema ready")

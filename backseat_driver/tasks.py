@@ -10,7 +10,6 @@ Importing this module reads the settings and builds the Celery app, which `celer
 Every other dependency (broker, database, bucket, model) is built on first use and cached.
 """
 
-import asyncio
 from collections.abc import Callable
 from functools import cached_property
 from typing import Any, Literal, NamedTuple
@@ -35,11 +34,7 @@ from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
 from backseat_driver.transport.job_store.job_store import JobStore
-
-
-def worker_store(settings: Settings) -> JobStore:
-    """A task runs its own event loop, and a pooled connection would outlive it: connect per operation instead."""
-    return postgres_store(settings, pooled=False)
+from backseat_driver.transport.worker_loop import worker_loop
 
 
 class Workers:
@@ -50,7 +45,7 @@ class Workers:
         settings: Settings,
         build_loader: Callable[[Settings, DatasetStore], SceneLoader] = stored_loader,
         build_queue: Callable[[Settings], JobQueue] = celery_queue,
-        build_store: Callable[[Settings], JobStore] = worker_store,
+        build_store: Callable[[Settings], JobStore] = postgres_store,
         build_captioner: Callable[[Settings], Captioner] = build_configured_captioner,
         build_dataset: Callable[[Settings], DatasetStore] = build_dataset_store,
     ) -> None:
@@ -81,7 +76,7 @@ class Workers:
     @cached_property
     def caption_worker(self) -> CaptionWorker:
         captioner = self._build_captioner(self._settings)
-        asyncio.run(captioner.load())
+        worker_loop.run(captioner.load())
         return CaptionWorker(captioner=captioner, store=self.store, images=self.dataset)
 
 
@@ -108,17 +103,17 @@ def register_tasks(
             # Celery calls this only once retries are exhausted, so a transient error that a retry fixes never
             # marks a job failed.
             kind = "ingest" if self.name == INGEST_TASK else "caption"
-            asyncio.run(_give_up(store(), str(self.name), task_id, kind, args[0], exc))
+            worker_loop.run(_give_up(store(), str(self.name), task_id, kind, args[0], exc))
 
     @app.task(name=INGEST_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def ingest(self: Task, payload: dict[str, Any]) -> None:
         task = IngestTask.model_validate(payload)
-        asyncio.run(ingest_worker().handle(task))
+        worker_loop.run(ingest_worker().handle(task))
 
     @app.task(name=CAPTION_TASK, base=FailJobWhenGivingUp, bind=True, shared=False, max_retries=MAX_RETRIES, **_RETRY)
     def caption(self: Task, payload: dict[str, Any]) -> None:
         task = CaptionTask.model_validate(payload)
-        asyncio.run(caption_worker().handle(task))
+        worker_loop.run(caption_worker().handle(task))
 
     return Tasks(ingest, caption)
 

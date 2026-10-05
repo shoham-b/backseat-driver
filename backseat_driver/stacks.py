@@ -114,9 +114,8 @@ def celery_queue(settings: Settings) -> JobQueue:
     return CeleryJobQueue(settings.rabbitmq_url)
 
 
-def postgres_store(settings: Settings, pooled: bool = True) -> JobStore:
-    """`pooled=False` for a process that starts an event loop per call (a Celery task): see `JobStorage`."""
-    return SqlJobStore(JobStorage(settings.database_url, pooled=pooled))
+def postgres_store(settings: Settings) -> JobStore:
+    return SqlJobStore(JobStorage(settings.database_url))
 
 
 def stored_loader(settings: Settings, dataset: DatasetStore) -> SceneLoader:
