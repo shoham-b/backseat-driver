@@ -57,11 +57,7 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-caption \
     uv sync --frozen --extra caption-worker
 
 # ── Stage 6: CLI runtime — the pipeline itself ─────────────────────────────────
-# nuscenes-devkit pulls in opencv-python, which needs libGL/libglib at runtime
-# even though this pipeline never renders anything.
 FROM python:${PYTHON_VERSION}-slim AS cli
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build-cli /app/.venv /app/.venv
 COPY --from=build-cli /app/backseat_driver /app/backseat_driver
@@ -77,10 +73,8 @@ ENTRYPOINT ["backseat-driver"]
 CMD ["describe"]
 
 # ── Stage 7: ingest worker runtime — reads the dataset, fans out caption tasks ──
-# Same libGL/libglib need as the CLI (nuscenes-devkit -> opencv); no torch.
+# No torch.
 FROM python:${PYTHON_VERSION}-slim AS ingest-worker
-RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
-    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build-ingest-worker /app/.venv /app/.venv
 COPY --from=build-ingest-worker /app/backseat_driver /app/backseat_driver
@@ -93,7 +87,7 @@ ENV PATH=/app/.venv/bin:$PATH \
 ENTRYPOINT ["backseat-driver"]
 CMD ["worker", "ingest"]
 
-# ── Stage 8: caption worker runtime — runs the VLM; no nuscenes-devkit ─────────
+# ── Stage 8: caption worker runtime — runs the VLM ─────────
 FROM python:${PYTHON_VERSION}-slim AS caption-worker
 WORKDIR /app
 COPY --from=build-caption-worker /app/.venv /app/.venv

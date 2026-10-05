@@ -182,7 +182,7 @@ services:
         condition: service_healthy
     restart: "no"
 
-  # Each service builds its own image target, so the ingest worker has no torch and the caption worker no nuscenes-devkit.
+  # Each service builds its own image target, so the ingest worker has no torch.
   ingest-worker:
     <<: *worker
     depends_on:

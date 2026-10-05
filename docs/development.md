@@ -67,7 +67,7 @@ There are five test layers, from fastest to slowest:
 
 | Layer | Path | Infrastructure |
 |---|---|---|
-| Unit | `tests/unittests/` | none — nuscenes-devkit/transformers are replaced by injected fakes, no dataset or model download |
+| Unit | `tests/unittests/` | none — transformers and the table reader are replaced by injected fakes, no dataset or model download |
 | Integration | `tests/integrationtests/` | in-process API, CLI commands and ingest/caption workers (no external services); queue, store and captioner are swapped for in-memory fakes |
 | Smoke | `tests/smoketests/` | running API (pass `--api-url` to override) |
 | UI | `tests/uitests/` | headless Chrome + Selenium; starts the real `ui` server itself |

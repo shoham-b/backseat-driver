@@ -75,7 +75,7 @@ same pipeline scaled out, kept optional and in separate layers so the core never
    `image_path` is the image's key below the dataset root. `reference_description` is nuScenes' own label, which `report` and `ui` use to score each model.
 
 The loader and the captioner are abstract ports composed in [`pipeline.py`](backseat_driver/pipeline.py),
-which never imports nuscenes-devkit, transformers or torch, so it is unit-tested with fakes. To use a
+which never imports transformers or torch, so it is unit-tested with fakes. To use a
 different dataset, write another [`SceneLoader`](backseat_driver/read/dataset/scene_loader.py); the model side does
 not change.
 
