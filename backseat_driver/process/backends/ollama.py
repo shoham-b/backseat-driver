@@ -4,6 +4,10 @@ Talks to a local Ollama server over HTTP, so no model weights or ML libraries ar
 loaded in-process. Unlike the HuggingFace BLIP pipeline, a multimodal Ollama model
 (e.g. `llava`, `llama3.2-vision`) takes a prompt, which makes its descriptions far
 more verbose and steerable.
+
+The wait is an awaited HTTP request, so there is no thread. A batch is captioned one request at a time (the port's
+default): one local model serves them, so concurrent requests mostly queue on the server unless it is configured for
+parallel requests.
 """
 
 import asyncio

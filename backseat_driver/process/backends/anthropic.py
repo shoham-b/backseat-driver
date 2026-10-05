@@ -3,6 +3,10 @@
 Calls the hosted Messages API with the image and a prompt, so descriptions are far
 more detailed than BLIP's one-liners. Unlike the local backends this needs an API
 key and network access at runtime, and each caption is a billed request.
+
+The wait is an awaited HTTP request, so there is no thread, and a batch sends all its requests at once: the time is
+spent on the API, not here. The batch size therefore bounds how many requests are in flight. There is no retry, so a
+rate limit or a server error fails the batch.
 """
 
 import asyncio

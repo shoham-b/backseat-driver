@@ -5,6 +5,11 @@ the HuggingFace hub works as the model; the default is a small BLIP model. `load
 and `generate()` are separate so a caller can choose to eager-load at process
 startup (so a readiness probe means something) or let `generate()` load lazily on
 first use. One pipeline is kept per model name.
+
+The model runs in this process and torch has no async API, so loading and inference block. They run on a worker
+thread, which keeps the event loop free (a caller that is serving requests stays responsive) and lets the model load
+overlap with other startup work. A batch is one forward pass over all its images, which is faster than captioning
+them one by one.
 """
 
 import asyncio
