@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from PIL import Image
 
+from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.backends.huggingface import HuggingFaceBackend
 from backseat_driver.process.model import CaptionModel
 
@@ -65,3 +66,12 @@ def test_one_backend_serves_several_models(image_path: str) -> None:
 
     assert (first, second) == ("a caption from model/a", "a caption from model/b")
     assert factory.models == ["model/a", "model/b"]
+
+
+def test_a_file_that_is_not_an_image_is_unprocessable(tmp_path: Path) -> None:
+    not_an_image = tmp_path / "scene.png"
+    not_an_image.write_bytes(b"not an image")
+    backend = HuggingFaceBackend(_FakePipelineFactory())
+
+    with pytest.raises(UnprocessableError, match="could not read image"):
+        backend.generate(str(not_an_image), CaptionModel(name="m"))

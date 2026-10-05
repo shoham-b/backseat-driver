@@ -3,8 +3,8 @@ from pathlib import Path
 import pytest
 
 from backseat_driver.models import SceneKeyframe
-from backseat_driver.pipeline import ScenePipeline
-from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader
+from backseat_driver.pipeline import ScenePipeline, first_scenes
+from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_keyframe
 
 
 def _keyframe(n: int) -> SceneKeyframe:
@@ -106,3 +106,21 @@ def test_run_captions_a_local_copy_of_each_image_and_releases_it() -> None:
     expected = [f"fake://samples/CAM_FRONT/scene-{n}.jpg" for n in (1, 2)]
     assert images.opened == expected
     assert images.released == expected
+
+
+def test_first_scenes_keeps_everything_without_a_limit() -> None:
+    keyframes = [make_keyframe(1), make_keyframe(2)]
+
+    assert first_scenes(keyframes, None) == keyframes
+
+
+def test_first_scenes_counts_scenes_and_keeps_each_scenes_cameras_together() -> None:
+    front = make_keyframe(1)
+    back = front.model_copy(update={"camera_channel": "CAM_BACK"})
+    keyframes = [front, back, make_keyframe(2), make_keyframe(3)]
+
+    assert first_scenes(keyframes, 2) == [front, back, make_keyframe(2)]
+
+
+def test_first_scenes_with_a_limit_of_zero_keeps_nothing() -> None:
+    assert first_scenes([make_keyframe(1)], 0) == []

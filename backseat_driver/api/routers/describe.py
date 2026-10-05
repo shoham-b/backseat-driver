@@ -43,11 +43,9 @@ async def describe(
     suffix = PurePosixPath((image.filename or "").replace("\\", "/")).suffix.lower()
     tmp_path = upload_dir / f"upload{suffix if _PLAIN_SUFFIX.fullmatch(suffix) else ''}"
     tmp_path.write_bytes(contents)
-    try:
-        # Inference is synchronous/CPU-bound — off the event loop so one
-        # slow request doesn't stall every other request being served.
-        description = await run_in_threadpool(captioner.caption, str(tmp_path))
-    except Exception as exc:
-        raise UnprocessableError(f"could not read image: {exc}") from exc
+    # Inference is synchronous/CPU-bound — off the event loop so one slow request doesn't stall every other request
+    # being served. A file the model cannot read is the backend's `UnprocessableError` (422); any other failure is
+    # the service's own and stays a 500.
+    description = await run_in_threadpool(captioner.caption, str(tmp_path))
 
     return DescribeResponse(description=description, model_name=captioner.model_name)

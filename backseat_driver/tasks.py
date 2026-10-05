@@ -6,7 +6,8 @@ Start a worker with `backseat-driver worker ingest|caption`, or directly:
 
 The solo pool runs tasks in the worker's own process: the captioning model is loaded
 once (and CUDA is never forked); scale out with more worker processes or containers.
-Each dependency is built on first use and cached, so importing this module costs nothing.
+Importing this module reads the settings and builds the Celery app, which `celery -A` needs; it connects to nothing.
+Every other dependency (broker, database, bucket, model) is built on first use and cached.
 """
 
 from collections.abc import Callable
@@ -22,7 +23,7 @@ from backseat_driver.config import Settings, get_settings
 from backseat_driver.logger import LogFormat, setup_logging
 from backseat_driver.models import CaptionTask, IngestTask, JobReference
 from backseat_driver.process.captioner import Captioner
-from backseat_driver.process.factory import build_captioner
+from backseat_driver.process.factory import build_captioner as build_configured_captioner
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.read.s3.factory import build_dataset_store
@@ -44,7 +45,7 @@ class Workers:
         build_loader: Callable[[Settings, DatasetStore], SceneLoader] = stored_loader,
         build_queue: Callable[[Settings], JobQueue] = celery_queue,
         build_store: Callable[[Settings], JobStore] = postgres_store,
-        build_captioner: Callable[[Settings], Captioner] = build_captioner,
+        build_captioner: Callable[[Settings], Captioner] = build_configured_captioner,
         build_dataset: Callable[[Settings], DatasetStore] = build_dataset_store,
     ) -> None:
         self._settings = settings

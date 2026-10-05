@@ -16,6 +16,7 @@ from backseat_driver.models import (
     IngestTask,
     Job,
     JobDeadLetter,
+    JobState,
     SceneDescription,
     SceneKeyframe,
 )
@@ -108,9 +109,10 @@ class FakeJobStore(JobStore):
             error=self._errors.get(job_id),
         )
 
-    def list_jobs(self) -> list[Job]:
+    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
         jobs = [self.get_job(job_id) for job_id in reversed(self._jobs)]
-        return sorted(jobs, key=lambda job: job.created_at, reverse=True)
+        newest_first = sorted(jobs, key=lambda job: job.created_at, reverse=True)
+        return [job for job in newest_first if state is None or job.state is state][:limit]
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self._get(job_id)

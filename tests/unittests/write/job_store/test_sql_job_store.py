@@ -294,3 +294,56 @@ def test_listing_jobs_returns_the_newest_first_with_their_progress(store: SqlJob
 
 def test_listing_jobs_with_none_is_empty(store: SqlJobStore) -> None:
     assert store.list_jobs() == []
+
+
+def _a_job_in_every_state(store: SqlJobStore) -> dict[JobState, UUID]:
+    jobs = {state: uuid4() for state in JobState}
+    for job_id in jobs.values():
+        store.create_job(job_id, None, "tx")
+    store.set_expected_scenes(jobs[JobState.RUNNING], 2)
+    store.set_expected_scenes(jobs[JobState.COMPLETED], 1)
+    store.record_description(jobs[JobState.COMPLETED], _description(1))
+    store.fail_job(jobs[JobState.FAILED], "boom")
+    return jobs
+
+
+@pytest.mark.parametrize("state", list(JobState))
+def test_listing_by_state_returns_exactly_the_jobs_in_that_state(store: SqlJobStore, state: JobState) -> None:
+    jobs = _a_job_in_every_state(store)
+
+    listed = store.list_jobs(state=state)
+
+    assert [(job.job_id, job.state) for job in listed] == [(jobs[state], state)]
+
+
+def test_the_database_filter_agrees_with_derive_state_for_every_combination(store: SqlJobStore) -> None:
+    # expected: unknown or 0-2 scenes, completed: 0-2, failed or not.
+    for expected in (None, 0, 1, 2):
+        for completed in range(3):
+            for error in (None, "boom"):
+                job_id = uuid4()
+                store.create_job(job_id, None, "tx")
+                if expected is not None:
+                    store.set_expected_scenes(job_id, expected)
+                for n in range(completed):
+                    store.record_description(job_id, _description(n))
+                if error:
+                    store.fail_job(job_id, error)
+
+    for state in JobState:
+        assert {job.job_id for job in store.list_jobs(state=state)} == {
+            job.job_id for job in store.list_jobs() if job.state is state
+        }
+
+
+def test_listing_applies_the_limit_after_the_state_filter_newest_first(store: SqlJobStore) -> None:
+    waiting = [uuid4() for _ in range(3)]
+    for job_id in waiting:
+        store.create_job(job_id, None, "tx")
+    other = uuid4()
+    store.create_job(other, None, "tx")
+    store.fail_job(other, "boom")
+
+    listed = store.list_jobs(state=JobState.PENDING, limit=2)
+
+    assert [job.job_id for job in listed] == [waiting[2], waiting[1]]

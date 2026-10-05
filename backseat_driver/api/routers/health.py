@@ -26,9 +26,9 @@ async def readiness(
     store: Annotated[JobStore, Depends(get_job_store)],
 ) -> dict[str, str]:
     """Readiness probe — returns 200 only when all dependencies are reachable."""
-    if not captioner.healthcheck():
+    # The probes do blocking network I/O, so none of them runs on the event loop.
+    if not await run_in_threadpool(captioner.healthcheck):
         raise APIError("VLM captioner unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
-    # Both probes do blocking network I/O.
     if not await run_in_threadpool(queue.healthcheck):
         raise APIError("message queue unavailable", HTTPStatus.SERVICE_UNAVAILABLE)
     if not await run_in_threadpool(store.healthcheck):

@@ -199,3 +199,22 @@ def test_description_insert_compiles_to_postgres_on_conflict_do_nothing() -> Non
 
     sql = str(statement.compile(dialect=postgresql.dialect()))
     assert "ON CONFLICT (job_id, scene_token, camera_channel) DO NOTHING" in sql
+
+
+def test_a_descriptions_table_with_the_old_primary_key_is_rejected_with_a_way_out() -> None:
+    engine = create_engine("sqlite://", poolclass=StaticPool)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE scene_descriptions (job_id CHAR(32), scene_token VARCHAR, scene_name VARCHAR, "
+            "camera_channel VARCHAR, image_path VARCHAR, description VARCHAR, model_name VARCHAR, "
+            "reference_description VARCHAR, generated_at DATETIME, PRIMARY KEY (job_id, scene_token))"
+        )
+    job_storage = JobStorage("sqlite://", engine_factory=lambda *_, **__: engine)
+
+    with pytest.raises(RuntimeError) as raised:
+        job_storage.ensure_schema()
+
+    message = str(raised.value)
+    assert "'scene_descriptions'" in message
+    assert "primary key ['job_id', 'scene_token'], expected ['camera_channel', 'job_id', 'scene_token']" in message
+    assert "missing columns" not in message

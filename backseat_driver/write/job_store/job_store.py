@@ -59,8 +59,8 @@ class JobStore(ABC):
         """Raises NotFoundError for an unknown job."""
 
     @abstractmethod
-    def list_jobs(self) -> list[Job]:
-        """Every job, newest first."""
+    def list_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[Job]:
+        """Jobs, newest first: only those in `state` when given, at most `limit` when given."""
 
     @abstractmethod
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:

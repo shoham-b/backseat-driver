@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from backseat_driver.api.dependencies import get_captioner, get_upload_dir
+from backseat_driver.errors import UnprocessableError
 from backseat_driver.process.captioner import Captioner
 from tests.fakes import FakeCaptioner
 from tests.integrationtests.conftest import ClientFactory
@@ -27,16 +28,26 @@ class _RecordingCaptioner(FakeCaptioner):
         return super().caption(image_path)
 
 
-class _FailingCaptioner(FakeCaptioner):
+class _RejectingCaptioner(FakeCaptioner):
     def caption(self, image_path: str) -> str:
-        raise OSError("cannot identify image file")
+        raise UnprocessableError("cannot identify image file")
 
 
-def _install(client_with: ClientFactory, captioner: Captioner, upload_dir: Path | None = None) -> TestClient:
+class _BrokenCaptioner(FakeCaptioner):
+    def caption(self, image_path: str) -> str:
+        raise RuntimeError("model server exploded")
+
+
+def _install(
+    client_with: ClientFactory,
+    captioner: Captioner,
+    upload_dir: Path | None = None,
+    raise_server_exceptions: bool = True,
+) -> TestClient:
     overrides: dict[Callable[..., object], Callable[..., object]] = {get_captioner: lambda: captioner}
     if upload_dir is not None:
         overrides[get_upload_dir] = lambda: upload_dir
-    return client_with(overrides)
+    return client_with(overrides, raise_server_exceptions=raise_server_exceptions)
 
 
 def _png() -> bytes:
@@ -117,8 +128,10 @@ def test_only_a_plain_extension_of_the_filename_reaches_the_captioner(
     assert Path(captioner.seen_paths[0]).name == f"upload{expected_suffix}"
 
 
-def test_a_captioner_failure_is_reported_as_unprocessable_with_the_reason(client_with: ClientFactory) -> None:
-    client = _install(client_with, _FailingCaptioner())
+def test_an_image_the_captioner_rejects_is_reported_as_unprocessable_with_the_reason(
+    client_with: ClientFactory,
+) -> None:
+    client = _install(client_with, _RejectingCaptioner())
 
     response = client.post("/describe", files={"image": ("scene.png", b"not an image", "image/png")})
 
@@ -126,6 +139,15 @@ def test_a_captioner_failure_is_reported_as_unprocessable_with_the_reason(client
     error = response.json()["error"]
     assert error["code"] == HTTPStatus.UNPROCESSABLE_ENTITY
     assert "cannot identify image file" in error["message"]
+
+
+def test_a_captioner_failure_that_is_not_about_the_image_is_a_server_error(client_with: ClientFactory) -> None:
+    client = _install(client_with, _BrokenCaptioner(), raise_server_exceptions=False)
+
+    response = client.post("/describe", files={"image": ("scene.png", _png(), "image/png")})
+
+    assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert response.json()["error"]["message"] == "internal server error"
 
 
 def test_the_failed_upload_is_still_cleaned_up(client_with: ClientFactory) -> None:
@@ -136,7 +158,7 @@ def test_the_failed_upload_is_still_cleaned_up(client_with: ClientFactory) -> No
             seen.append(image_path)
             raise ValueError("bad")
 
-    client = _install(client_with, _Failing())
+    client = _install(client_with, _Failing(), raise_server_exceptions=False)
 
     client.post("/describe", files={"image": ("scene.png", _png(), "image/png")})
 

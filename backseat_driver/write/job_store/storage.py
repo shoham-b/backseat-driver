@@ -10,7 +10,7 @@ from collections.abc import Callable
 from uuid import UUID
 
 from loguru import logger
-from sqlalchemy import create_engine, event, func, inspect, select, update
+from sqlalchemy import ColumnElement, and_, create_engine, event, func, inspect, select, update
 from sqlalchemy.dialects.postgresql import Insert
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.engine import Engine, make_url
@@ -18,12 +18,37 @@ from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import ConnectionPoolEntry
+from sqlalchemy.sql.selectable import ScalarSelect
 
+from backseat_driver.models import JobState
 from backseat_driver.write.job_store.orm import Base, DeadLetterRow, JobRow, SceneDescriptionRow
 
 
+def _completed_scenes() -> ScalarSelect[int]:
+    """Per job row, how many descriptions have been recorded."""
+    return select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+
+
+def _in_state(state: JobState, completed: ScalarSelect[int]) -> ColumnElement[bool]:
+    """The rows `derive_state` would put in `state`, so a listing can filter in the database.
+
+    A job's state is never stored, hence this mirrors that function; a test pins the two together.
+    """
+    if state is JobState.FAILED:
+        return JobRow.error.is_not(None)
+    healthy = JobRow.error.is_(None)
+    if state is JobState.PENDING:
+        return and_(healthy, JobRow.expected_scenes.is_(None))
+    if state is JobState.COMPLETED:
+        return and_(healthy, JobRow.expected_scenes.is_not(None), completed >= JobRow.expected_scenes)
+    return and_(healthy, JobRow.expected_scenes.is_not(None), completed < JobRow.expected_scenes)
+
+
 def description_insert(job_id: UUID, values: dict) -> Insert:
-    """The idempotent insert of one scene description (Postgres `ON CONFLICT DO NOTHING`)."""
+    """The idempotent insert of one scene description (`ON CONFLICT DO NOTHING`).
+
+    The Postgres construct is used for both databases: SQLite compiles it to the same clause.
+    """
     return (
         pg_insert(SceneDescriptionRow)
         .values(job_id=job_id, **values)
@@ -51,18 +76,26 @@ class JobStorage:
     def ensure_schema(self) -> None:
         """Create the tables if missing. Run once per deployment (`db init`), not per process.
 
-        Raises RuntimeError when a table that already exists lacks a column the code expects: `create_all` never alters
-        a table, so an old database would otherwise fail on the first query that touches the new column.
+        Raises RuntimeError when a table that already exists differs from what the code expects, in a column it lacks
+        or in its primary key: `create_all` never alters a table, so an old database would otherwise fail on the first
+        query that touches the new column, or on every description insert (whose `ON CONFLICT` target is the key).
         """
         engine = self._get_engine()
         Base.metadata.create_all(engine)
         existing = inspect(engine)
         for table in Base.metadata.sorted_tables:
+            differences: list[str] = []
             missing = {column.name for column in table.columns} - {c["name"] for c in existing.get_columns(table.name)}
             if missing:
+                differences.append(f"missing columns: {', '.join(sorted(missing))}")
+            found_key = set(existing.get_pk_constraint(table.name)["constrained_columns"])
+            expected_key = {column.name for column in table.primary_key.columns}
+            if found_key != expected_key:
+                differences.append(f"primary key {sorted(found_key)}, expected {sorted(expected_key)}")
+            if differences:
                 raise RuntimeError(
                     f"table {table.name!r} in {engine.url.render_as_string(hide_password=True)} predates the current "
-                    f"schema (missing columns: {', '.join(sorted(missing))}); there is no migration, so recreate the "
+                    f"schema ({'; '.join(differences)}); there is no migration, so recreate the "
                     "database (the monolith's output/jobs.db is only a job history and can be deleted)"
                 )
 
@@ -122,24 +155,29 @@ class JobStorage:
 
     def fetch_job(self, job_id: UUID) -> tuple[JobRow, int] | None:
         """The job row and its completed-scene count, or None when no such job exists."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        completed = _completed_scenes()
         with self._session() as session:
             row = session.execute(select(JobRow, completed).where(JobRow.job_id == job_id)).one_or_none()
         return None if row is None else (row[0], row[1])
 
     def fetch_job_by_key(self, idempotency_key: str) -> tuple[JobRow, int] | None:
         """Like `fetch_job`, for the job created under `idempotency_key`."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+        completed = _completed_scenes()
         statement = select(JobRow, completed).where(JobRow.idempotency_key == idempotency_key)
         with self._session() as session:
             row = session.execute(statement).one_or_none()
         return None if row is None else (row[0], row[1])
 
-    def fetch_jobs(self) -> list[tuple[JobRow, int]]:
-        """Every job row with its completed-scene count, newest first."""
-        completed = select(func.count()).where(SceneDescriptionRow.job_id == JobRow.job_id).scalar_subquery()
+    def fetch_jobs(self, state: JobState | None = None, limit: int | None = None) -> list[tuple[JobRow, int]]:
+        """Job rows with their completed-scene counts, newest first; only those in `state`, at most `limit`."""
+        completed = _completed_scenes()
+        statement = select(JobRow, completed).order_by(JobRow.created_at.desc())
+        if state is not None:
+            statement = statement.where(_in_state(state, completed))
+        if limit is not None:
+            statement = statement.limit(limit)
         with self._session() as session:
-            rows = session.execute(select(JobRow, completed).order_by(JobRow.created_at.desc())).all()
+            rows = session.execute(statement).all()
         return [(row[0], row[1]) for row in rows]
 
     def fetch_descriptions(self, job_id: UUID) -> list[SceneDescriptionRow]:
@@ -156,7 +194,7 @@ class JobStorage:
             with self._get_engine().connect() as conn:
                 conn.exec_driver_sql("SELECT 1")
         except SQLAlchemyError as exc:
-            logger.warning("postgres unreachable: {}", exc)
+            logger.warning("database unreachable: {}", exc)
             return False
         return True
 
