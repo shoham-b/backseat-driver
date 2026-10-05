@@ -82,7 +82,8 @@ def ensure_nuscenes_dataset(dataroot: str, version: str, url: str, on_progress: 
         return
 
     logger.info("nuScenes cache in {} is missing or out of date; downloading {}", root, url)
-    shutil.rmtree(root, ignore_errors=True)
+    if root.exists():
+        shutil.rmtree(root)  # a failure here must stop the run, not leave old files to be mixed with the new ones
     scratch = root / ".download"
     scratch.mkdir(parents=True)
     with urllib.request.urlopen(url) as response:

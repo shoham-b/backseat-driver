@@ -1,5 +1,7 @@
 import os
 import tarfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -120,3 +122,31 @@ def test_the_default_progress_stays_quiet_when_the_total_is_unknown() -> None:
         logger.remove(sink)
 
     assert messages == []
+
+
+@contextmanager
+def _undeletable(directory: Path) -> Iterator[None]:
+    """Make removing what is inside `directory` fail: a locked file on Windows, a read-only directory elsewhere."""
+    if os.name == "nt":
+        with (directory / "stale").open("rb"):  # an open handle blocks deletion on Windows
+            yield
+        return
+    directory.chmod(0o500)
+    try:
+        yield
+    finally:
+        directory.chmod(0o700)
+
+
+@pytest.mark.skipif(os.name != "nt" and os.geteuid() == 0, reason="root can delete from a read-only directory")
+def test_a_cache_that_cannot_be_cleared_is_an_error_not_a_reason_to_download_over_it(tmp_path: Path) -> None:
+    url = _archive(tmp_path, "v1.0-mini/scene.json").as_uri()
+    dataroot = tmp_path / "cache"
+    stale = dataroot / "v1.0-mini"
+    stale.mkdir(parents=True)
+    (stale / "stale").write_text("old")
+
+    with _undeletable(stale), pytest.raises(PermissionError):
+        ensure_nuscenes_dataset(str(dataroot), "v1.0-mini", url)
+
+    assert not (dataroot / ".nuscenes-cache.json").exists()
