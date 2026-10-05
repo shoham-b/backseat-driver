@@ -10,9 +10,9 @@ from uuid import UUID, uuid4
 import pytest
 
 from backseat_driver.models import JobState, SceneDescription
-from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
-from backseat_driver.write.job_store.job_store import JobStore
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.transport.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeJobStore
 
 

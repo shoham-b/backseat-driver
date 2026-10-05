@@ -9,8 +9,8 @@ from backseat_driver.read.s3.s3_dataset_store import S3DatasetStore
 from backseat_driver.stacks import build_image_store, build_job_backend, machines, pipeline
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
-from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeCaptioner, FakeImageStore, make_settings
 
 DISTRIBUTED = {"mode": RunMode.DISTRIBUTED, "dataset_bucket": "bucket"}

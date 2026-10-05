@@ -13,8 +13,8 @@ from backseat_driver.pipeline import describe_keyframe
 from backseat_driver.stacks import build_job_backend
 from backseat_driver.transport.celery_job_queue import CeleryJobQueue
 from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
-from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from tests.fakes import FakeCaptioner, FakeImageStore, FakeSceneLoader, make_image_uri, make_keyframe
 
 

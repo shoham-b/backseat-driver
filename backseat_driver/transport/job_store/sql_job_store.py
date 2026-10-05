@@ -6,7 +6,7 @@ from uuid import UUID
 
 from backseat_driver.errors import NotFoundError
 from backseat_driver.models import DeadLetter, Job, JobDeadLetter, SceneDescription
-from backseat_driver.write.job_store.job_store import JobStore, derive_state
+from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 from backseat_driver.write.job_store.orm import JobRow
 from backseat_driver.write.job_store.storage import JobStorage
 

@@ -26,7 +26,7 @@ from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.read.s3.dataset_store import DatasetStore
 from backseat_driver.show.description_source import DescriptionSource
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.job_store import JobStore, derive_state
+from backseat_driver.transport.job_store.job_store import JobStore, derive_state
 
 
 class FakeJobQueue(JobQueue):

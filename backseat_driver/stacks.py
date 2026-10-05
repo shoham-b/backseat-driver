@@ -38,9 +38,9 @@ from backseat_driver.transport.in_process_job_queue import InProcessJobQueue
 from backseat_driver.transport.ingest_worker import IngestWorker
 from backseat_driver.transport.job_failure import dead_letter_of, describe_failure
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.in_memory_job_store import InMemoryJobStore
-from backseat_driver.write.job_store.job_store import JobStore
-from backseat_driver.write.job_store.sql_job_store import SqlJobStore
+from backseat_driver.transport.job_store.in_memory_job_store import InMemoryJobStore
+from backseat_driver.transport.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.sql_job_store import SqlJobStore
 from backseat_driver.write.job_store.storage import JobStorage
 
 # Rung 1: the pipeline. One process, one function call, no queue and no job store.

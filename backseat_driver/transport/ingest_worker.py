@@ -13,7 +13,7 @@ from backseat_driver.pipeline import first_scenes
 from backseat_driver.read.dataset.scene_loader import SceneLoader
 from backseat_driver.read.images.image_store import ImageStore
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 
 
 class IngestWorker:

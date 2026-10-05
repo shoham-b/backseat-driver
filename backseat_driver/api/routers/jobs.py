@@ -18,7 +18,7 @@ from backseat_driver.api.errors import NOT_FOUND_RESPONSE
 from backseat_driver.models import DeadLetter, IngestTask, Job, JobDeadLetter, JobState, SceneDescription
 from backseat_driver.transport.job_failure import describe_failure
 from backseat_driver.transport.job_queue import JobQueue
-from backseat_driver.write.job_store.job_store import JobStore
+from backseat_driver.transport.job_store.job_store import JobStore
 
 router = APIRouter(tags=["jobs"])
 
