@@ -29,6 +29,24 @@ def test_caption_posts_prompt_and_image_and_returns_stripped_response(image_path
     assert len(posted.payload["images"]) == 1
 
 
+def test_caption_limits_generated_tokens(image_path: str) -> None:
+    http = FakeHttpClient(response={"response": "wet road", "done_reason": "stop"})
+    backend = OllamaBackend(http, max_tokens=64)
+
+    backend.generate(image_path, CaptionModel("llava"))
+
+    (posted,) = http.posts
+    assert posted.payload["options"] == {"num_predict": 64}
+
+
+def test_caption_fails_when_generation_hits_the_token_limit(image_path: str) -> None:
+    http = FakeHttpClient(response={"response": "road, road, road, road", "done_reason": "length"})
+    backend = OllamaBackend(http, max_tokens=64)
+
+    with pytest.raises(RuntimeError, match=r"hit the 64-token limit on .*scene\.png"):
+        backend.generate(image_path, CaptionModel("llava"))
+
+
 def test_caption_propagates_http_failures(image_path: str) -> None:
     backend = OllamaBackend(FakeHttpClient(error=RuntimeError("Cannot reach Ollama at http://x: refused")))
 
