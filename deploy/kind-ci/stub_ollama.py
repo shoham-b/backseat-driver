@@ -6,6 +6,7 @@ The delay keeps captions in flight long enough for the queue to back up, which i
 import json
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import Any
 
 CAPTION_SECONDS = 2
 
@@ -27,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
         time.sleep(CAPTION_SECONDS)
         self._reply({"response": "a stub caption"})
 
-    def log_message(self, *args: object) -> None:
+    def log_message(self, format: str, *args: Any) -> None:
         pass
 
 
