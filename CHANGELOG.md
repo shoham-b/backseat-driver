@@ -5,6 +5,36 @@ All notable changes to Backseat Driver will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2](https://github.com/shoham-b/backseat-driver/compare/v0.2.1...v0.2.2) (2026-10-05)
+
+
+### Features
+
+* **deploy:** add a production kustomize overlay ([#106](https://github.com/shoham-b/backseat-driver/issues/106)) ([71581e0](https://github.com/shoham-b/backseat-driver/commit/71581e0be50067e79e6de0516602247bbcc8f891))
+* failed jobs, one transaction_id log field, validated ids and idempotent POST /jobs ([#98](https://github.com/shoham-b/backseat-driver/issues/98)) ([3ca34d6](https://github.com/shoham-b/backseat-driver/commit/3ca34d6d5bf33ce1fbaa74611168a5218bcf4868))
+* keep tasks that exhaust their retries as dead letters ([#105](https://github.com/shoham-b/backseat-driver/issues/105)) ([7fe1c0e](https://github.com/shoham-b/backseat-driver/commit/7fe1c0ecbd9d5f04764471fb014421499f2371a1))
+
+
+### Bug Fixes
+
+* cap Ollama generation and fail fast when it hits the limit ([#111](https://github.com/shoham-b/backseat-driver/issues/111)) ([117fa4e](https://github.com/shoham-b/backseat-driver/commit/117fa4ee3c8665c9e91afa2ed46c7d7597c6b86b))
+* fail fast on an outdated jobs database and make the tests hermetic ([#109](https://github.com/shoham-b/backseat-driver/issues/109)) ([6662334](https://github.com/shoham-b/backseat-driver/commit/6662334026268157d8f76baaa507bce2219b4075))
+* give jobs distinct, increasing created_at values so newest-first is well defined ([#126](https://github.com/shoham-b/backseat-driver/issues/126)) ([4c96f8b](https://github.com/shoham-b/backseat-driver/commit/4c96f8be2eb9a6c54f795f247e44b0250d6f96b2))
+* key a job's descriptions by camera and count max_scenes in scenes in ingest ([#107](https://github.com/shoham-b/backseat-driver/issues/107)) ([1bfbc46](https://github.com/shoham-b/backseat-driver/commit/1bfbc462709e037e899ae55150274f673cdedf29))
+* match BaseHTTPRequestHandler.log_message in the CI Ollama stub ([#117](https://github.com/shoham-b/backseat-driver/issues/117)) ([ebeaeab](https://github.com/shoham-b/backseat-driver/commit/ebeaeabbb819237f13e07fe7f4b8dd3dd10f7fd8))
+* one JobStore error per case, so a concurrent duplicate Idempotency-Key no longer 500s ([#114](https://github.com/shoham-b/backseat-driver/issues/114)) ([d264b58](https://github.com/shoham-b/backseat-driver/commit/d264b586642057160ecd136d6a64c673d96ac434))
+* probe the captioner in /ready off the event loop ([#120](https://github.com/shoham-b/backseat-driver/issues/120)) ([61a5031](https://github.com/shoham-b/backseat-driver/commit/61a50311edb03461108f21d2deb30d1cb610d004))
+* reject a database whose tables have another primary key than the code writes with ([#124](https://github.com/shoham-b/backseat-driver/issues/124)) ([744f1be](https://github.com/shoham-b/backseat-driver/commit/744f1becf505ac58a4e15fbd6002dfa603668f93))
+* reject a max_scenes below 1 in the CLI, the pipeline and the ingest worker ([#112](https://github.com/shoham-b/backseat-driver/issues/112)) ([d76f8ad](https://github.com/shoham-b/backseat-driver/commit/d76f8adcc4026e05c7a07a1005e5ed8db31915f7))
+* report an unreadable /describe image as 422 and any other captioner failure as 500 ([#116](https://github.com/shoham-b/backseat-driver/issues/116)) ([e6a3cd0](https://github.com/shoham-b/backseat-driver/commit/e6a3cd0e04de23311a1a76c5625855a92940407e))
+* stop when the nuScenes cache cannot be cleared instead of downloading over it ([#119](https://github.com/shoham-b/backseat-driver/issues/119)) ([647dbf0](https://github.com/shoham-b/backseat-driver/commit/647dbf0f6c813dc360bc6e28a7cd3b343c6e2514))
+
+
+### Documentation
+
+* fix links, diagrams and stale claims; split architecture into APIs and Technology ([#102](https://github.com/shoham-b/backseat-driver/issues/102)) ([c4a2699](https://github.com/shoham-b/backseat-driver/commit/c4a269990d6f1520a5c10fe45be2fa30e8a55b57))
+* rewrite the README to lead with the pitch and mirror the docs ([#104](https://github.com/shoham-b/backseat-driver/issues/104)) ([4bd3ae1](https://github.com/shoham-b/backseat-driver/commit/4bd3ae1f2487e7784313675cd0135908ed2679a0))
+
 ## [0.2.1](https://github.com/shoham-b/backseat-driver/compare/v0.2.0...v0.2.1) (2026-10-04)
 
 
