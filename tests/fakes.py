@@ -41,7 +41,7 @@ class FakeJobStore(JobStore):
     def __init__(self, healthy: bool = True) -> None:
         self.healthy = healthy
         self._jobs: dict[UUID, tuple[str, int | None, int | None, datetime]] = {}
-        self._descriptions: dict[UUID, dict[str, SceneDescription]] = {}
+        self._descriptions: dict[UUID, dict[tuple[str, str], SceneDescription]] = {}
         self._errors: dict[UUID, str] = {}
         self._keys: dict[str, UUID] = {}
 
@@ -69,7 +69,7 @@ class FakeJobStore(JobStore):
 
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
         self._get(job_id)
-        self._descriptions[job_id].setdefault(description.scene_token, description)
+        self._descriptions[job_id].setdefault((description.scene_token, description.camera_channel), description)
 
     def get_job(self, job_id: UUID) -> Job:
         transaction_id, max_scenes, expected_scenes, created_at = self._get(job_id)
@@ -91,7 +91,7 @@ class FakeJobStore(JobStore):
 
     def list_descriptions(self, job_id: UUID) -> list[SceneDescription]:
         self._get(job_id)
-        return sorted(self._descriptions[job_id].values(), key=lambda d: d.scene_name)
+        return sorted(self._descriptions[job_id].values(), key=lambda d: (d.scene_name, d.camera_channel))
 
     def healthcheck(self) -> bool:
         return self.healthy

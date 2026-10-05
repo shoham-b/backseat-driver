@@ -25,8 +25,8 @@ class Job(JobReference):
     """A request to describe every scene of the dataset, with its current progress."""
 
     state: JobState
-    max_scenes: int | None
-    expected_scenes: int | None
-    completed_scenes: int
+    max_scenes: int | None  # counts scenes, however many cameras each has
+    expected_scenes: int | None  # descriptions to produce: one per scene and camera
+    completed_scenes: int  # descriptions recorded so far
     created_at: datetime
     error: str | None = None

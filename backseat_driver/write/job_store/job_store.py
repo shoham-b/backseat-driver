@@ -27,7 +27,8 @@ class JobStore(ABC):
 
     @abstractmethod
     def set_expected_scenes(self, job_id: UUID, expected_scenes: int) -> None:
-        """Record how many scenes the job will produce. Raises NotFoundError for an unknown job."""
+        """Record how many descriptions the job will produce: one per scene and camera, which is what completion is
+        counted against. Raises NotFoundError for an unknown job."""
 
     @abstractmethod
     def fail_job(self, job_id: UUID, error: str) -> None:
@@ -36,7 +37,7 @@ class JobStore(ABC):
 
     @abstractmethod
     def record_description(self, job_id: UUID, description: SceneDescription) -> None:
-        """Store a description. Idempotent per (job, scene): a redelivered message is a no-op."""
+        """Store a description. Idempotent per (job, scene, camera): a redelivered message is a no-op."""
 
     @abstractmethod
     def get_job(self, job_id: UUID) -> Job:

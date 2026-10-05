@@ -26,7 +26,7 @@ def ingest(
         typer.Option("--once", help="Handle one task, then exit, for a run-to-completion Job started per queued task"),
     ] = False,
 ) -> None:
-    """Consume ingest tasks: load the dataset metadata and fan out one caption task per scene."""
+    """Consume ingest tasks: load the dataset metadata and fan out one caption task per keyframe."""
     from backseat_driver.tasks import celery_app
     from backseat_driver.transport.celery_job_queue import INGEST_QUEUE
     from backseat_driver.transport.consume_one import consume_one

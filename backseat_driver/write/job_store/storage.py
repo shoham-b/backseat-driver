@@ -25,7 +25,7 @@ def description_insert(job_id: UUID, values: dict) -> Insert:
     return (
         pg_insert(SceneDescriptionRow)
         .values(job_id=job_id, **values)
-        .on_conflict_do_nothing(index_elements=["job_id", "scene_token"])
+        .on_conflict_do_nothing(index_elements=["job_id", "scene_token", "camera_channel"])
     )
 
 
@@ -79,7 +79,7 @@ class JobStorage:
             return session.execute(statement).first() is not None
 
     def insert_description(self, job_id: UUID, values: dict) -> None:
-        """Idempotent: a redelivered scene is ignored."""
+        """Idempotent: a redelivered scene and camera is ignored."""
         with self._session() as session, session.begin():
             session.execute(description_insert(job_id, values))
 
@@ -109,7 +109,7 @@ class JobStorage:
         statement = (
             select(SceneDescriptionRow)
             .where(SceneDescriptionRow.job_id == job_id)
-            .order_by(SceneDescriptionRow.scene_name)
+            .order_by(SceneDescriptionRow.scene_name, SceneDescriptionRow.camera_channel)
         )
         with self._session() as session:
             return list(session.scalars(statement).all())
