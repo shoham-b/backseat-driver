@@ -6,6 +6,51 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
 authors = [{ name = "Shoham Baris", email = "shoham.baris@gmail.com" }]
+# What every entry point imports; the heavy runtimes are extras (`pip install "backseat-driver[cli]"`).
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "loguru>=0.7",
+    "pydantic-settings>=2.9",
+]
+
+# The runtime sets, one per image and entry point: `pip install "backseat-driver[cli]"`, `uv sync --extra api`.
+[project.optional-dependencies]
+vlm = [
+    "torch>=2.4",
+    # The HuggingFace backend uses the unconditional "image-to-text" pipeline task. An earlier note said
+    # transformers 5 folded it into the prompt-requiring "image-text-to-text" task; the range now allows 5.x
+    # (dependabot raised it) and uv.lock resolves 4.x, so check the task still exists before locking a 5.x.
+    "transformers>=4.44,<6",
+    "pillow>=10.4",
+]
+nuscenes = ["nuscenes-devkit>=1.1.11"]
+# Broker + database clients shared by the API and the queue workers.
+jobs = [
+    "celery>=5.6.3",
+    "kombu>=5.6.2",
+    "psycopg[binary]>=3.2",
+    "sqlalchemy>=2.0",
+]
+# S3-compatible client for the images that travel from the ingest worker to the caption workers.
+object-storage = ["boto3>=1.35"]
+# Stemming for the report metrics.
+report = ["snowballstemmer>=2.2"]
+# Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
+ingest-worker = ["backseat-driver[nuscenes,jobs,object-storage]"]
+caption-worker = ["backseat-driver[vlm,jobs,object-storage]"]
+# Everything the batch CLI pipeline needs at runtime. The report UI is a FastAPI app run with `fastapi run`.
+cli = [
+    "fastapi[standard]>=0.115",
+    "backseat-driver[report,vlm,nuscenes,jobs,object-storage]",
+]
+# Everything the HTTP API needs at runtime (no nuscenes-devkit: the API never opens the dataset, it only serves
+# single images from it, hence the object-storage client).
+api = [
+    "fastapi[standard]>=0.115",
+    "python-multipart>=0.0.12",
+    "backseat-driver[vlm,jobs,object-storage]",
+]
 
 [project.scripts]
 backseat-driver = "backseat_driver.cli.__main__:app"
@@ -23,87 +68,10 @@ include = ["backseat_driver*"]
 "backseat_driver.show" = ["report_template.html"]
 
 [dependency-groups]
-core = [
-    "typer>=0.12",
-    "rich>=13",
-    "loguru>=0.7",
-    "pydantic-settings>=2.9",
-]
-
-vlm = [
-    "torch>=2.4",
-    # The HuggingFace backend uses the unconditional "image-to-text" pipeline task. An earlier note said
-    # transformers 5 folded it into the prompt-requiring "image-text-to-text" task; the range now allows 5.x
-    # (dependabot raised it) and uv.lock resolves 4.x, so check the task still exists before locking a 5.x.
-    "transformers>=4.44,<6",
-    "pillow>=10.4",
-]
-
-nuscenes = [
-    "nuscenes-devkit>=1.1.11",
-]
-
-# Broker + database clients shared by the API and the queue workers.
-jobs = [
-    "celery>=5.6.3",
-    "kombu>=5.6.2",
-    "psycopg[binary]>=3.2",
-    "sqlalchemy>=2.0",
-]
-
-# S3-compatible client for the images that travel from the ingest worker to the caption workers.
-object-storage = [
-    "boto3>=1.35",
-]
-
-# Stemming for the report metrics.
-report = [
-    "snowballstemmer>=2.2",
-]
-
-# Per-service images: the ingest worker only reads the dataset, the caption worker only runs the model.
-ingest-worker = [
-    { include-group = "core" },
-    { include-group = "nuscenes" },
-    { include-group = "jobs" },
-    { include-group = "object-storage" },
-]
-
-caption-worker = [
-    { include-group = "core" },
-    { include-group = "vlm" },
-    { include-group = "jobs" },
-    { include-group = "object-storage" },
-]
-
-# Everything the batch CLI pipeline needs at runtime.
-cli = [
-    # The report UI is a FastAPI app run with `fastapi run`.
-    "fastapi[standard]>=0.115",
-    { include-group = "core" },
-    { include-group = "report" },
-    { include-group = "vlm" },
-    { include-group = "nuscenes" },
-    { include-group = "jobs" },
-    { include-group = "object-storage" },
-]
-
-# Everything the HTTP API needs at runtime (no nuscenes-devkit: the API never opens the dataset, it only serves
-# single images from it, hence the object-storage client).
-api = [
-    "fastapi[standard]>=0.115",
-    "python-multipart>=0.0.12",
-    { include-group = "core" },
-    { include-group = "vlm" },
-    { include-group = "jobs" },
-    { include-group = "object-storage" },
-]
-
 systemtest = [
     "pytest>=8",
     "pytest-asyncio>=0.25",
     "httpx>=0.28",
-    { include-group = "core" },
 ]
 docs = [
     "mkdocs>=1.6",
@@ -122,8 +90,7 @@ dev = [
     "schemathesis>=3.0",
     "pytest-codspeed>=5.0.3",
     "selenium>=4.25",
-    { include-group = "cli" },
-    { include-group = "api" },
+    "backseat-driver[cli,api]",
 ]
 [[tool.uv.index]]
 name = "pytorch-cpu"
