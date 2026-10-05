@@ -14,12 +14,12 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-cli \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --group cli
+    uv sync --frozen --no-install-project --extra cli
 # Pass 2: install project source — only invalidated when source changes
 COPY backseat_driver/ backseat_driver/
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-cli \
-    uv sync --frozen --group cli
+    uv sync --frozen --extra cli
 
 # ── Stage 3: Build API dependencies ───────────────────────────────────────────
 FROM build-tools AS build-api
@@ -27,11 +27,11 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-api \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --group api
+    uv sync --frozen --no-install-project --extra api
 COPY backseat_driver/ backseat_driver/
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-api \
-    uv sync --frozen --group api
+    uv sync --frozen --extra api
 
 # ── Stages 4-5: worker dependencies, one per service ──────────────────────────
 FROM build-tools AS build-ingest-worker
@@ -39,22 +39,22 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-ingest \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --group ingest-worker
+    uv sync --frozen --no-install-project --extra ingest-worker
 COPY backseat_driver/ backseat_driver/
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-ingest \
-    uv sync --frozen --group ingest-worker
+    uv sync --frozen --extra ingest-worker
 
 FROM build-tools AS build-caption-worker
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-caption \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --group caption-worker
+    uv sync --frozen --no-install-project --extra caption-worker
 COPY backseat_driver/ backseat_driver/
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-backseat-driver-caption \
-    uv sync --frozen --group caption-worker
+    uv sync --frozen --extra caption-worker
 
 # ── Stage 6: CLI runtime — the pipeline itself ─────────────────────────────────
 # nuscenes-devkit pulls in opencv-python, which needs libGL/libglib at runtime
