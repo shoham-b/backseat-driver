@@ -10,6 +10,7 @@ The loop is created on first use, so a worker process that forks gets its own, n
 import asyncio
 import atexit
 import os
+import threading
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -19,19 +20,25 @@ class WorkerLoop:
         self._current_pid = current_pid
         self._loop: asyncio.AbstractEventLoop | None = None
         self._owner_pid: int | None = None
+        self._turn = threading.Lock()
 
     def run[T](self, coroutine: Coroutine[Any, Any, T]) -> T:
-        """Run `coroutine` to completion on this process's loop. Raises what it raises; the loop stays usable."""
-        return self._get().run_until_complete(coroutine)
+        """Run `coroutine` to completion on this process's loop. Raises what it raises; the loop stays usable.
+
+        A loop runs one thing at a time, so threads calling this (a Celery thread pool) take turns rather than
+        failing with "this event loop is already running"."""
+        with self._turn:
+            return self._get().run_until_complete(coroutine)
 
     def close(self) -> None:
         """Finish the loop's async generators and executor, then close it. Safe to call again."""
-        loop, self._loop = self._loop, None
-        if loop is None or self._owner_pid != self._current_pid() or loop.is_closed():
-            return  # a forked child never closes the loop it inherited: it is the parent's
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.run_until_complete(loop.shutdown_default_executor())
-        loop.close()
+        with self._turn:
+            loop, self._loop = self._loop, None
+            if loop is None or self._owner_pid != self._current_pid() or loop.is_closed():
+                return  # a forked child never closes the loop it inherited: it is the parent's
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.run_until_complete(loop.shutdown_default_executor())
+            loop.close()
 
     def _get(self) -> asyncio.AbstractEventLoop:
         if self._loop is None or self._owner_pid != self._current_pid():

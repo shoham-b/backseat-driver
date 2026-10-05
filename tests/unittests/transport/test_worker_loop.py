@@ -1,4 +1,5 @@
 import asyncio
+import threading
 
 import pytest
 
@@ -68,6 +69,31 @@ def test_a_failing_coroutine_raises_and_leaves_the_loop_usable() -> None:
 
     assert after is before
     assert still_open
+
+
+def test_threads_calling_run_at_once_take_turns_instead_of_failing() -> None:
+    loop = WorkerLoop()
+    running = overlap = 0
+    results: list[int] = []
+
+    async def work(n: int) -> int:
+        nonlocal running, overlap
+        running += 1
+        overlap = max(overlap, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return n
+
+    threads = [threading.Thread(target=lambda n=n: results.append(loop.run(work(n)))) for n in range(5)]
+
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    loop.close()
+
+    assert sorted(results) == [0, 1, 2, 3, 4]
+    assert overlap == 1
 
 
 def test_a_forked_process_gets_its_own_loop_and_never_closes_its_parents() -> None:
