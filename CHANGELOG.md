@@ -5,6 +5,18 @@ All notable changes to Backseat Driver will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.4](https://github.com/shoham-b/backseat-driver/compare/v0.2.3...v0.2.4) (2026-10-05)
+
+
+### Bug Fixes
+
+* cancel the other Anthropic requests when one fails ([#143](https://github.com/shoham-b/backseat-driver/issues/143)) ([ece71c7](https://github.com/shoham-b/backseat-driver/commit/ece71c7a3bf6ccb3ed0afeaef37f975273266017))
+
+
+### Performance Improvements
+
+* batch captioning, overlap startup, lean nuScenes table reader ([#136](https://github.com/shoham-b/backseat-driver/issues/136)) ([a9a4a74](https://github.com/shoham-b/backseat-driver/commit/a9a4a74c8c4ad9aef414f62e03961dc8528d68c3))
+
 ## [0.2.3](https://github.com/shoham-b/backseat-driver/compare/v0.2.2...v0.2.3) (2026-10-05)
 
 
