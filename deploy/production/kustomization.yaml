@@ -1,0 +1,114 @@
+# Production overlay: `kubectl apply -k deploy/production`. See "Production" in docs/deployment.md.
+# It keeps only the stateless parts of the base (API, UI, workers, jobs) and expects everything stateful to be external:
+# managed Postgres, a managed or operator-run RabbitMQ with the management plugin, and a real S3 bucket. Before applying,
+# replace every example.com host and REPLACE-ME value below, and create the two Secrets listed in docs/deployment.md.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: backseat-driver
+resources:
+  - ../k8s
+  - ingress.yaml
+  - networkpolicy.yaml
+  - pdb.yaml
+components:
+  - ../components/keda-autoscaling
+# Release tags, never `latest` (which the base uses). The release PR rewrites the versions between the markers
+# (`extra-files` in .github/release-please-config.json), so do not edit them by hand.
+images:
+  # x-release-please-start-version
+  - {name: ghcr.io/shoham-b/backseat-driver-api, newTag: v0.2.1}
+  - {name: ghcr.io/shoham-b/backseat-driver-cli, newTag: v0.2.1}
+  - {name: ghcr.io/shoham-b/backseat-driver-ingest-worker, newTag: v0.2.1}
+  - {name: ghcr.io/shoham-b/backseat-driver-caption-worker, newTag: v0.2.1}
+  # x-release-please-end
+patches:
+  # ── The dev-only stateful services and their credentials are external here ──────────────────────────────────────
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata: {name: postgres}
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata: {name: postgres}
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: rabbitmq}
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata: {name: rabbitmq}
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: s3}
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata: {name: s3}
+  # The base Secret holds development credentials. Provide `backseat-driver-secrets` yourself (external-secrets, sealed
+  # secrets, ...): DATABASE_URL, RABBITMQ_URL and the AWS_* keys, which override the ConfigMap, and the Anthropic key if used.
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Secret
+      metadata: {name: backseat-driver-secrets}
+  # ── Config: nothing credential-bearing, a real bucket, and the UI's public origin allowed by the API ─────────────
+  - target: {kind: ConfigMap, name: backseat-driver-config}
+    patch: |-
+      - {op: remove, path: /data/BACKSEAT_DRIVER_RABBITMQ_URL}
+      - {op: remove, path: /data/BACKSEAT_DRIVER_S3_ENDPOINT_URL}
+      - {op: replace, path: /data/BACKSEAT_DRIVER_DATASET_BUCKET, value: REPLACE-ME-dataset-bucket}
+      - {op: replace, path: /data/AWS_DEFAULT_REGION, value: REPLACE-ME-region}
+      - {op: add, path: /data/BACKSEAT_DRIVER_CORS_ORIGINS, value: '["https://backseat-driver.example.com"]'}
+  # ── API ────────────────────────────────────────────────────────────────────────────────────────────────────────
+  - target: {kind: Deployment, name: api}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: api}
+      spec:
+        template:
+          spec:
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: ScheduleAnyway
+                labelSelector: {matchLabels: {app: api}}
+              - maxSkew: 1
+                topologyKey: topology.kubernetes.io/zone
+                whenUnsatisfiable: ScheduleAnyway
+                labelSelector: {matchLabels: {app: api}}
+  # ── Caption workers: an in-flight caption gets time to finish on SIGTERM (Celery warm shutdown, solo pool) ───────
+  # No liveness probe on purpose: the solo pool cannot answer a ping while it captions, so a probe would kill busy workers.
+  - target: {kind: Deployment, name: caption-worker}
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: caption-worker}
+      spec:
+        template:
+          spec:
+            terminationGracePeriodSeconds: 120
+            topologySpreadConstraints:
+              - maxSkew: 1
+                topologyKey: kubernetes.io/hostname
+                whenUnsatisfiable: ScheduleAnyway
+                labelSelector: {matchLabels: {app: caption-worker}}
+  # ── Ingest Jobs (from the KEDA component): bound their memory ───────────────────────────────────────────────────
+  - target: {kind: ScaledJob, name: ingest-worker}
+    patch: |-
+      - {op: add, path: /spec/jobTargetRef/template/spec/containers/0/resources/limits, value: {memory: 1Gi}}
+  # ── UI: two replicas behind the ingress, the browser-facing API address, a memory bound ─────────────────────────
+  - target: {kind: Deployment, name: ui}
+    patch: |-
+      - {op: replace, path: /spec/replicas, value: 2}
+      - {op: replace, path: /spec/template/spec/containers/0/env/2/value, value: "https://api.backseat-driver.example.com"}
+      - {op: add, path: /spec/template/spec/containers/0/resources/limits, value: {memory: 256Mi}}

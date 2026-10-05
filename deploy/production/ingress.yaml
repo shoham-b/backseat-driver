@@ -1,0 +1,23 @@
+# Assumes ingress-nginx and cert-manager with a `letsencrypt-prod` ClusterIssuer; change the class, annotation and hosts
+# to match your cluster. The UI page makes the browser call the API directly, so both hosts are public: keep the API host
+# in sync with BACKSEAT_DRIVER_UI_PUBLIC_API_URL and the UI host with BACKSEAT_DRIVER_CORS_ORIGINS (kustomization.yaml).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backseat-driver
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.backseat-driver.example.com, backseat-driver.example.com]
+      secretName: backseat-driver-tls
+  rules:
+    - host: api.backseat-driver.example.com
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: api, port: {name: http}}}}
+    - host: backseat-driver.example.com
+      http:
+        paths:
+          - {path: /, pathType: Prefix, backend: {service: {name: ui, port: {name: http}}}}

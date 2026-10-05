@@ -138,6 +138,8 @@ jobs:
       - run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --project-directory . config --quiet
       - run: kubectl kustomize deploy/k8s > rendered.yaml
       - run: uvx kubernetes-validate rendered.yaml
+      - run: kubectl kustomize deploy/production > rendered-production.yaml
+      - run: uvx kubernetes-validate rendered-production.yaml
       - run: uvx kubernetes-validate deploy/k8s/examples/run-job.yaml
 
   # Deploys the real images to a kind cluster with KEDA and checks that the stack works and the caption workers

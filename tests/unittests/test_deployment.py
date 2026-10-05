@@ -328,3 +328,34 @@ def test_every_compose_service_in_distributed_mode_is_given_the_dataset_bucket()
         assert services[name]["environment"].get("BACKSEAT_DRIVER_DATASET_BUCKET"), (
             name
         )  # Settings refuses to load without it
+
+
+PRODUCTION = ROOT / "deploy" / "production"
+
+
+def _production_kustomization() -> dict[str, Any]:
+    return yaml.safe_load((PRODUCTION / "kustomization.yaml").read_text())
+
+
+def test_production_pins_every_image_to_a_release_not_latest() -> None:
+    pinned = {image["name"]: image["newTag"] for image in _production_kustomization()["images"]}
+
+    used = {container["image"] for _, container in _our_containers()}
+
+    assert set(pinned) == used
+    assert all(re.fullmatch(r"v\d+\.\d+\.\d+", tag) for tag in pinned.values())
+
+
+def test_production_config_patches_only_touch_real_settings() -> None:
+    patches = [
+        op
+        for patch in _production_kustomization()["patches"]
+        if patch.get("target", {}).get("kind") == "ConfigMap"
+        for op in yaml.safe_load(patch["patch"])
+    ]
+
+    keys = [op["path"].removeprefix("/data/") for op in patches]
+
+    assert keys
+    for key in keys:
+        assert key.startswith("AWS_") or key.removeprefix(ENV_PREFIX).lower() in Settings.model_fields
