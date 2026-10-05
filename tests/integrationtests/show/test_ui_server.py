@@ -146,7 +146,7 @@ async def test_errors_use_the_same_json_envelope_as_the_api() -> None:
     assert response.status_code == HTTPStatus.UNPROCESSABLE_ENTITY
     assert response.headers["Content-Type"] == "application/json"
     assert response.json()["error"]["code"] == HTTPStatus.UNPROCESSABLE_ENTITY
-    assert response.json()["error"]["status"] == "Unprocessable Entity"
+    assert response.json()["error"]["status"] == HTTPStatus.UNPROCESSABLE_ENTITY.phrase
 
 
 async def test_the_health_probe_never_calls_the_api() -> None:

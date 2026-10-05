@@ -2,7 +2,7 @@
 # the CI overlay doesn't use it (see kustomization.yaml). Each target keeps its own cache scope so they don't evict
 # one another.
 variable "PYTHON_VERSION" {
-  default = "3.12"
+  default = "3.14"
 }
 
 target "base" {

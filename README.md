@@ -1,6 +1,6 @@
 # Backseat Driver
 
-[![Python Version](https://img.shields.io/badge/python-3.12-blue?logo=python&logoColor=white)](pyproject.toml)
+[![Python Version](https://img.shields.io/badge/python-3.14-blue?logo=python&logoColor=white)](pyproject.toml)
 [![Tests Status](https://github.com/shoham-b/backseat-driver/actions/workflows/ci.yml/badge.svg)](https://github.com/shoham-b/backseat-driver/actions/workflows/ci.yml?query=branch%3Amain)
 [![Docker Build](https://github.com/shoham-b/backseat-driver/actions/workflows/docker.yml/badge.svg)](https://github.com/shoham-b/backseat-driver/actions/workflows/docker.yml?query=branch%3Amain)
 [![CodeQL](https://github.com/shoham-b/backseat-driver/actions/workflows/codeql.yml/badge.svg)](https://github.com/shoham-b/backseat-driver/actions/workflows/codeql.yml?query=branch%3Amain)

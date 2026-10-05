@@ -25,4 +25,4 @@ def test_api_schema(case: schemathesis.Case) -> None:
     # "positive data acceptance" check doesn't expect — so we scope schema
     # conformance testing here to "the API never 500s", not "every schema-valid
     # request is accepted".
-    case.call_and_validate(checks=[schemathesis.checks.not_a_server_error])  # ty: ignore[invalid-argument-type]
+    case.call_and_validate(checks=[schemathesis.checks.not_a_server_error])
