@@ -5,6 +5,13 @@ All notable changes to Backseat Driver will be documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.5](https://github.com/shoham-b/backseat-driver/compare/v0.2.4...v0.2.5) (2026-10-05)
+
+
+### Bug Fixes
+
+* **ci:** await the async store and queue in the kind scaling check ([#153](https://github.com/shoham-b/backseat-driver/issues/153)) ([2ccf699](https://github.com/shoham-b/backseat-driver/commit/2ccf699c088c37b5c41a74b4caa35a3f1356d79a))
+
 ## [0.2.4](https://github.com/shoham-b/backseat-driver/compare/v0.2.3...v0.2.4) (2026-10-05)
 
 
