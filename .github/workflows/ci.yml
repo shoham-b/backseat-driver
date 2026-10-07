@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       - run: uv run ty check backseat_driver tests
 
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       - run: uv run pytest tests/unittests tests/integrationtests --cov --cov-report=xml --junitxml=junit.xml
       - uses: codecov/codecov-action@v5
@@ -108,7 +108,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv build
       - name: Install the wheel into an empty environment and start the CLI
         run: |
@@ -137,7 +137,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group docs
       - run: uv run mkdocs build --strict -f docs/mkdocs.yml
 
@@ -152,7 +152,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       - run: uv run pytest tests/unittests tests/integrationtests
 
@@ -166,7 +166,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       # Chrome and chromedriver come with the ubuntu-latest image; Selenium Manager locates them.
       - run: uv run pytest tests/uitests -v
@@ -200,7 +200,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: docker compose -f docker/docker-compose.yml --project-directory . --profile cli --profile ui --profile test config --quiet
       - run: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml --project-directory . config --quiet
       - run: kubectl kustomize deploy/k8s > rendered.yaml
@@ -270,7 +270,7 @@ jobs:
 
       # The dependency cache is off: this job builds images, and zizmor treats a shared cache next to a build as a
       # poisoning risk. The one group installed here is small.
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: false
 
@@ -304,7 +304,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uv sync --group dev
       - run: uvx pip-audit
 
@@ -316,7 +316,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - run: uvx zizmor --config .github/zizmor.yml .github/workflows/
 
   actionlint:
