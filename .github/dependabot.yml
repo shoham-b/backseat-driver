@@ -7,6 +7,10 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+    ignore:
+      # transformers 5 removed the "image-to-text" pipeline task the HuggingFace backend uses.
+      - dependency-name: transformers
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
