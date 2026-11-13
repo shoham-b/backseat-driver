@@ -22,7 +22,7 @@ vlm = [
     "torch>=2.4",
     # The HuggingFace backend uses the unconditional "image-to-text" pipeline task, which transformers 5 removed
     # (it folded into the prompt-requiring "image-text-to-text" task), so stay on 4.x until the backend moves.
-    "transformers>=4.44,<5",
+    "transformers>=5.10.1,<6",
     "pillow>=10.4",
 ]
 # Broker + database clients shared by the API and the queue workers.
